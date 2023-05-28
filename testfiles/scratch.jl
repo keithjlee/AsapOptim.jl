@@ -1,39 +1,31 @@
-# method one, direct kglobal
-X = problem.X; Y = problem.Y; Z = problem.Z
-E = problem.E; A = problem.A
-ids = problem.params.nodeids
+indexer = p.indexer
 
-i = 40
+Xnew = addvalues(p.X, indexer.iX, vals[indexer.iXg])
+Ynew = addvalues(p.Y, indexer.iY, vals[indexer.iYg])
+Znew = addvalues(p.Z, indexer.iZ, vals[indexer.iZg])
+Anew = replacevalues(p.A, indexer.iA, vals[indexer.iAg])
 
+#element vectors
+elementvecs = p.C * [Xnew Ynew Znew]
 
+#element lengths
+elementlengths = norm.(eachrow(elementvecs))
 
-function kgexplicit(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::Float64, A::Float64, id::Vector{Int64})
+#normalized vecs
+elementvecsnormalized = elementvecs ./ elementlengths
 
-    x1, x2 = X[id]
-    y1, y2 = Y[id]
-    z1, z2 = Z[id]
+#Γ
+@time rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized));
+@time rotmats2 = getrs(elementvecsnormalized);
 
-    len = L(x1, x2, y1, y2, z1, z2)
+#kloc
+klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
-    lvec = AsapToolkit.localvector(x1, x2, y1, y2, z1, z2)
-    len = L(x1, x2, y1, y2, z1, z2)
+#kglob
+kglobs = transpose.(rotmats) .* klocs .* rotmats
 
-    cx, cy, cz = lvec ./ len
+#global stiffness matrix
+K = AsapOptim.assembleglobalK(kglobs, p)
 
-    r = Rtruss(cx, cy, cz)
-    k = AsapToolkit.klocal(E, A, len)
-
-    r' * k * r
-end;
-
-@time kg1 = kglobal(X, Y, Z, E[i], A[i], ids[i]);
-@time kg2 = kgexplicit(X, Y, Z, E[i], A[i], ids[i]);
-
-A0 = A[i]
-
-@time g1 = Zygote.gradient(var -> norm(kglobal(X, Y, Z, E[i], var, ids[i])), A0)[1];
-@time g2 = Zygote.gradient(var -> norm(kgexplicit(X, Y, Z, E[i], var, ids[i])), A0)[1];
-
-using BenchmarkTools
-@btime [kglobal(X, Y, Z, e, a, id) for (e,a,id) in zip(E, A, ids)];
-@btime [kgexplicit(X, Y, Z, e, a, id) for (e,a,id) in zip(E, A, ids)];
+#solve displacement
+U = solveU(K, p)

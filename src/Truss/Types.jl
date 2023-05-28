@@ -146,6 +146,7 @@ mutable struct TrussOptParams <: AbstractOptParams
     E::Vector{Float64} #all element young's modulii |n_element|
     A::Vector{Float64} #all element areas |n_element|
     P::Vector{Float64} # External load vector
+    C::SparseMatrixCSC{Int64, Int64} #connectivity matrix
     lb::Vector{Float64} #lower bounds of variables
     ub::Vector{Float64} #upper bounds of variables
     cp::Vector{Int64} #S.colptr
@@ -191,6 +192,7 @@ mutable struct TrussOptParams <: AbstractOptParams
         nodeids = getproperty.(model.elements, :nodeIDs)
         dofids = getproperty.(model.elements, :globalID)
         P = model.P
+        C = Asap.connectivity(model)
         freeids = model.freeDOFs
         inzs = allinz(model)
         cp = model.S.colptr
@@ -208,6 +210,7 @@ mutable struct TrussOptParams <: AbstractOptParams
             E, 
             A, 
             P,
+            C,
             lowerbounds, 
             upperbounds,
             cp,

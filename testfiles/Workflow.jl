@@ -61,45 +61,47 @@ begin
 end
 
 #make variables
-vars = Vector{TrussVariable}()
+begin
+    vars = Vector{TrussVariable}()
 
-# nodal Z variables
-lb = -1000.
-ub = 3500.
+    # nodal Z variables
+    lb = -1000.
+    ub = 3500.
 
-lbb = -3500.
-ubb = 1000.
+    lbb = -3500.
+    ubb = 1000.
 
-#nodal xy variables for bottom nodes
-lbxy = -750.
-ubxy = 750.
+    #nodal xy variables for bottom nodes
+    lbxy = -750.
+    ubxy = 750.
 
-for node in model.nodes
-    if node.id == :top
-        push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
+    for node in model.nodes
+        if node.id == :top
+            push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
+        end
+
+        if node.id == :bottom
+            push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
+        end
+
+        if node.id == :bottom
+            push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
+            push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+        end
     end
 
-    if node.id == :bottom
-        push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
+    # All bottom elements at once
+    bottomAreaMaster = AreaVariable(model.elements[sf.ibottom[1]], 500., 0., 35000.)
+    push!(vars, bottomAreaMaster)
+
+    for i in sf.ibottom[2:end]
+        push!(vars, CoupledVariable(model.elements[i], bottomAreaMaster))
     end
 
-    if node.id == :bottom
-        push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
-        push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+    # individual area optimization for web
+    for element in model.elements[:web]
+        push!(vars, AreaVariable(element, 500., 0., 20000.))
     end
-end
-
-# All bottom elements at once
-bottomAreaMaster = AreaVariable(model.elements[sf.ibottom[1]], 500., 0., 35000.)
-push!(vars, bottomAreaMaster)
-
-for i in sf.ibottom[2:end]
-    push!(vars, CoupledVariable(model.elements[i], bottomAreaMaster))
-end
-
-# individual area optimization for web
-for element in model.elements[:web]
-    push!(vars, AreaVariable(element, 500., 0., 20000.))
 end
 
 @time problem = TrussOptParams(model, vars);

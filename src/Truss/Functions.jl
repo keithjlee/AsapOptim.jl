@@ -36,6 +36,16 @@ function Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function Rtruss(Cxyz::SubArray)
+    Cx, Cy, Cz = Cxyz
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
+function Rtruss2(Cxyz::SubArray)
+    Cx, Cy, Cz = Cxyz
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
 """
     kglobal(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::Float64, A::Float64, id::Vector{Int64})
 

@@ -71,6 +71,16 @@ function ChainRulesCore.rrule(::typeof(Rtruss), Cx::Float64, Cy::Float64, Cz::Fl
     return R, Rtruss_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
+    R = Rtruss(Cxyz)
+
+    function Rtruss_pullback(R̄)
+        return (NoTangent(), R̄[1, 1:3])
+    end
+
+    return R, Rtruss_pullback
+end
+
 """
 The sensitivity of K w/r/t an elemental Kₑ is the proportional stiffness added to K from Kₑ
 
