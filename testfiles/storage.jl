@@ -129,35 +129,34 @@ end
 @time g = Zygote.gradient(var -> objMat(var, p), vals)[1];
 
 function objMat2(values::Vector{Float64}, p::TrussOptParams)
-    indexer = p.indexer
 
+
+    indexer = p.indexer
     Xnew = addvalues(p.X, indexer.iX, values[indexer.iXg])
     Ynew = addvalues(p.Y, indexer.iY, values[indexer.iYg])
     Znew = addvalues(p.Z, indexer.iZ, values[indexer.iZg])
     Anew = replacevalues(p.A, indexer.iA, values[indexer.iAg])
 
     #element vectors
-    elementvecs = getevecs(Xnew, Ynew, Znew, p)
+    vₑ = getevecs(Xnew, Ynew, Znew, p)
 
     #element lengths
-    elementlengths = getlengths(elementvecs)
+    Lₑ = getlengths(vₑ)
 
     #normalized vecs
-    elementvecsnormalized = getnormalizedevecs(elementvecs, elementlengths)
+    nₑ = getnormalizedevecs(vₑ, Lₑ)
 
-    #Γ
-    rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
-    # rotmats = getrs(elementvecsnormalized)
+    #transformation matrices
+    Γₑ = AsapOptim.Rtruss.(eachrow(nₑ))
 
-    #kloc
-    klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
+    #local stiffness matrices
+    kₑ = AsapOptim.klocal.(p.E, Anew, Lₑ)
 
-    #kglob
-    # kglobs = transpose.(rotmats) .* klocs .* rotmats
-    kglobs = getglobalks(rotmats, klocs)
+    #global stiffness matrices
+    Kₑ = getglobalks(Γₑ, kₑ)
 
     #global stiffness matrix
-    K = AsapOptim.assembleglobalK(kglobs, p)
+    K = AsapOptim.assembleglobalK(Kₑ, p)
 
     #solve displacement
     U = solveU(K, p)
@@ -182,4 +181,5 @@ sol2 = Optimization.solve(prob2, NLopt.LD_LBFGS();
     reltol = 1e-3)
 
 res2 = OptimResults(p, sol2)
+
 

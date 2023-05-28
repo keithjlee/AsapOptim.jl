@@ -1,18 +1,92 @@
-function ChainRulesCore.rrule(::typeof(localvector), x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
+"""
+The elemental vectors are derived from V = C * XYZ where:
 
-    vector = localvector(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
+- C: [nₑ × nₙ] matrix defining the topology of the structure
+- XYZ: [nₙ × 3] matrix defining the positions of nodes
 
-    function localvector_pullback(v̄)
-        return (NoTangent(),
-            dot(v̄, [-1., 0., 0.]),
-            dot(v̄, [1., 0., 0.]),
-            dot(v̄, [0., -1., 0.]),
-            dot(v̄, [0., 1., 0.]),
-            dot(v̄, [0., 0., -1.]),
-            dot(v̄, [0., 0., 1.]))
+Given an downstream function g = f(V), then the gradient of g w/r/t an input argument (e.g., X) is:
+
+dg/dX = df/dV ⋅ dV/dX = V̄ ⋅ dV/dX
+
+And dV/dX = d/dX (C X) = C
+
+Such that:
+
+dg/dX = CᵀV̄
+
+and likewise for Y, Z.
+"""
+function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+    v = getevecs(X, Y, Z, p)
+
+    function getevecs_pullback(v̄)
+        
+        dv = p.C' * v̄
+
+        return (NoTangent(), dv[:,1], dv[:,2], dv[:,3], NoTangent())
+        
     end
 
-    return vector, localvector_pullback
+    return v, getevecs_pullback
+end
+
+"""
+For a single element, given its vector representation:
+
+L(element) = ||xyzₑ|| = √(x² + y² + z²)
+dL/dx = x/L
+
+dg/dx = dg/dL ⋅ dL/dx = L̄ dL/dx
+"""
+function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64})
+    l = getlengths(XYZ)
+
+    function l_pullback(l̄)
+        dl = l̄ ./ l .* XYZ 
+        
+        return (NoTangent(), dl)
+    end
+
+    return l, l_pullback
+end
+
+"""
+g = f(XYZn)
+
+dg/dXYZ = df/dXYZn ⋅ dXYZn/dXYZ = v̄ ⋅ dXYZn/dXYZ = v̄ ⋅ [1 1 1; 1 1 1; ...] ./ L
+dg/dL = v̄ ⋅ dXYZn/dL = -v̄ ⋅ XYZ / L^2 = -v̄ ⋅ XYZn / L
+"""
+function ChainRulesCore.rrule(::typeof(getnormalizedevecs), XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZn = getnormalizedevecs(XYZ, Ls)
+
+    function getnormv_pullback(v̄)
+        dxyz = v̄ ./ Ls .* ones(size(XYZn)...)
+
+        dL = sum.(eachrow(-XYZn .* v̄ ./ Ls))
+
+        return (NoTangent(), dxyz, dL)
+    end
+
+    return XYZn, getnormv_pullback
+end
+
+"""
+For a single element:
+dKe/dR = 2KeΓ
+dKe/dk = ΓkΓᵀ
+"""
+function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+        
+    kgs = getglobalks(rs, ks)
+
+    function kgs_pullback(k̄)
+        dr = (2 .* ks .* rs) .* k̄
+        dk = rs .* k̄ .* transpose.(rs)
+
+        return (NoTangent(), dr, dk)
+    end
+
+    return kgs, kgs_pullback
 end
 
 """
@@ -33,27 +107,6 @@ function ChainRulesCore.rrule(::typeof(klocal), E::Float64, A::Float64, L::Float
     return k, klocal_pullback
 end
 
-"""
-Explicit length adjoint -- not necessary but included
-"""
-function ChainRulesCore.rrule(::typeof(L), x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
-    len = L(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
-
-    function L_pullback(dL)
-        xdiff = x2 - x1
-        ydiff = y2 - y1
-        zdiff = z2 - z1
-
-        return (NoTangent(), -dL * xdiff / len, 
-            dL * xdiff / len,
-            -dL * ydiff / len,
-            dL * ydiff / len,
-            -dL * zdiff / len,
-            dL * zdiff / len)
-    end
-
-    return len, L_pullback
-end
 
 """
 Adjoint for global transformation matrix

@@ -1,11 +1,29 @@
-function localvector(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
-    [x2 - x1, y2 - y1, z2 - z1]
+"""
+    getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+
+Get the [nₑ × 3] matrix where each row is the [x,y,z] vector of an element
+"""
+function getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+    p.C * [X Y Z]
 end
 
-function localvector(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, id::Vector{Int64})
-    [X[id[2]] - X[id[1]], Y[id[2]] - Y[id[1]], Z[id[2]] - Z[id[1]]]
+"""
+    getlengths(XYZ::Matrix{Float64})
+
+Get the [nₑ × 1] vector of element lengths
+"""
+function getlengths(XYZ::Matrix{Float64})
+    norm.(eachrow(XYZ))
 end
 
+"""
+    getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+
+Get the unit vector representation of elements (local x axis)
+"""
+function getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZ ./ Ls
+end
 
 """
     klocal(E::Float64, A::Float64, L::Float64)
@@ -17,17 +35,6 @@ function klocal(E::Float64, A::Float64, L::Float64)
 end
 
 """
-    L(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
-
-Length
-"""
-function L(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::Float64)
-    return sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)
-end
-
-
-
-"""
     Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
 
 Transformation matrix for truss element
@@ -37,11 +44,6 @@ function Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
 end
 
 function Rtruss(Cxyz::SubArray)
-    Cx, Cy, Cz = Cxyz
-    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
-end
-
-function Rtruss2(Cxyz::SubArray)
     Cx, Cy, Cz = Cxyz
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
@@ -63,6 +65,15 @@ function kglobal(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::
     kloc = klocal(E, A, len)
 
     r' * kloc * r
+end
+
+"""
+    getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+
+Get a vector of elemental stiffness matrices in GCS given a vector of transformation matrices and a vector of elemental stiffness matrices in LCS
+"""
+function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+    transpose.(rs) .* ks .* rs
 end
 
 """
