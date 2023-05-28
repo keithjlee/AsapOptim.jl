@@ -1,50 +1,7 @@
 abstract type AbstractOptParams end
 abstract type AbstractVariable end
 abstract type TrussOptVariable end
-abstract type AbstractOptProblem end
 abstract type AbstractIndexer end
-
-struct TrussOptParams <: AbstractOptParams
-    nodeids::Vector{Vector{Int64}} # [[iNodeStart, iNodeEnd] for element in elements]
-    dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
-    P::Vector{Float64} # External load vector
-    freeids::Vector{Int64} # [DofFree1, DofFree2,...]
-    inzs::Vector{Vector{Int64}} # Indices of elemental K in global S.nzval
-    n::Int64 #number of DOF total
-    ndofe::Int64 #number of DOF in elemental stiffness matrix
-    cp::Vector{Int64} #S.colptr
-    rv::Vector{Int64} #S.rowval
-    nnz::Int64 #length(S.nzval)
-
-    function TrussOptParams(nodeids, 
-            dofids, 
-            P, 
-            freeids, 
-            inzs, 
-            n, 
-            ndofe, 
-            cp, 
-            rv, 
-            nnz)
-
-        return new(nodeids, dofids, P, freeids, inzs, n, ndofe, cp, rv, nnz)
-    end
-end
-
-function TrussOptParams(model::TrussModel)
-    nodeids = getproperty.(model.elements, :nodeIDs)
-    dofids = getproperty.(model.elements, :globalID)
-    P = model.P
-    freeids = model.freeDOFs
-    inzs = allinz(model)
-    n = model.nDOFs
-    ndofe = 6
-    cp = model.S.colptr
-    rv = model.S.rowval
-    nnz = length(model.S.nzval)
-
-    return TrussOptParams(nodeids, dofids, P, freeids, inzs, n, ndofe, cp, rv, nnz)
-end
 
 mutable struct SpatialVariable <: TrussOptVariable
     i::Int64 #index of node, e.g. X[i] is the spatial variable
@@ -151,7 +108,11 @@ function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
     end
 end
 
-# create the active variable → truss variable indexer
+"""
+    TrussOptIndexer(vars::Vector{TrussVariable})
+
+Generate the index translation layer between model parameters and design variables
+"""
 function TrussOptIndexer(vars::Vector{TrussVariable})
     indexer = TrussOptIndexer(Vector{Int64}(),
         Vector{Int64}(),
@@ -169,9 +130,14 @@ function TrussOptIndexer(vars::Vector{TrussVariable})
     return indexer
 end
 
-mutable struct TrussOptProblem <: AbstractOptProblem
+"""
+    TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
+
+Contains all information and fields necessary for optimization.
+"""
+mutable struct TrussOptParams <: AbstractOptParams
     model::TrussModel #the reference truss model for optimization
-    params::TrussOptParams #optimization params
+    values::Vector{Float64} #design variables
     indexer::TrussOptIndexer #pointers to design variables and full variables
     variables::Vector{TrussVariable}
     X::Vector{Float64} #all X coordinates |n_node|
@@ -179,11 +145,21 @@ mutable struct TrussOptProblem <: AbstractOptProblem
     Z::Vector{Float64} #all Z coordinates |n_node|
     E::Vector{Float64} #all element young's modulii |n_element|
     A::Vector{Float64} #all element areas |n_element|
-    values::Vector{Float64} #design variables
+    P::Vector{Float64} # External load vector
     lb::Vector{Float64} #lower bounds of variables
     ub::Vector{Float64} #upper bounds of variables
+    cp::Vector{Int64} #S.colptr
+    rv::Vector{Int64} #S.rowval
+    nnz::Int64 #length(S.nzval)
+    inzs::Vector{Vector{Int64}} # Indices of elemental K in global S.nzval
+    freeids::Vector{Int64} # [DofFree1, DofFree2,...]
+    nodeids::Vector{Vector{Int64}} # [[iNodeStart, iNodeEnd] for element in elements]
+    dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
+    n::Int64 #total number of DOFs
+    losstrace::Vector{Float64}
+    valtrace::Vector{Vector{Float64}}
 
-    function TrussOptProblem(model::TrussModel, variables::Vector{TrussVariable})
+    function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
         @assert model.processed
 
         #extract global parameters
@@ -191,9 +167,6 @@ mutable struct TrussOptProblem <: AbstractOptProblem
         X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
         E = getproperty.(getproperty.(model.elements, :section), :E)
         A = getproperty.(getproperty.(model.elements, :section), :A)
-
-        #extract secondary parameters
-        params = TrussOptParams(model)
 
         #assign global id to variables
         vals = Vector{Float64}()
@@ -215,9 +188,18 @@ mutable struct TrussOptProblem <: AbstractOptProblem
         #generate indexer between design variables and truss parameters
         indexer = TrussOptIndexer(variables)
 
+        nodeids = getproperty.(model.elements, :nodeIDs)
+        dofids = getproperty.(model.elements, :globalID)
+        P = model.P
+        freeids = model.freeDOFs
+        inzs = allinz(model)
+        cp = model.S.colptr
+        rv = model.S.rowval
+        nnz = length(model.S.nzval)
+
         #generate a truss optimization problem
         return new(model, 
-            params, 
+            vals, 
             indexer, 
             variables, 
             X, 
@@ -225,21 +207,86 @@ mutable struct TrussOptProblem <: AbstractOptProblem
             Z, 
             E, 
             A, 
-            vals, 
+            P,
             lowerbounds, 
-            upperbounds)
+            upperbounds,
+            cp,
+            rv,
+            nnz,
+            inzs,
+            freeids,
+            nodeids,
+            dofids,
+            model.nDOFs,
+            Vector{Float64}(),
+            Vector{Vector{Float64}}()
+            )
 
     end
 end
 
+"""
+    updatemodel(p::TrussOptParams, sol::Optimization.SciMLBase.AbstractOptimizationSolution)
+
+Generate a new structural model from the results of an optimization
+"""
+function updatemodel(p::TrussOptParams, sol::Optimization.SciMLBase.AbstractOptimizationSolution)
+    
+    #optim variables
+    u = sol.u
+
+    #final values
+    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg])
+    A = replacevalues(p.A, p.indexer.iA, u[p.indexer.iAg])
+
+    #new model
+    nodes = Vector{TrussNode}()
+    elements = Vector{TrussElement}()
+    loads = Vector{NodeForce}()
+
+    #new nodes
+    for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
+        push!(nodes, TrussNode([x, y, z], node.dof))
+    end
+
+    #new elements
+    for (id, e, a) in zip(p.nodeids, p.E, A)
+        push!(elements, TrussElement(nodes, id, TrussSection(a, e)))
+    end
+
+    #new loads
+    for load in p.model.loads
+        push!(loads, NodeForce(nodes[load.node.nodeID], load.value))
+    end
+
+    model = TrussModel(nodes, elements, loads)
+    solve!(model)
+
+    return model
+
+end
+
+"""
+Store the results of an optimization run and generate a new structural model based on results
+"""
 struct OptimResults
     losstrace::Vector{Float64}
-    vartrace::Vector{Float64}
+    valtrace::Vector{Vector{Float64}}
     solvetime::Float64
     niter::Int64
     model::Asap.AbstractModel
-end
 
-function OptimResults(solution::SciMLBase.AbstractOptimizationSolution, p::TrussOptProblem)
-    
+    function OptimResults(p::TrussOptParams, sol::Optimization.SciMLBase.AbstractOptimizationSolution)
+
+        solvedmodel = updatemodel(p, sol)
+
+        return new(copy(p.losstrace),
+            copy(p.valtrace),
+            sol.solve_time,
+            length(p.valtrace),
+            solvedmodel)
+
+    end
 end
