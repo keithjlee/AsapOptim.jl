@@ -1,6 +1,7 @@
-using Asap, AsapToolkit
+using Asap, AsapToolkit, AsapOptim
 using Zygote, LinearAlgebra, FiniteDiff
 using kjlMakie; set_theme!(kjl_dark)
+
 
 ### Create a spaceframe
 
@@ -20,7 +21,7 @@ end
 n = 5
 x = range(0, 1, n)
 y = range(0, 1, n)
-z = rand(n,n) .* 3000
+z = rand(n,n) .* 1500 .+ 500
 
 using Interpolations
 itp = cubic_spline_interpolation((x,y), z)
@@ -28,7 +29,7 @@ itp = cubic_spline_interpolation((x,y), z)
 #generation and extraction
 sf = generatespaceframe(nx, dx, ny, dy, dz, itp, tube, true; load = [0., 0., -30e3], support = :xy);
 
-sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :xy);
+# sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :xy);
 model = sf.truss;
 
 newloads = Vector{NodeForce}()
@@ -60,7 +61,7 @@ begin
 end
 
 #make variables
-vars = Vector{AsapToolkit.TrussVariables}()
+vars = Vector{TrussVariable}()
 
 # nodal Z variables
 lb = -1000.
@@ -118,12 +119,38 @@ function obj(values::Vector{Float64}, p::TrussOptProblem)
 
     U = solveU(K, p.params)
 
-    U' * p.params.P[p.params.freeids]
+    return U' * p.params.P[p.params.freeids]
 end
 
 vals = problem.values
 @time o1 = obj(vals, problem);
 @time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1];
+
+func = Optimization.OptimizationFunction(obj, Optimization.AutoZygote())
+prob = Optimization.OptimizationProblem(func, vals, problem;
+    lb = problem.lb,
+    ub = problem.ub)
+
+trace = Vector{Float64}()
+hist = Vector{Vector{Float64}}()
+
+function cb(vals::Vector{Float64}, loss::Float64)
+    push!(trace, loss)
+    push!(hist, deepcopy(vals))
+    false
+end
+
+sol = Optimization.solve(prob, OptimizationNLopt.NLopt.LD_LBFGS();
+    callback = cb,
+    reltol = 1e-3)
+
+
+
+
+
+
+
+
 
 function obj2(values::Vector{Float64}, p::TrussOptProblem)
     indexer = p.indexer

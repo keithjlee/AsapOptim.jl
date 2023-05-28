@@ -111,7 +111,7 @@ mutable struct CoupledVariable <: AbstractVariable
     end
 end
 
-const TrussVariables = Union{SpatialVariable, AreaVariable, CoupledVariable}
+const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
 
 mutable struct TrussOptIndexer <: AbstractIndexer
     iX::Vector{Int64}
@@ -152,7 +152,7 @@ function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
 end
 
 # create the active variable → truss variable indexer
-function TrussOptIndexer(vars::Vector{TrussVariables})
+function TrussOptIndexer(vars::Vector{TrussVariable})
     indexer = TrussOptIndexer(Vector{Int64}(),
         Vector{Int64}(),
         Vector{Int64}(),
@@ -173,7 +173,7 @@ mutable struct TrussOptProblem <: AbstractOptProblem
     model::TrussModel #the reference truss model for optimization
     params::TrussOptParams #optimization params
     indexer::TrussOptIndexer #pointers to design variables and full variables
-    variables::Vector{TrussVariables}
+    variables::Vector{TrussVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
@@ -183,7 +183,7 @@ mutable struct TrussOptProblem <: AbstractOptProblem
     lb::Vector{Float64} #lower bounds of variables
     ub::Vector{Float64} #upper bounds of variables
 
-    function TrussOptProblem(model::TrussModel, variables::Vector{TrussVariables})
+    function TrussOptProblem(model::TrussModel, variables::Vector{TrussVariable})
         @assert model.processed
 
         #extract global parameters
@@ -230,4 +230,16 @@ mutable struct TrussOptProblem <: AbstractOptProblem
             upperbounds)
 
     end
+end
+
+struct OptimResults
+    losstrace::Vector{Float64}
+    vartrace::Vector{Float64}
+    solvetime::Float64
+    niter::Int64
+    model::Asap.AbstractModel
+end
+
+function OptimResults(solution::SciMLBase.AbstractOptimizationSolution, p::TrussOptProblem)
+    
 end

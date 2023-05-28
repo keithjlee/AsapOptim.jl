@@ -2,7 +2,7 @@
 
 julia_version = "1.9.0"
 manifest_format = "2.0"
-project_hash = "21a9f7d4f004a68e0f4c32cd1fd730e71493b62d"
+project_hash = "eda97adddad62187575a9826570b10aac9eeae89"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "dcfdf328328f2645531c4ddebf841228aef74130"
@@ -72,8 +72,8 @@ uuid = "763a8c06-ba23-41fc-b385-b3b57b52403a"
 version = "0.1.0"
 
 [[deps.AsapToolkit]]
-deps = ["Asap", "ChainRulesCore", "Interpolations", "IterativeSolvers", "LinearAlgebra", "Optimization", "OptimizationNLopt", "Reexport", "SparseArrays", "Statistics", "SteelSections", "Zygote"]
-git-tree-sha1 = "d281fe71fcbc65a8258acd6a9e55b6cc0e9c426a"
+deps = ["Asap", "Interpolations", "LinearAlgebra", "Reexport", "SparseArrays", "Statistics", "SteelSections", "Zygote"]
+git-tree-sha1 = "7e2b0e587b43875726c04ecb2b15f9dbb9af864d"
 repo-rev = "main"
 repo-url = "https://github.com/keithjlee/AsapToolkit"
 uuid = "45845293-de45-4074-bf34-b603320deb79"
