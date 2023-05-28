@@ -23,6 +23,7 @@ klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
 #kglob
 kglobs = transpose.(rotmats) .* klocs .* rotmats
+getglobalks(rotmats, klocs)
 
 #global stiffness matrix
 K = AsapOptim.assembleglobalK(kglobs, p)

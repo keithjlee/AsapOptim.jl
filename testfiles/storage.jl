@@ -70,21 +70,22 @@ begin
         return XYZn, getnormv_pullback
     end
 
-    function getrs(XYZn::Matrix{Float64})
-        AsapOptim.Rtruss2.(eachrow(XYZn))
+    function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+        transpose.(rs) .* ks .* rs
     end
 
-    function ChainRulesCore.rrule(::typeof(getrs), XYZn::Matrix{Float64})
-        rs = getrs(XYZn)
+    function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+        
+        kgs = getglobalks(rs, ks)
 
-        function rs_pullback(r̄)
-            dxyzn = [r[1,1:3] for r in r̄]
+        function kgs_pullback(k̄)
+            dr = (2 .* ks .* rs) .* k̄
+            dk = rs .* k̄ .* transpose.(rs)
 
-            return (NoTangent(), stack(dxyzn, dims = 1))
-            # return (NoTangent(), NoTangent())
+            return (NoTangent(), dr, dk)
         end
 
-        return rs, rs_pullback
+        return kgs, kgs_pullback
     end
 end
 #element vectors
@@ -145,14 +146,15 @@ function objMat2(values::Vector{Float64}, p::TrussOptParams)
     elementvecsnormalized = getnormalizedevecs(elementvecs, elementlengths)
 
     #Γ
-    # rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
-    rotmats = getrs(elementvecsnormalized)
+    rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
+    # rotmats = getrs(elementvecsnormalized)
 
     #kloc
     klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
     #kglob
-    kglobs = transpose.(rotmats) .* klocs .* rotmats
+    # kglobs = transpose.(rotmats) .* klocs .* rotmats
+    kglobs = getglobalks(rotmats, klocs)
 
     #global stiffness matrix
     K = AsapOptim.assembleglobalK(kglobs, p)
@@ -163,13 +165,21 @@ function objMat2(values::Vector{Float64}, p::TrussOptParams)
     return U' * p.P[p.freeids]
 end
 
-@time o2 = objMat2(vals, problem);
-@time g2 = Zygote.gradient(var -> objMat2(var, p), vals)[1];
+func2 = Optimization.OptimizationFunction(objMat2, Optimization.AutoZygote())
+prob2 = Optimization.OptimizationProblem(func2, vals, p;
+    lb = p.lb,
+    ub = p.ub)
 
+function cb2(vals::Vector{Float64}, loss::Float64)
+    push!(p.losstrace, loss)
+    push!(p.valtrace, deepcopy(vals))
+    false
+end
 
+cleartrace!(p)
+sol2 = Optimization.solve(prob2, NLopt.LD_LBFGS();
+    callback = cb2,
+    reltol = 1e-3)
 
-#element vectors
-elementvecs = p.C * [Xnew Ynew Znew]
+res2 = OptimResults(p, sol2)
 
-#element lengths
-elementlengths = norm.(eachrow(elementvecs))

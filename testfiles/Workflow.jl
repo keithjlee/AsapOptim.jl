@@ -145,19 +145,11 @@ sol = Optimization.solve(prob, NLopt.LD_LBFGS();
 
 res1 = OptimResults(problem, sol);
 
-cleartrace!(problem)
-
-sol2 = Optimization.solve(prob, NLopt.LD_MMA();
-    callback = cb,
-    reltol = 1e-3)
-
-res2 = OptimResults(problem, sol2);
-
 begin
     model1 = res1.model
     p1 = Point3.(getproperty.(model1.nodes, :position))
     e1 = vcat([p1[id] for id in getproperty.(model1.elements, :nodeIDs)]...)
-    f1 = getindex.(getproperty.(model1.elements, :forces), 2)
+    fo1 = getindex.(getproperty.(model1.elements, :forces), 2)
     a1 = getproperty.(getproperty.(model1.elements, :section), :A)
 
     a1normalized = a1 ./ maximum(a1)
@@ -165,7 +157,7 @@ begin
     model2 = res2.model
     p2 = Point3.(getproperty.(model2.nodes, :position))
     e2 = vcat([p2[id] for id in getproperty.(model2.elements, :nodeIDs)]...)
-    f2 = getindex.(getproperty.(model2.elements, :forces), 2)
+    fo2 = getindex.(getproperty.(model2.elements, :forces), 2)
     a2 = getproperty.(getproperty.(model2.elements, :section), :A)
 
     a2normalized = a2 ./ maximum(a2)
