@@ -18,14 +18,14 @@ mutable struct SpatialVariable <: TrussOptVariable
         return new(nodeindex, value, lowerbound, upperbound, axis)
     end
 
-    function SpatialVariable(node::TrussNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
+    function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
         @assert in(axis, validaxes)
 
         return new(node.nodeID, value, lowerbound, upperbound, axis)
     end
 
-    function SpatialVariable(node::TrussNode, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
+    function SpatialVariable(node::Asap.AbstractNode, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
         @assert in(axis, validaxes)
 
@@ -46,11 +46,11 @@ mutable struct AreaVariable <: TrussOptVariable
         return new(elementindex, value, lowerbound, upperbound)
     end
 
-    function AreaVariable(element::TrussElement, value::Float64, lowerbound::Float64, upperbound::Float64)
+    function AreaVariable(element::Asap.AbstractElement, value::Float64, lowerbound::Float64, upperbound::Float64)
         return new(element.elementID, value, lowerbound, upperbound)
     end
 
-    function AreaVariable(element::TrussElement, lowerbound::Float64, upperbound::Float64)
+    function AreaVariable(element::Asap.AbstractElement, lowerbound::Float64, upperbound::Float64)
         return new(element.elementID, element.section.A, lowerbound, upperbound)
     end
 end

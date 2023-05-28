@@ -230,8 +230,8 @@ function obj2(values::Vector{Float64}, p::TrussOptProblem)
 
 
     Ls = [L(Xnew[id]..., Ynew[id]..., Znew[id]...) for id in p.params.nodeids]
-    kes = AsapToolkit.klocal.(problem.E, Anew, Ls)
-    cxyz = [AsapToolkit.localvector(Xnew[id]..., Ynew[id]..., Znew[id]...) ./ l for (id, l) in zip(p.params.nodeids, Ls)]
+    kes = klocal.(problem.E, Anew, Ls)
+    cxyz = [localvector(Xnew[id]..., Ynew[id]..., Znew[id]...) ./ l for (id, l) in zip(p.params.nodeids, Ls)]
     rs = [Rtruss(c...) for c in cxyz]
 
     ks = [r' * k * r for (r,k) in zip(rs, kes)]

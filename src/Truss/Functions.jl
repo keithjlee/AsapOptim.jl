@@ -25,6 +25,8 @@ function L(x1::Float64, x2::Float64, y1::Float64, y2::Float64, z1::Float64, z2::
     return sqrt((x2 - x1)^2 + (y2 - y1)^2 + (z2 - z1)^2)
 end
 
+
+
 """
     Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
 
