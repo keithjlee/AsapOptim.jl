@@ -107,6 +107,9 @@ function ChainRulesCore.rrule(::typeof(klocal), E::Float64, A::Float64, L::Float
     return k, klocal_pullback
 end
 
+dRdx = [1. 0. 0. 0. 0. 0.; 0. 0. 0. 1. 0. 0.]
+dRdy = [0. 1. 0. 0. 0. 0.; 0. 0. 0. 0. 1. 0.]
+dRdz = [0. 0. 1. 0. 0. 0.; 0. 0. 0. 0. 0. 1.]
 
 """
 Adjoint for global transformation matrix
@@ -116,9 +119,9 @@ function ChainRulesCore.rrule(::typeof(Rtruss), Cx::Float64, Cy::Float64, Cz::Fl
 
     function Rtruss_pullback(R̄)
         return (NoTangent(),
-            dot(R̄, [1. 0. 0. 0. 0. 0.; 0. 0. 0. 1. 0. 0.]),
-            dot(R̄, [0. 1. 0. 0. 0. 0.; 0. 0. 0. 0. 1. 0.]),
-            dot(R̄, [0. 0. 1. 0. 0. 0.; 0. 0. 0. 0. 0. 1.]))
+            dot(R̄, dRdx),
+            dot(R̄, dRdy),
+            dot(R̄, dRdz))
     end
 
     return R, Rtruss_pullback
@@ -128,7 +131,10 @@ function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
     R = Rtruss(Cxyz)
 
     function Rtruss_pullback(R̄)
-        return (NoTangent(), R̄[1, 1:3])
+        return (NoTangent(),
+            [dot(R̄, dRdx),
+            dot(R̄, dRdy),
+            dot(R̄, dRdz)])
     end
 
     return R, Rtruss_pullback

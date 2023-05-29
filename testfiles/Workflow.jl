@@ -9,7 +9,7 @@ using kjlMakie; set_theme!(kjl_dark)
 begin
     nx = 25
     dx = 750.
-    ny = 15
+    ny = 25
     dy = 1000.
     dz = 1500.
 
@@ -18,30 +18,44 @@ begin
     σ = 350.
 end
 
-n = 5
-x = range(0, 1, n)
-y = range(0, 1, n)
-z = rand(n,n) .* 1500 .+ 500
+begin
+    n = 5
+    x = range(0, 1, n)
+    y = range(0, 1, n)
+    z = rand(n,n) .* 1500 .+ 500
 
-using Interpolations
-itp = cubic_spline_interpolation((x,y), z)
-
+    using Interpolations
+    itp = cubic_spline_interpolation((x,y), z)
+end
 #generation and extraction
-sf = generatespaceframe(nx, dx, ny, dy, dz, itp, tube, true; load = [0., 0., -30e3], support = :xy);
+# sf = generatespaceframe(nx, dx, ny, dy, dz, itp, tube, true; load = [0., 0., -30e3], support = :xy);
 
-# sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :xy);
+sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :y);
 model = sf.truss;
 
-newloads = Vector{NodeForce}()
-for _ = 1:10
-    iset = vec(rand(sf.isquares))
-
-    for i in iset
-        push!(newloads, NodeForce(model.nodes[i], [0., 0., -20e3]))
+#new random support locations
+begin
+    #remove existing supports
+    for node in model.nodes[:support]
+        fixnode!(node, :free)
+        node.id = :bottom
     end
-end
 
-solve!(model, [model.loads; newloads])
+    #assign random supports
+    for _ = 1:8
+        iset = vec(rand(sf.isquares))
+
+        for i in iset
+            fixnode!(model.nodes[i], :pinned)
+            model.nodes[i].id = :support
+        end
+
+    end
+
+    updateDOF!(model)
+    solve!(model)
+
+end
 
 begin
 
@@ -55,6 +69,9 @@ begin
     
 
     linesegments!(e0, color = :white)
+
+    scatter!(p0[findall(model.nodes, :support)],
+        markersize = 30)
 
 
     fig
@@ -106,29 +123,11 @@ end
 
 @time problem = TrussOptParams(model, vars);
 
-function obj(values::Vector{Float64}, p::TrussOptParams)
-    indexer = p.indexer
-
-    Xnew = addvalues(p.X, indexer.iX, values[indexer.iXg])
-    Ynew = addvalues(p.Y, indexer.iY, values[indexer.iYg])
-    Znew = addvalues(p.Z, indexer.iZ, values[indexer.iZg])
-
-    Anew = replacevalues(p.A, indexer.iA, values[indexer.iAg])
-
-    ks = [kglobal(Xnew, Ynew, Znew, e, a, id) for (e, a, id) in zip(p.E, Anew, p.nodeids)]
-
-    K = assembleglobalK(ks, p)
-
-    U = solveU(K, p)
-
-    return U' * p.P[p.freeids]
-end
-
 vals = problem.values
-@time o1 = obj(vals, problem);
-@time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1];
+@time o1 = compliance(vals, problem);
+@time g1 = Zygote.gradient(var -> compliance(var, problem), vals)[1];
 
-func = Optimization.OptimizationFunction(obj, Optimization.AutoZygote())
+func = Optimization.OptimizationFunction(compliance, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(func, vals, problem;
     lb = problem.lb,
     ub = problem.ub)
@@ -139,9 +138,10 @@ function cb(vals::Vector{Float64}, loss::Float64)
     false
 end
 
-sol = Optimization.solve(prob, NLopt.LD_LBFGS();
+cleartrace!(problem)
+@time sol = Optimization.solve(prob, NLopt.LD_LBFGS();
     callback = cb,
-    reltol = 1e-3)
+    reltol = 1e-4)
 
 res1 = OptimResults(problem, sol);
 
@@ -153,14 +153,6 @@ begin
     a1 = getproperty.(getproperty.(model1.elements, :section), :A)
 
     a1normalized = a1 ./ maximum(a1)
-
-    model2 = res2.model
-    p2 = Point3.(getproperty.(model2.nodes, :position))
-    e2 = vcat([p2[id] for id in getproperty.(model2.elements, :nodeIDs)]...)
-    fo2 = getindex.(getproperty.(model2.elements, :forces), 2)
-    a2 = getproperty.(getproperty.(model2.elements, :section), :A)
-
-    a2normalized = a2 ./ maximum(a2)
 end
 
 begin
@@ -184,60 +176,26 @@ begin
         linewidth = 5 .* a1normalized,
         )
 
-    ax2 = Axis3(fig[1,3],
-        aspect = :data)
+    scatter!(p1[findall(model1.nodes, :support)],
+        color = :white,
+        markersize = 45)
 
-    hidedecorations!(ax2); hidespines!(ax2)
+    linkaxes!(ax0, ax1)
 
-    linesegments!(e2,
-        color = green,
-        linewidth = 5 .* a2normalized,
-        )
+    axl = Axis(fig[2, 1:2],
+        aspect = nothing,
+        xlabel = "Iteration",
+        ylabel = "Loss [Nmm]")
 
-    linkaxes!(ax0, [ax1, ax2])
+    lines!(res1.losstrace,
+        color = :white,
+        linewidth = 5)
 
+    # ax2 = Axis(fig[2, 1:2],
+    #     aspect = nothing)
 
-    axloss = Axis(fig[2, 1:3],
-        aspect = nothing)
-
-    l1 = lines!(res1.losstrace,
-        color = blue,
-        linewidth = 4)
-
-    l2 = lines!(res2.losstrace,
-        color = green,
-        linewidth = 4)
+    # series!(hcat(res1.valtrace...),
+    #     solid_color = :white)
 
     fig
 end
-
-
-
-function obj2(values::Vector{Float64}, p::TrussOptProblem)
-    indexer = p.indexer
-
-    Xnew = addvalues(p.X, indexer.iX, values[indexer.iXg])
-    Ynew = addvalues(p.Y, indexer.iY, values[indexer.iYg])
-    Znew = addvalues(p.Z, indexer.iZ, values[indexer.iZg])
-
-    Anew = replacevalues(p.A, indexer.iA, values[indexer.iAg])
-
-
-    Ls = [L(Xnew[id]..., Ynew[id]..., Znew[id]...) for id in p.params.nodeids]
-    kes = klocal.(problem.E, Anew, Ls)
-    cxyz = [localvector(Xnew[id]..., Ynew[id]..., Znew[id]...) ./ l for (id, l) in zip(p.params.nodeids, Ls)]
-    rs = [Rtruss(c...) for c in cxyz]
-
-    ks = [r' * k * r for (r,k) in zip(rs, kes)]
-
-    # ks = [kglobal(Xnew, Ynew, Znew, e, a, id) for (e, a, id) in zip(p.E, Anew, p.params.nodeids)]
-
-    K = assembleglobalK(ks, p.params)
-
-    U = solveU(K, p.params)
-
-    U' * p.params.P[p.params.freeids]
-end
-
-@time o2 =  obj2(vals, problem);
-@time g2 = Zygote.gradient(var -> obj2(var, problem), vals)[1];

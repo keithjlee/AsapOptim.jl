@@ -1,48 +1,66 @@
+#baseline
+function obj2(values::Vector{Float64}, p::TrussOptParams)
+    indexer = p.indexer
 
-#enzyme test
+    Xnew = addvalues(p.X, indexer.iX, values[indexer.iXg])
+    Ynew = addvalues(p.Y, indexer.iY, values[indexer.iYg])
+    Znew = addvalues(p.Z, indexer.iZ, values[indexer.iZg])
+    Anew = replacevalues(p.A, indexer.iA, values[indexer.iAg])
 
-using Enzyme
+    ks = [kglobal(Xnew, Ynew, Znew, e, a, id) for (e, a, id) in zip(p.E, Anew, p.nodeids)]
 
-function objEnzyme(u::Vector{Float64}, values::Vector{Float64}, p::TrussOptParams)
+    K = assembleglobalK(ks, p)
 
+    U = solveU(K, p)
+
+    return U' * p.P[p.freeids]
+end
+
+@time o2 = obj2(vals, problem);
+@time g2 = Zygote.gradient(var -> obj2(var, problem), vals)[1];
+
+#optim
+function obj_test(values::Vector{Float64}, p::TrussOptParams)
+    #populate values
     indexer = p.indexer
     Xnew = addvalues(p.X, indexer.iX, values[indexer.iXg])
     Ynew = addvalues(p.Y, indexer.iY, values[indexer.iYg])
     Znew = addvalues(p.Z, indexer.iZ, values[indexer.iZg])
     Anew = replacevalues(p.A, indexer.iA, values[indexer.iAg])
 
-    #element vectors
-    vₑ = getevecs(Xnew, Ynew, Znew, p)
+    # vₑ
+    # elementvecs = AsapOptim.getevecs(Xnew, Ynew, Znew, p)
+    elementvecs = p.C * [Xnew Ynew Znew]
 
-    #element lengths
-    Lₑ = getlengths(vₑ)
+    # Lₑ
+    # elementlengths = AsapOptim.getlengths(elementvecs)
+    elementlengths = norm.(eachrow(elementvecs))
 
-    #normalized vecs
-    nₑ = getnormalizedevecs(vₑ, Lₑ)
+    # vnₑ
+    # elementvecsnormalized = AsapOptim.getnormalizedevecs(elementvecs, elementlengths)
+    elementvecsnormalized = elementvecs ./ elementlengths
 
-    #transformation matrices
-    Γₑ = AsapOptim.Rtruss.(eachrow(nₑ))
+    # Γ
+    rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
 
-    #local stiffness matrices
-    kₑ = AsapOptim.klocal.(p.E, Anew, Lₑ)
+    # kₑ
+    klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
-    #global stiffness matrices
-    Kₑ = getglobalks(Γₑ, kₑ)
+    # Kₑ
+    # kglobs = AsapOptim.getglobalks(rotmats, klocs)
+    kglobs = transpose.(rotmats) .* klocs .* rotmats
 
-    #global stiffness matrix
-    K = AsapOptim.assembleglobalK(Kₑ, p)
+    # K
+    K = AsapOptim.assembleglobalK(kglobs, p)
 
-    #solve displacement
-    U = solveU(K, p)
+    # K⁻¹P
+    disp = AsapOptim.solveU(K, p)
 
-    u[1] = U' * p.P[p.freeids]
+    disp' * p.P[p.freeids]
 end
 
+@time otest = obj_test(vals, problem);
+@time gtest = Zygote.gradient(var -> obj_test(var, problem), vals)[1];
 
-x = vals
-dx = zero(x)
-
-y = [0.]
-dy = [1.]
-
-autodiff(Enzyme.Reverse, objEnzyme, Duplicated(y, dy), Duplicated(x, dx), Const(p))
+@show  o2 - otest
+@show norm(g2 .- gtest)

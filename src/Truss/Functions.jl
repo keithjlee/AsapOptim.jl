@@ -48,6 +48,10 @@ function Rtruss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function getRmatrices(XYZn::Matrix{Float64})
+    Rtruss.(eachrow(XYZn))
+end
+
 """
     kglobal(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::Float64, A::Float64, id::Vector{Int64})
 

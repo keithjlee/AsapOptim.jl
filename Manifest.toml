@@ -65,7 +65,7 @@ uuid = "56f22d72-fd6d-98f1-02f0-08ddc0907c33"
 
 [[deps.Asap]]
 deps = ["LinearAlgebra", "SparseArrays", "Statistics"]
-git-tree-sha1 = "62994b190a4f67e7d2ba366485790f6d3cdfcd06"
+git-tree-sha1 = "27b1f8401f22636b5150fb2742f9cad6995a6260"
 repo-rev = "main"
 repo-url = "https://github.com/keithjlee/Asap"
 uuid = "763a8c06-ba23-41fc-b385-b3b57b52403a"
@@ -648,9 +648,9 @@ version = "1.3.0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "d7d9ebe28062161c1e314ed643097b0c6fe657d9"
+git-tree-sha1 = "92fa1dd437690a5e2ac39c81b6353ef106affc0e"
 uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.7"
+version = "0.5.8"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"

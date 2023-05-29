@@ -30,11 +30,14 @@ export SpatialVariable, AreaVariable, CoupledVariable
 export OptimResults
 
 include("Truss/Functions.jl")
-export kglobal, L, Rtruss, assembleglobalK, solveU, Utruss, replacevalues, addvalues
-
 include("Truss/Adjoints.jl")
+export kglobal, L, Rtruss, assembleglobalK, solveU, Utruss, replacevalues, addvalues
 
 include("Truss/Utilities.jl")
 export cleartrace!
+
+include("Truss/ObjectiveFunctions.jl")
+export displacement
+export compliance
 
 end # module AsapOptim
