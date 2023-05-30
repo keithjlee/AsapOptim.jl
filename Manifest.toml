@@ -40,9 +40,9 @@ version = "1.1.1"
 
 [[deps.ArrayInterface]]
 deps = ["Adapt", "LinearAlgebra", "Requires", "SparseArrays", "SuiteSparse"]
-git-tree-sha1 = "917286faa2abb288796e75b88ca67edc016f3219"
+git-tree-sha1 = "0755ddf4ca2fb2207dcb9e73b5836b87a2a5bb6a"
 uuid = "4fba245c-0d91-5ea0-9b3e-6abc04ee57a9"
-version = "7.4.5"
+version = "7.4.6"
 
     [deps.ArrayInterface.extensions]
     ArrayInterfaceBandedMatricesExt = "BandedMatrices"
@@ -73,7 +73,7 @@ version = "0.1.0"
 
 [[deps.AsapToolkit]]
 deps = ["Asap", "Interpolations", "LinearAlgebra", "Reexport", "SparseArrays", "Statistics", "SteelSections", "Zygote"]
-git-tree-sha1 = "7e2b0e587b43875726c04ecb2b15f9dbb9af864d"
+git-tree-sha1 = "321e5c0277e77a56be1e78741cf6bf6f587324f4"
 repo-rev = "main"
 repo-url = "https://github.com/keithjlee/AsapToolkit"
 uuid = "45845293-de45-4074-bf34-b603320deb79"
@@ -648,9 +648,9 @@ version = "1.3.0"
 
 [[deps.RuntimeGeneratedFunctions]]
 deps = ["ExprTools", "SHA", "Serialization"]
-git-tree-sha1 = "92fa1dd437690a5e2ac39c81b6353ef106affc0e"
+git-tree-sha1 = "0b9b18d6236e9ab2b092defaacdffd929d572642"
 uuid = "7e49a35a-f44a-4d26-94aa-eba1b4ca6b47"
-version = "0.5.8"
+version = "0.5.9"
 
 [[deps.SHA]]
 uuid = "ea8e919c-243c-51af-8825-aaa63cd721ce"
@@ -664,9 +664,9 @@ version = "1.92.2"
 
 [[deps.SciMLOperators]]
 deps = ["ArrayInterface", "DocStringExtensions", "Lazy", "LinearAlgebra", "Setfield", "SparseArrays", "StaticArraysCore", "Tricks"]
-git-tree-sha1 = "d9f0f6ce9bb899a657c4d218a846533910e9dea9"
+git-tree-sha1 = "d23f7a1c3b0a79bc6ed1b6d0d132636e1861362c"
 uuid = "c0aeaf25-5076-4817-a8d5-81caf7dfa961"
-version = "0.2.9"
+version = "0.2.10"
 
 [[deps.Scratch]]
 deps = ["Dates"]

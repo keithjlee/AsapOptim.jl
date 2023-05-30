@@ -1,4 +1,10 @@
-function obj_test(values::Vector{Float64}, p::TrussOptParams)
+"""
+    displacement(values::Vector{Float64}, p::TrussOptParams)
+    
+Get the vector of DOF displacements given a set of design variables and problem parameters. This function is the basis of ALL subsequent structural analysis
+"""
+function f1(values::Vector{Float64}, p::TrussOptParams)
+    
     #populate values
     Xnew = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
     Ynew = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
@@ -15,11 +21,9 @@ function obj_test(values::Vector{Float64}, p::TrussOptParams)
     elementvecsnormalized = AsapOptim.getnormalizedevecs(elementvecs, elementlengths)
 
     # Γ
-    # rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
     rotmats = AsapOptim.getRmatrices(elementvecsnormalized, p)
 
     # kₑ
-    # klocs = AsapOptim.getlocalks(p.E, Anew, elementlengths)
     klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
     # Kₑ
@@ -29,37 +33,65 @@ function obj_test(values::Vector{Float64}, p::TrussOptParams)
     K = AsapOptim.assembleglobalK(kglobs, p)
 
     # K⁻¹P
-    disp = solveU(K, p)
+    disp = AsapOptim.solveU(K, p)
 
     # U
-    U = replacevalues(zeros(p.n), p.freeids, disp)
+    U = AsapOptim.replacevalues(zeros(p.n), p.freeids, disp)
 
-    U' * p.P
-end;
+    F = getindex.(rotmats .* kglobs .* [U[id] for id in p.dofids], 2)
 
-@time otest = obj_test(vals, problem);
-@time gtest = Zygote.gradient(var -> obj_test(var, problem), vals)[1];
+    abs.(F)' * elementlengths
+end
 
-@show norm(gtest .- g1)
+function f2(values::Vector{Float64}, p::TrussOptParams)
+    
+    #populate values
+    Xnew = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
+    Ynew = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
+    Znew = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
+    Anew = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
 
+    # vₑ
+    elementvecs = AsapOptim.getevecs(Xnew, Ynew, Znew, p)
 
-m1 = rand(2,6); m2 = rand(2,6); m3 = rand(2,6)
-ts = [rand(2,6) for _ = 1:3000]
+    # Lₑ
+    elementlengths = AsapOptim.getlengths(elementvecs, p)
 
-#
-@time r1 = [[dot(t, m1) for t in ts] [dot(t, m2) for t in ts] [dot(t, m3) for t in ts]];
+    # vnₑ
+    elementvecsnormalized = AsapOptim.getnormalizedevecs(elementvecs, elementlengths)
 
-@time begin
-    r2 = zeros(length(ts), 3)
+    # Γ
+    rotmats = AsapOptim.getRmatrices(elementvecsnormalized, p)
 
-    @inbounds for i in axes(ts, 1)
-        r2[i, 1] = dot(ts[i], m1)
-        r2[i, 2] = dot(ts[i], m2)
-        r2[i, 3] = dot(ts[i], m3)
-    end
-end;
+    # kₑ
+    klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
-tt = rand(1000, 3);
+    # Kₑ
+    kglobs = AsapOptim.getglobalks(rotmats, klocs, p)
 
-@time tt1 = zero(tt);
-@time tt2 = zeros(size(tt, 1), 3);
+    # K
+    K = AsapOptim.assembleglobalK(kglobs, p)
+
+    # K⁻¹P
+    disp = AsapOptim.solveU(K, p)
+
+    # U
+    U = AsapOptim.replacevalues(zeros(p.n), p.freeids, disp)
+
+    F = AsapOptim.axialforces(U, kglobs, rotmats, p)
+
+    abs.(F)' * elementlengths
+end
+
+@time f1(vals, problem)
+@time f2(vals, problem)
+
+@time g1 = Zygote.gradient(var -> f1(var, problem), vals)[1];
+@time g2 = Zygote.gradient(var -> f2(var, problem), vals)[1];
+
+norm(g1 .- g2)
+
+gdiff = g1 .- g2
+inz = findall(abs.(gdiff) .>= 1e-5)
+
+varnz = vars[inz]

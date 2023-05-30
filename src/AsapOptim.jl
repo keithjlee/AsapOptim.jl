@@ -40,4 +40,11 @@ include("Truss/ObjectiveFunctions.jl")
 export displacement
 export compliance
 
+include("Truss/SecondaryFunctions.jl")
+export axialforces
+
+
+# Frame optimization
+include("Frame/Types.jl")
+
 end # module AsapOptim

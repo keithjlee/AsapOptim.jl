@@ -16,7 +16,7 @@ dg/dX = CᵀV̄
 
 and likewise for Y, Z.
 """
-function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
     v = getevecs(X, Y, Z, p)
 
     function getevecs_pullback(v̄)
@@ -38,7 +38,7 @@ dL/dx = x/L
 
 dg/dx = dg/dL ⋅ dL/dx = L̄ dL/dx
 """
-function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64}, p::AbstractOptParams)
     l = getlengths(XYZ, p)
 
     function l_pullback(l̄)
@@ -75,7 +75,7 @@ For a single element:
 dKe/dR = 2KeΓ
 dKe/dk = ΓkΓᵀ
 """
-function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::AbstractOptParams)
         
     kgs = getglobalks(rs, ks, p)
 
@@ -237,7 +237,7 @@ Which is an [ndof × ndof] matrix where:
 
 Columnᵢ = uᵢ .* ΔK
 """
-function ChainRulesCore.rrule(::typeof(solveU), K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(solveU), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
     u = solveU(K, p)
 
     function solveU_pullback(ū)

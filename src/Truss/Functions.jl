@@ -3,7 +3,7 @@
 
 Get the [nₑ × 3] matrix where each row is the [x,y,z] vector of an element
 """
-function getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+function getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
     p.C * [X Y Z]
 end
 
@@ -12,7 +12,7 @@ end
 
 Get the [nₑ × 1] vector of element lengths
 """
-function getlengths(XYZ::Matrix{Float64}, p::TrussOptParams)
+function getlengths(XYZ::Matrix{Float64}, p::AbstractOptParams)
     Ls = norm.(eachrow(XYZ))
     p.Lstore = Ls
 
@@ -29,16 +29,16 @@ function getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
 end
 
 """
-    klocal(E::Float64, A::Float64, L::Float64)
+    ktruss(E::Float64, A::Float64, L::Float64)
 
 Get the element truss stiffness matrix in the local coordinate system
 """
-function klocal(E::Float64, A::Float64, L::Float64)
+function ktruss(E::Float64, A::Float64, L::Float64)
     E * A / L * [1 -1; -1 1]
 end
 
 # function getlocalks(E::Vector{Float64}, A::Vector{Float64}, L::Vector{Float64})
-#     klocal.(E, A, L)
+#     ktruss.(E, A, L)
 # end
 
 """
@@ -76,7 +76,7 @@ function kglobal(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::
 
     cx, cy, cz = veclocal ./ len
     r = Rtruss(cx, cy, cz)
-    kloc = klocal(E, A, len)
+    kloc = ktruss(E, A, len)
 
     r' * kloc * r
 end
@@ -86,7 +86,7 @@ end
 
 Get a vector of elemental stiffness matrices in GCS given a vector of transformation matrices and a vector of elemental stiffness matrices in LCS
 """
-function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::TrussOptParams)
+function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::AbstractOptParams)
     kglobs = transpose.(rs) .* ks .* rs
 
     p.Kstore = kglobs
@@ -115,7 +115,7 @@ end
 
 Displacement of free DOFs
 """
-function solveU(K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
+function solveU(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
     id = p.freeids
     cg(K[id, id], p.P[id])
 end
@@ -144,4 +144,11 @@ function addvalues(values::Vector{Float64}, indices::Vector{Int64}, increments::
     v2[indices] .+= increments
 
     return v2
+end
+
+function axialforces(U::Vector{Float64}, Ks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+    Uelemental = [U[id] for id in p.dofids]
+    Fvectors = Rs .* Ks .* Uelemental
+
+    getindex.(Fvectors, 2)
 end
