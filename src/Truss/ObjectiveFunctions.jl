@@ -15,19 +15,19 @@ function displacement(values::Vector{Float64}, p::TrussOptParams)
     elementvecs = getevecs(Xnew, Ynew, Znew, p)
 
     # Lₑ
-    elementlengths = getlengths(elementvecs)
+    elementlengths = getlengths(elementvecs, p)
 
     # vnₑ
     elementvecsnormalized = getnormalizedevecs(elementvecs, elementlengths)
 
     # Γ
-    rotmats = AsapOptim.Rtruss.(eachrow(elementvecsnormalized))
+    rotmats = getRmatrices(elementvecsnormalized, p)
 
     # kₑ
     klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
 
     # Kₑ
-    kglobs = getglobalks(rotmats, klocs)
+    kglobs = getglobalks(rotmats, klocs, p)
 
     # K
     K = AsapOptim.assembleglobalK(kglobs, p)
@@ -40,12 +40,11 @@ function displacement(values::Vector{Float64}, p::TrussOptParams)
 end
 
 """
-    compliance(values::Vector{Float64}, p::TrussOptParams)
+    compliance(u::Vector{Float64}, p::TrussOptParams)
 
 Measure of strain energy for truss structures.
 """
-function compliance(values::Vector{Float64}, p::TrussOptParams)
-    u = displacement(values, p)
-
+function compliance(u::Vector{Float64}, p::TrussOptParams)
     u' * p.P
 end
+

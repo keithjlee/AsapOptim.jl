@@ -124,10 +124,16 @@ end
 @time problem = TrussOptParams(model, vars);
 
 vals = problem.values
-@time o1 = compliance(vals, problem);
-@time g1 = Zygote.gradient(var -> compliance(var, problem), vals)[1];
 
-func = Optimization.OptimizationFunction(compliance, Optimization.AutoZygote())
+function obj(values::Vector{Float64}, p::TrussOptParams)
+    u = displacement(values, p)
+    compliance(u, p)
+end
+
+@time o1 = obj(vals, problem);
+@time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1];
+
+func = Optimization.OptimizationFunction(obj, Optimization.AutoZygote())
 prob = Optimization.OptimizationProblem(func, vals, problem;
     lb = problem.lb,
     ub = problem.ub)
@@ -141,7 +147,7 @@ end
 cleartrace!(problem)
 @time sol = Optimization.solve(prob, NLopt.LD_LBFGS();
     callback = cb,
-    reltol = 1e-4)
+    reltol = 1e-2)
 
 res1 = OptimResults(problem, sol);
 

@@ -164,9 +164,9 @@ mutable struct TrussOptParams <: AbstractOptParams
     n::Int64 #total number of DOFs
     losstrace::Vector{Float64} #
     valtrace::Vector{Vector{Float64}}
-    # Lstore::Vector{Float64} #current element lengths
-    # Rstore::Vector{Matrix{Float64}} #current element transformation matrices
-    # Kstore::Vector{Matrix{Float64}} #current element stiffness matrices (GCS)
+    Lstore::Vector{Float64} #current element lengths
+    Rstore::Vector{Matrix{Float64}} #current element transformation matrices
+    Kstore::Vector{Matrix{Float64}} #current element stiffness matrices (GCS)
 
 
     function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
@@ -232,7 +232,10 @@ mutable struct TrussOptParams <: AbstractOptParams
             dofids,
             model.nDOFs,
             Vector{Float64}(),
-            Vector{Vector{Float64}}()
+            Vector{Vector{Float64}}(),
+            Vector{Float64}(),
+            Vector{Matrix{Float64}}(),
+            Vector{Matrix{Float64}}()
             )
 
     end
