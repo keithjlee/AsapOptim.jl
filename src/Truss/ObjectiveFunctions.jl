@@ -15,19 +15,19 @@ function displacement(values::Vector{Float64}, p::TrussOptParams)
     elementvecs = getevecs(Xnew, Ynew, Znew, p)
 
     # Lₑ
-    elementlengths = getlengths(elementvecs, p)
+    elementlengths = getlengths(elementvecs)
 
     # vnₑ
     elementvecsnormalized = getnormalizedevecs(elementvecs, elementlengths)
 
     # Γ
-    rotmats = getRmatrices(elementvecsnormalized, p)
+    rotmats = getRmatrices(elementvecsnormalized)
 
     # kₑ
     klocs = ktruss.(p.E, Anew, elementlengths)
 
     # Kₑ
-    kglobs = getglobalks(rotmats, klocs, p)
+    kglobs = getglobalks(rotmats, klocs)
 
     # K
     K = assembleglobalK(kglobs, p)

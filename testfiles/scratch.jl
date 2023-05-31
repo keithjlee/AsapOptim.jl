@@ -15,19 +15,19 @@ function f1(values::Vector{Float64}, p::TrussOptParams)
     elementvecs = AsapOptim.getevecs(Xnew, Ynew, Znew, p)
 
     # Lₑ
-    elementlengths = AsapOptim.getlengths(elementvecs, p)
+    elementlengths = AsapOptim.getlengths(elementvecs)
 
     # vnₑ
     elementvecsnormalized = AsapOptim.getnormalizedevecs(elementvecs, elementlengths)
 
     # Γ
-    rotmats = AsapOptim.getRmatrices(elementvecsnormalized, p)
+    rotmats = AsapOptim.getRmatrices(elementvecsnormalized)
 
     # kₑ
-    klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
+    klocs = AsapOptim.ktruss.(p.E, Anew, elementlengths)
 
     # Kₑ
-    kglobs = AsapOptim.getglobalks(rotmats, klocs, p)
+    kglobs = AsapOptim.getglobalks(rotmats, klocs)
 
     # K
     K = AsapOptim.assembleglobalK(kglobs, p)
@@ -38,9 +38,11 @@ function f1(values::Vector{Float64}, p::TrussOptParams)
     # U
     U = AsapOptim.replacevalues(zeros(p.n), p.freeids, disp)
 
-    F = getindex.(rotmats .* kglobs .* [U[id] for id in p.dofids], 2)
+    # F = Faxial(U, kglobs, rotmats, p)
 
-    abs.(F)' * elementlengths
+    minimum(U)^2
+
+
 end
 
 function f2(values::Vector{Float64}, p::TrussOptParams)
@@ -64,7 +66,7 @@ function f2(values::Vector{Float64}, p::TrussOptParams)
     rotmats = AsapOptim.getRmatrices(elementvecsnormalized, p)
 
     # kₑ
-    klocs = AsapOptim.klocal.(p.E, Anew, elementlengths)
+    klocs = AsapOptim.ktruss.(p.E, Anew, elementlengths)
 
     # Kₑ
     kglobs = AsapOptim.getglobalks(rotmats, klocs, p)
@@ -78,20 +80,22 @@ function f2(values::Vector{Float64}, p::TrussOptParams)
     # U
     U = AsapOptim.replacevalues(zeros(p.n), p.freeids, disp)
 
-    F = AsapOptim.axialforces(U, kglobs, rotmats, p)
+    F = Faxial(U, kglobs, rotmats, p)
 
-    abs.(F)' * elementlengths
+    σ = abs.(F) ./ Anew
+    
+    norm(σ .- 350.)
+
 end
 
-@time f1(vals, problem)
-@time f2(vals, problem)
+@time v1 = f1(vals, problem)
+v2 = f2(vals, problem)
 
 @time g1 = Zygote.gradient(var -> f1(var, problem), vals)[1];
 @time g2 = Zygote.gradient(var -> f2(var, problem), vals)[1];
 
 norm(g1 .- g2)
 
-gdiff = g1 .- g2
-inz = findall(abs.(gdiff) .>= 1e-5)
+ftest(v::Vector{Float64}) = maximum(v)^2
 
-varnz = vars[inz]
+Zygote.gradient(ftest, rand(20) .* 10)[1]

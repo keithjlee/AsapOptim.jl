@@ -3,7 +3,7 @@
     
 Get the vector of DOF displacements given a set of design variables and problem parameters. This function is the basis of ALL subsequent structural analysis
 """
-function displacement(values::Vector{Float64}, p::TrussOptParams)
+function displacement(values::Vector{Float64}, p::FrameOptParams)
     
     #populate values
     Xnew = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])

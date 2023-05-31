@@ -38,13 +38,13 @@ dL/dx = x/L
 
 dg/dx = dg/dL ⋅ dL/dx = L̄ dL/dx
 """
-function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64}, p::AbstractOptParams)
-    l = getlengths(XYZ, p)
+function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64})
+    l = getlengths(XYZ)
 
     function l_pullback(l̄)
         dl = l̄ ./ l .* XYZ 
         
-        return (NoTangent(), dl, NoTangent())
+        return (NoTangent(), dl)
     end
 
     return l, l_pullback
@@ -75,15 +75,15 @@ For a single element:
 dKe/dR = 2KeΓ
 dKe/dk = ΓkΓᵀ
 """
-function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::AbstractOptParams)
+function ChainRulesCore.rrule(::typeof(getglobalks), rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
         
-    kgs = getglobalks(rs, ks, p)
+    kgs = getglobalks(rs, ks)
 
     function kgs_pullback(k̄)
         dr = (2 .* ks .* rs) .* k̄
         dk = rs .* k̄ .* transpose.(rs)
 
-        return (NoTangent(), dr, dk, NoTangent())
+        return (NoTangent(), dr, dk)
     end
 
     return kgs, kgs_pullback
@@ -92,50 +92,20 @@ end
 """
 Adjoint w/r/t element variables E, A, L for the local stiffness matrix of a truss element
 """
-function ChainRulesCore.rrule(::typeof(klocal), E::Float64, A::Float64, L::Float64)
-    k = klocal(E, A, L)
+function ChainRulesCore.rrule(::typeof(ktruss), E::Float64, A::Float64, L::Float64)
+    k = ktruss(E, A, L)
 
-    function klocal_pullback(k̄)
+    function ktruss_pullback(k̄)
 
-        ∇E = dot(k̄, (A / L * [1 -1; -1 1]))
+        # ∇E = dot(k̄, (A / L * [1 -1; -1 1]))
         ∇A = dot(k̄, (E / L * [1 -1; -1 1]))
         ∇L = dot(k̄, (- E * A / L^2 * [1 -1; -1 1]))
 
-        return (NoTangent(), ∇E, ∇A, ∇L)
+        return (NoTangent(), NoTangent(), ∇A, ∇L)
     end
 
-    return k, klocal_pullback
+    return k, ktruss_pullback
 end
-
-# ktrussempty = [1 -1; -1 1]
-
-# function ChainRulesCore.rrule(::typeof(getlocalks), E::Vector{Float64}, A::Vector{Float64}, L::Vector{Float64})
-#     ks = getlocalks(E, A, L)
-
-#     function getlocalks_pullback(k̄)
-#         dE = A ./ L
-#         dA = E ./ L
-#         dL = - E .* A ./ L.^2
-
-#         # ∇E = [dot(k, e * ktrussempty) for (k, e) in zip(k̄, dE)]
-#         # ∇A = [dot(k, a * ktrussempty) for (k, a) in zip(k̄, dA)]
-#         # ∇L = [dot(k, l * ktrussempty) for (k, l) in zip(k̄, dL)]
-
-#         ∇E = zero(E)
-#         ∇A = zero(A)
-#         ∇L = zero(L)
-
-#         for i in eachindex(k̄)
-#             ∇E[i] = dot(k̄[i], dE[i] * ktrussempty)
-#             ∇A[i] = dot(k̄[i], dA[i] * ktrussempty)
-#             ∇L[i] = dot(k̄[i], dL[i] * ktrussempty)
-#         end
-
-#         return (NoTangent(), ∇E, ∇A, ∇L)
-#     end
-
-#     return ks, getlocalks_pullback
-# end
 
 dRdx = [1. 0. 0. 0. 0. 0.; 0. 0. 0. 1. 0. 0.]
 dRdy = [0. 1. 0. 0. 0. 0.; 0. 0. 0. 0. 1. 0.]
@@ -170,20 +140,11 @@ function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
     return R, Rtruss_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(getRmatrices), XYZn::Matrix{Float64}, p::TrussOptParams)
-    rs = getRmatrices(XYZn, p)
+function ChainRulesCore.rrule(::typeof(getRmatrices), XYZn::Matrix{Float64})
+    rs = getRmatrices(XYZn)
 
     function getRmatrices_pullback(R̄)
         dRdC = zero(XYZn)
-
-        # for i in size(XYZn, 1)
-        #     R = R̄[i]
-        #     dRdC[i, :] = [dot(R, dRdx),
-        #     dot(R, dRdy),
-        #     dot(R, dRdz)]
-        # end
-
-        # dRdC = stack([[dot(R, dRdx), dot(R, dRdy), dot(R, dRdz)] for R in R̄], dims = 1)
 
         for i in axes(R̄, 1)
             dRdC[i, 1] = dot(R̄[i], dRdx)
@@ -191,7 +152,7 @@ function ChainRulesCore.rrule(::typeof(getRmatrices), XYZn::Matrix{Float64}, p::
             dRdC[i, 3] = dot(R̄[i], dRdz)
         end
 
-        return (NoTangent(), dRdC, NoTangent())
+        return (NoTangent(), dRdC)
     end
 
     return rs, getRmatrices_pullback

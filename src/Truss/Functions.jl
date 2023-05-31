@@ -12,11 +12,8 @@ end
 
 Get the [nₑ × 1] vector of element lengths
 """
-function getlengths(XYZ::Matrix{Float64}, p::AbstractOptParams)
-    Ls = norm.(eachrow(XYZ))
-    p.Lstore = Ls
-
-    return Ls
+function getlengths(XYZ::Matrix{Float64})
+    norm.(eachrow(XYZ))
 end
 
 """
@@ -37,9 +34,9 @@ function ktruss(E::Float64, A::Float64, L::Float64)
     E * A / L * [1 -1; -1 1]
 end
 
-# function getlocalks(E::Vector{Float64}, A::Vector{Float64}, L::Vector{Float64})
-#     ktruss.(E, A, L)
-# end
+function getlocalks(E::Vector{Float64}, A::Vector{Float64}, L::Vector{Float64})
+    ktruss.(E, A, L)
+end
 
 """
     Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
@@ -55,11 +52,8 @@ function Rtruss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
-function getRmatrices(XYZn::Matrix{Float64}, p::TrussOptParams)
-    rs = Rtruss.(eachrow(XYZn))
-    p.Rstore = rs
-
-    return rs
+function getRmatrices(XYZn::Matrix{Float64})
+    Rtruss.(eachrow(XYZn))
 end
 
 """
@@ -86,12 +80,8 @@ end
 
 Get a vector of elemental stiffness matrices in GCS given a vector of transformation matrices and a vector of elemental stiffness matrices in LCS
 """
-function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}}, p::AbstractOptParams)
-    kglobs = transpose.(rs) .* ks .* rs
-
-    p.Kstore = kglobs
-
-    return kglobs
+function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+    transpose.(rs) .* ks .* rs
 end
 
 """
