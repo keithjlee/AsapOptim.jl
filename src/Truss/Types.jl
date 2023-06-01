@@ -13,21 +13,21 @@ mutable struct SpatialVariable <: TrussOptVariable
 
     function SpatialVariable(nodeindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
         new(nodeindex, value, lowerbound, upperbound, axis)
     end
 
     function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
         new(node.nodeID, value, lowerbound, upperbound, axis)
     end
 
     function SpatialVariable(node::Asap.AbstractNode, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
         value = node.position[axis2ind[axis]]
 
@@ -85,7 +85,6 @@ mutable struct TrussOptIndexer <: AbstractIndexer
     iA::Vector{Int64}
     iAg::Vector{Int64}
 end
-
 
 function populate!(indexer::TrussOptIndexer, var::SpatialVariable)
     field_local, field_global = axis2field[var.axis]
@@ -304,4 +303,18 @@ struct OptimResults
             solvedmodel)
 
     end
+end
+
+"""
+Results of a truss structural analysis. Basis for all objective functions.
+"""
+mutable struct TrussResults
+    X::Vector{Float64}
+    Y::Vector{Float64}
+    Z::Vector{Float64}
+    A::Vector{Float64}
+    L::Vector{Float64}
+    K::Vector{Matrix{Float64}}
+    R::Vector{Matrix{Float64}}
+    U::Vector{Float64}
 end

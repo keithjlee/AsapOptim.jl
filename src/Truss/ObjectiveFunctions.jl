@@ -1,49 +1,88 @@
 """
-    displacement(values::Vector{Float64}, p::TrussOptParams)
-    
-Get the vector of DOF displacements given a set of design variables and problem parameters. This function is the basis of ALL subsequent structural analysis
+    solve(values::Vector{Float64}, p::TrussOptParams)
+
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function displacement(values::Vector{Float64}, p::TrussOptParams)
+function solvetruss(values::Vector{Float64}, p::TrussOptParams)
     
     #populate values
-    Xnew = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
-    Ynew = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
-    Znew = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
-    Anew = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
+    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
 
     # vₑ
-    elementvecs = getevecs(Xnew, Ynew, Znew, p)
+    v = getevecs(X, Y, Z, p)
 
     # Lₑ
-    elementlengths = getlengths(elementvecs)
+    l = getlengths(v)
 
     # vnₑ
-    elementvecsnormalized = getnormalizedevecs(elementvecs, elementlengths)
+    n = getnormalizedevecs(v, l)
 
     # Γ
-    rotmats = getRmatrices(elementvecsnormalized)
+    Γ = getRmatrices(n)
 
     # kₑ
-    klocs = ktruss.(p.E, Anew, elementlengths)
+    kₑ = ktruss.(p.E, A, l)
 
     # Kₑ
-    kglobs = getglobalks(rotmats, klocs)
+    Kₑ = getglobalks(Γ, kₑ)
 
     # K
-    K = assembleglobalK(kglobs, p)
+    K = assembleglobalK(Kₑ, p)
 
     # K⁻¹P
-    disp = solveU(K, p)
+    u = solveU(K, p)
 
     # U
-    replacevalues(zeros(p.n), p.freeids, disp)
+    U = replacevalues(zeros(p.n), p.freeids, u)
+
+    # Store values for continuity in gradients
+    return TrussResults(X,
+        Y,
+        Z,
+        A,
+        l,
+        Kₑ,
+        Γ,
+        U)
 end
+export solvetruss
 
 """
-    compliance(u::Vector{Float64}, p::TrussOptParams)
+    compliance(t::TrussResults, p::TrussOptParams)
 
 Measure of strain energy for truss structures.
 """
-function compliance(u::Vector{Float64}, p::TrussOptParams)
-    u' * p.P
+function compliance(t::TrussResults, p::TrussOptParams)
+    t.U' * p.P
 end
+export compliance
+
+"""
+    variation(vals::Vector{Float64}; factor = 1.)
+Penalize the distance between extrema of a set
+"""
+variation(vals::Vector{Float64}; factor = 1.) = -factor * reduce(-, extrema(vals))
+export variation
+
+"""
+    maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+Penalize values above a threshold
+"""
+function maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+    Δ = vals .- threshold
+    factor * sum(Δ .+ abs.(Δ))
+end
+export maxpenalty
+
+"""
+    minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+Penalize values below a threshold
+"""
+function minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+    Δ = threshold .- vals
+    factor * sum(Δ .+ abs.(Δ))
+end
+export minpenalty
