@@ -135,10 +135,3 @@ function addvalues(values::Vector{Float64}, indices::Vector{Int64}, increments::
 
     return v2
 end
-
-function axialforces(U::Vector{Float64}, Ks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
-    Uelemental = [U[id] for id in p.dofids]
-    Fvectors = Rs .* Ks .* Uelemental
-
-    getindex.(Fvectors, 2)
-end

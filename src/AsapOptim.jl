@@ -16,8 +16,11 @@ using Asap, AsapToolkit
 
 # Truss optimization
 include("Truss/Translation.jl")
-
 include("Truss/Types.jl")
+include("Truss/Utilities.jl")
+export cleartrace!
+
+# optimization parameters
 export TrussOptParams
 
 # supertypes
@@ -29,16 +32,11 @@ export SpatialVariable, AreaVariable, CoupledVariable
 # output
 export OptimResults
 
+# functions/analysis
 include("Truss/Functions.jl")
 include("Truss/Adjoints.jl")
-
-include("Truss/Utilities.jl")
-export cleartrace!
-
 include("Truss/ObjectiveFunctions.jl")
-
 include("Truss/SecondaryFunctions.jl")
-
 
 
 end # module AsapOptim
