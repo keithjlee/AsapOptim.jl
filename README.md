@@ -104,7 +104,7 @@ $$
 Which eliminates the inverse calculation, and requires a single linear solve $K^{-1}P$ to determine $u$ at each step. Further analytic expressions are also available for $dK/dx_i$ if $x_i$ is a *material* variable (IE Area, A), since *only* the elemental stiffness matrix is a function of area, such that:
 
 $$
-\frac{dk_e}{dA} = \frac{E}{L} \begin{bmatrix} 1 & -1\\ -1 & 1 \end{bmatrix}
+\frac{dk_e}{dA} = \frac{E}{L} \begin{bmatrix} 1 & -1 \\ -1 & 1 \end{bmatrix}
 $$
 
 This is the primary exploitation for fast iterations in  Topology Optimization.
@@ -168,3 +168,47 @@ AsapOptim.jl also provides explicit adjoints for:
 - Assembly of global stiffness matrix `assembleglobalK`
 
 
+Another primary roadblock is that Zygote.jl, the reverse mode AD package used by AsapOptim.jl, does not support mutation of variables. Structural analysis in general depends heavily on efficient mutations of arrays, specifically the updating of vectors and the assembly of the global stiffness matrix. AsapOptim.jl provides custom functions and adjoints for fast gradient calculation of mutating functions:
+- `assembleglobalK` is a mutating function that exploits the known sparsity pattern of the stiffness matrix to rapidly update to new values.
+- `addvalues(values::Vector, indices::Vector{Int}, increments::Vector)` adds the values of `increments` to the existing vector `values` at indices `indices` and returns a new vector.
+- `addvalues(values::Vector, indices::Vector{Int}, newvalues::Vector)` completely replaces values in `values` at `indices` with the values in `newvalues`
+
+## Control of design variables
+Ideally, we can pick and choose the types and bounds of all of our variables. AsapOptim.jl provides three (for now) primary data structures to allow for this control.
+
+### Spatial
+Spatial variables are generated via:
+
+```julia
+variable = SpatialVariable(node::TrussNode, initialvalue, lowerbound, upperbound, axis::Symbol)
+```
+
+A spatial variable is directly tied to a node in an Asap.jl model, and is initiated with a starting value and bounds. `axis` is a symbol input that represents the active global axis: `:X`, `:Y`, `:Z`.
+
+**NOTE** by default, the value of a `SpatialVariable` is the *change* in position of the node. IE a value of 0 indicates the position of the node remains unchanged.
+
+### Area
+Area variables are generated via:
+
+```julia
+variable = AreaVariable(element::AbstractElement, initialvalue, lowerbound, upperbound)
+```
+
+### CoupledVariable
+Often, we would like to assign the same value to more than one node or element. For example we may: want to optimize the areas of a subset of elements that must share the same cross section, or want to rigidly move a subset of nodes as a design variable.
+
+The naïve method is to assign an individual variable to all nodes/elements, and set a constraint such that the difference between the values is 0. However, this sets a significant amount of unnecessary constraints to the system, and adds additional design variables to the problem. `CoupledVariable` allows the user to set variables that are tied to existing values for both spatial and area variables.
+
+```julia
+cvariable = CoupledVariable(new::Union{TrussNode, AbstractElement}, existing::AbstractVariable)
+```
+
+For example, if all the web elements of a truss structure must have the same cross section, we can define a single design variable that covers all of them:
+
+```julia
+webelements = model.elements[:web]
+
+web_area_master = AreaVariable(webelements[1], 500., 100., 20_000)
+
+all_other_webs = [CoupledVariable(element, web_area_master) for element in webelements[2:end]]
+```
