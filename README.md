@@ -22,32 +22,45 @@ To minimize a compound objective of structural compliance + volume, solved in ju
 # Overview
 
 Structural optimization of large systems is difficult due to the inherent computational cost of understanding structural behaviour at each increment. For the direct stiffness FEA method, all structural behaviour (internal forces, stresses, deflected shape, etc...) is dependent on the nodal displacements under load, $u$. For a single step, this displacement vector is determined via a linear system of equations:
+
 $$
 u = K^{-1}(P-P_f)
 $$
+
 Where $K$ is the $n_{dof} \times n_{dof}$ stiffness matrix of the entire system, $P$ is the vector of nodal loads, and $P_f$ is the vector of fixed-end forces induced by loads applied directly to elements.
 
 When considering nodal loads only, we generally assume $P$ is an independent vector, such that displacement is only a function of the global stiffness matrix:
+
 $$
 u = f(K)
 $$
+
 And the stiffness matrix is dependent on the aggregation of *elemental* stiffness matrices in the global coordinate system (GCS):
+
 $$
 K = f(K_{e1}, K_{e2}, ...) = \sum K_e
 $$
+
 And where each elemental stiffness matrix is a function of the *local* stiffness matrix and a coordinate transformation matrix:
+
 $$
 K_e = f(k_e, \Gamma) = \Gamma^Tk_e\Gamma
 $$
+
 And finally, where the stiffness matrix in LCS is a function of the element length and material properties, which for trusses:
+
 $$
 k_e = f(L, E, A) = \frac{EA}{L} \begin{bmatrix} 1 & -1\\ -1 & 1 \end{bmatrix}
 $$
+
 And the transformation matrix is dependent on the unit local x vector of the element:
+
 $$
 \Gamma = f(\vec{x}) = \begin{bmatrix} x_1 & x_2 & x_3 & 0 & 0 & 0 \\ 0 & 0 & 0 &x_1 &x_2 &x_3 \end{bmatrix}
 $$
+
 And the element length is a function of the nodal positions of the two end points. All of this is reduced to (for truss structures):
+
 $$
 u = f(\vec{X}, \vec{Y}, \vec{Z}, \vec{E}, \vec{A})
 $$
@@ -89,9 +102,11 @@ $$
 $$
 
 Which eliminates the inverse calculation, and requires a single linear solve $K^{-1}P$ to determine $u$ at each step. Further analytic expressions are also available for $dK/dx_i$ if $x_i$ is a *material* variable (IE Area, A), since *only* the elemental stiffness matrix is a function of area, such that:
+
 $$
 \frac{dk_e}{dA} = \frac{E}{L} \begin{bmatrix} 1 & -1\\ -1 & 1 \end{bmatrix}
 $$
+
 This is the primary exploitation for fast iterations in  Topology Optimization.
 
 
@@ -116,10 +131,13 @@ AsapOptim addresses these challenges these challenges through **Automatic Differ
 Automatic differentiation is a numerical technique of capturing *exact* gradients (up to numerical precision) of functions. It enables the training of massive ML models, but has recently seen emergence as a general useful tool in general optimization. A great overview can be found [here](https://thenumb.at/Autodiff/); AsapOptim focuses on *reverse mode* automatic differentiation using [Zygote.jl](https://github.com/FluxML/Zygote.jl).
 
 In short, reverse mode AD starts at the final output of a chain of functions, and calculates the incremental derivative for each prior output (functions), eventually propagating these individual gradient chains to the initial input arguments. IE given an object $f((g(h(x))))$, it calculates the derivative w/r/t x in the following order:
+
 $$
 \frac{df}{dg} \cdot \frac{dg}{dh} \cdot \frac{dh}{dx}
 $$
+
 Computationally however, each gradient calculation when *backpropagating* through the computational graph accumulates the prior gradient calculation (a la chain rule). This means that the output of the second gradient chain in the step above really outputs the *pullback* at that step:
+
 $$
 \text{grad}(g) = \frac{df}{dg}\frac{dg}{dh} = \bar{f}\frac{dg}{dh}
 $$
