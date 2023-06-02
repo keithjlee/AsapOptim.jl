@@ -13,25 +13,25 @@ mutable struct SpatialVariable <: TrussOptVariable
 
     function SpatialVariable(nodeindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
-        return new(nodeindex, value, lowerbound, upperbound, axis)
+        new(nodeindex, value, lowerbound, upperbound, axis)
     end
 
     function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
-        return new(node.nodeID, value, lowerbound, upperbound, axis)
+        new(node.nodeID, value, lowerbound, upperbound, axis)
     end
 
     function SpatialVariable(node::Asap.AbstractNode, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
-        @assert in(axis, validaxes)
+        # @assert in(axis, validaxes)
 
         value = node.position[axis2ind[axis]]
 
-        return new(node.nodeID, value, lowerbound, upperbound, axis)
+        new(node.nodeID, value, lowerbound, upperbound, axis)
     end
 end
 
@@ -43,15 +43,15 @@ mutable struct AreaVariable <: TrussOptVariable
     iglobal::Int64
 
     function AreaVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64)
-        return new(elementindex, value, lowerbound, upperbound)
+        new(elementindex, value, lowerbound, upperbound)
     end
 
     function AreaVariable(element::Asap.AbstractElement, value::Float64, lowerbound::Float64, upperbound::Float64)
-        return new(element.elementID, value, lowerbound, upperbound)
+        new(element.elementID, value, lowerbound, upperbound)
     end
 
     function AreaVariable(element::Asap.AbstractElement, lowerbound::Float64, upperbound::Float64)
-        return new(element.elementID, element.section.A, lowerbound, upperbound)
+        new(element.elementID, element.section.A, lowerbound, upperbound)
     end
 end
 
@@ -60,16 +60,21 @@ mutable struct CoupledVariable <: AbstractVariable
     referencevariable::TrussOptVariable
 
     function CoupledVariable(node::TrussNode, ref::SpatialVariable)
-        return new(node.nodeID, ref)
+        new(node.nodeID, ref)
     end
 
     function CoupledVariable(element::TrussElement, ref::AreaVariable)
-        return new(element.elementID, ref)
+        new(element.elementID, ref)
     end
 end
 
 const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
 
+"""
+    TrussOptIndexer
+
+Translation layer between active design variables and their indices in the global structural property vectors
+"""
 mutable struct TrussOptIndexer <: AbstractIndexer
     iX::Vector{Int64}
     iXg::Vector{Int64}
@@ -80,7 +85,6 @@ mutable struct TrussOptIndexer <: AbstractIndexer
     iA::Vector{Int64}
     iAg::Vector{Int64}
 end
-
 
 function populate!(indexer::TrussOptIndexer, var::SpatialVariable)
     field_local, field_global = axis2field[var.axis]
@@ -127,7 +131,7 @@ function TrussOptIndexer(vars::Vector{TrussVariable})
         populate!(indexer, var)
     end
     
-    return indexer
+    indexer
 end
 
 """
@@ -146,6 +150,7 @@ mutable struct TrussOptParams <: AbstractOptParams
     E::Vector{Float64} #all element young's modulii |n_element|
     A::Vector{Float64} #all element areas |n_element|
     P::Vector{Float64} # External load vector
+    C::SparseMatrixCSC{Int64, Int64} #connectivity matrix
     lb::Vector{Float64} #lower bounds of variables
     ub::Vector{Float64} #upper bounds of variables
     cp::Vector{Int64} #S.colptr
@@ -156,7 +161,7 @@ mutable struct TrussOptParams <: AbstractOptParams
     nodeids::Vector{Vector{Int64}} # [[iNodeStart, iNodeEnd] for element in elements]
     dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     n::Int64 #total number of DOFs
-    losstrace::Vector{Float64}
+    losstrace::Vector{Float64} #
     valtrace::Vector{Vector{Float64}}
 
     function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
@@ -188,9 +193,11 @@ mutable struct TrussOptParams <: AbstractOptParams
         #generate indexer between design variables and truss parameters
         indexer = TrussOptIndexer(variables)
 
+        #information about the structural model
         nodeids = getproperty.(model.elements, :nodeIDs)
         dofids = getproperty.(model.elements, :globalID)
         P = model.P
+        C = Asap.connectivity(model)
         freeids = model.freeDOFs
         inzs = allinz(model)
         cp = model.S.colptr
@@ -198,7 +205,7 @@ mutable struct TrussOptParams <: AbstractOptParams
         nnz = length(model.S.nzval)
 
         #generate a truss optimization problem
-        return new(model, 
+        new(model, 
             vals, 
             indexer, 
             variables, 
@@ -208,6 +215,7 @@ mutable struct TrussOptParams <: AbstractOptParams
             E, 
             A, 
             P,
+            C,
             lowerbounds, 
             upperbounds,
             cp,
@@ -219,7 +227,7 @@ mutable struct TrussOptParams <: AbstractOptParams
             dofids,
             model.nDOFs,
             Vector{Float64}(),
-            Vector{Vector{Float64}}()
+            Vector{Vector{Float64}}(),
             )
 
     end
@@ -248,17 +256,23 @@ function updatemodel(p::TrussOptParams, sol::Optimization.SciMLBase.AbstractOpti
 
     #new nodes
     for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
-        push!(nodes, TrussNode([x, y, z], node.dof))
+        newnode = TrussNode([x, y, z], node.dof)
+        newnode.id = node.id
+        push!(nodes, newnode)
     end
 
     #new elements
-    for (id, e, a) in zip(p.nodeids, p.E, A)
-        push!(elements, TrussElement(nodes, id, TrussSection(a, e)))
+    for (id, e, a, el) in zip(p.nodeids, p.E, A, p.model.elements)
+        newelement = TrussElement(nodes, id, TrussSection(a, e))
+        newelement.id = el.id
+        push!(elements, newelement)
     end
 
     #new loads
     for load in p.model.loads
-        push!(loads, NodeForce(nodes[load.node.nodeID], load.value))
+        newload = NodeForce(nodes[load.node.nodeID], load.value)
+        newload.id = load.id
+        push!(loads, newload)
     end
 
     model = TrussModel(nodes, elements, loads)
@@ -282,11 +296,25 @@ struct OptimResults
 
         solvedmodel = updatemodel(p, sol)
 
-        return new(copy(p.losstrace),
+        new(copy(p.losstrace),
             copy(p.valtrace),
             sol.solve_time,
             length(p.valtrace),
             solvedmodel)
 
     end
+end
+
+"""
+Results of a truss structural analysis. Basis for all objective functions.
+"""
+mutable struct TrussResults
+    X::Vector{Float64}
+    Y::Vector{Float64}
+    Z::Vector{Float64}
+    A::Vector{Float64}
+    L::Vector{Float64}
+    K::Vector{Matrix{Float64}}
+    R::Vector{Matrix{Float64}}
+    U::Vector{Float64}
 end
