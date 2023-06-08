@@ -57,7 +57,10 @@ function Rframe(Cxyz::SubArray, Ψ::Float64; tol = 1e-4)
     return R
 end
 
-function kframe_11(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
+Rframe(XYZn::Matrix{Float64}, Ψ::Float64; tol = 1e-4) = [Rtruss(xyzn, psi; tol = tol) for (xyzn, psi) in zip(eachrow(XYZn), Ψ)]
+
+
+function kframe(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
     E / L^3 * [
         A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
         0 12Izz 0 0 0 6L*Izz 0 -12Izz 0 0 0 6L*Izz;
@@ -74,55 +77,58 @@ function kframe_11(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64,
     ]
 end
 
-function kframe_01(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
 
-    E / L^3 .* [
-        A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
-        0 3Izz 0 0 0 0 0 -3Izz 0 0 0 3L*Izz;
-        0 0 3Iyy 0 0 0 0 0 -3Iyy 0 -3L*Iyy 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        -A*L^2 0 0 0 0 0 A*L^2 0 0 0 0 0;
-        0 -3Izz 0 0 0 0 0 3Izz 0 0 0 -3L*Izz;
-        0 0 -3Iyy 0 0 0 0 0 3Iyy 0 3L*Iyy 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 -3L*Iyy 0 0 0 0 0 3L*Iyy 0 3L^2*Iyy 0;
-        0 3L*Izz 0 0 0 0 0 -3L*Izz 0 0 0 3L^2*Izz    
-    ]
-end
 
-function kframe_10(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
 
-    E / L^3 .* [
-        A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
-        0 3Izz 0 0 0 3L*Izz 0 -3Izz 0 0 0 0;
-        0 0 3Iyy 0 -3L*Iyy 0 0 0 -3Iyy 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 -3L*Iyy 0 3L^2*Iyy 0 0 0 3L*Iyy 0 0 0;
-        0 3L*Izz 0 0 0 3L^2*Izz 0 -3L*Izz 0 0 0 0 ;
-        -A*L^2 0 0 0 0 0 A*L^2 0 0 0 0 0;
-        0 -3Izz 0 0 0 -3L*Izz 0 3Izz 0 0 0 0;
-        0 0 -3Iyy 0 3L*Iyy 0 0 0 3Iyy 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0    
-    ]
-end
+# function kframe_01(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
 
-function kframe_00(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
-    E * A / L .* [
-        1. 0 0 0 0 0 -1. 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        -1. 0 0 0 0 0 1. 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0;
-        0 0 0 0 0 0 0 0 0 0 0 0
-        ]
-end
+#     E / L^3 .* [
+#         A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
+#         0 3Izz 0 0 0 0 0 -3Izz 0 0 0 3L*Izz;
+#         0 0 3Iyy 0 0 0 0 0 -3Iyy 0 -3L*Iyy 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         -A*L^2 0 0 0 0 0 A*L^2 0 0 0 0 0;
+#         0 -3Izz 0 0 0 0 0 3Izz 0 0 0 -3L*Izz;
+#         0 0 -3Iyy 0 0 0 0 0 3Iyy 0 3L*Iyy 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 -3L*Iyy 0 0 0 0 0 3L*Iyy 0 3L^2*Iyy 0;
+#         0 3L*Izz 0 0 0 0 0 -3L*Izz 0 0 0 3L^2*Izz    
+#     ]
+# end
+
+# function kframe_10(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
+
+#     E / L^3 .* [
+#         A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
+#         0 3Izz 0 0 0 3L*Izz 0 -3Izz 0 0 0 0;
+#         0 0 3Iyy 0 -3L*Iyy 0 0 0 -3Iyy 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 -3L*Iyy 0 3L^2*Iyy 0 0 0 3L*Iyy 0 0 0;
+#         0 3L*Izz 0 0 0 3L^2*Izz 0 -3L*Izz 0 0 0 0 ;
+#         -A*L^2 0 0 0 0 0 A*L^2 0 0 0 0 0;
+#         0 -3Izz 0 0 0 -3L*Izz 0 3Izz 0 0 0 0;
+#         0 0 -3Iyy 0 3L*Iyy 0 0 0 3Iyy 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0    
+#     ]
+# end
+
+# function kframe_00(E::Float64, A::Float64, L::Float64, G::Float64, Izz::Float64, Iyy::Float64, J::Float64)
+#     E * A / L .* [
+#         1. 0 0 0 0 0 -1. 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         -1. 0 0 0 0 0 1. 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0;
+#         0 0 0 0 0 0 0 0 0 0 0 0
+#         ]
+# end
