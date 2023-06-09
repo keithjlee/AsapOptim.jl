@@ -5,9 +5,9 @@ using kjlMakie; set_theme!(kjl_dark)
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 10
+    nx = 25
     dx = 1000.
-    ny = 10
+    ny = 15
     dy = 1000.
     dz = 1500.
 
@@ -23,12 +23,15 @@ model = sf.truss;
 #newloads
 newloads = Vector{NodeForce}()
 for node in model.nodes
-    if node.position[1] >= nx*dx/2
+    if node.position[1] ≥ nx*dx/2 && node.position[2] ≥ ny*dy/2
         push!(newloads, NodeForce(node, [0., 0., -40e3]))
     end
 end
 
-Asap.solve!(model, [model.loads; newloads])
+iset = vec(rand(sf.isquares))
+L2 = [NodeForce(model.nodes[i], [0., 0., -100e3]) for i in iset]
+
+Asap.solve!(model, L2)
 
 begin
     dfac = Observable(1.)
@@ -136,7 +139,7 @@ begin
     @time sol = Optimization.solve(prob, 
         NLopt.LD_LBFGS();
         callback = cb,
-        reltol = 1e-6,
+        reltol = 1e-3,
         )
 end
 
@@ -194,7 +197,7 @@ end
 
 for k = 1:res.niter
     i[] = k
-    sleep(.001)
+    sleep(.005)
 end
 
 # iterator = 1:res.niter
