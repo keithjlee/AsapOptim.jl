@@ -3,7 +3,7 @@ abstract type AbstractVariable end
 abstract type TrussOptVariable end
 abstract type AbstractIndexer end
 
-mutable struct SpatialVariable <: TrussOptVariable
+mutable struct SpatialVariable <: AbstractVariable
     i::Int64 #index of node, e.g. X[i] is the spatial variable
     val::Float64 #value
     lb::Float64 #lower bound of variable
@@ -35,7 +35,7 @@ mutable struct SpatialVariable <: TrussOptVariable
     end
 end
 
-mutable struct AreaVariable <: TrussOptVariable
+mutable struct AreaVariable <: AbstractVariable
     i::Int64 #index of element, e.g. A[i] is the area variable
     val::Float64
     lb::Float64
@@ -181,7 +181,7 @@ mutable struct TrussOptParams <: AbstractOptParams
         #assign an index to all unique variables, collect value and bounds
         i = 1
         for var in variables
-            if typeof(var) <: TrussOptVariable
+            if typeof(var) <: Union{SpatialVariable, AreaVariable}
                 var.iglobal  = i
                 i += 1
                 push!(vals, var.val)

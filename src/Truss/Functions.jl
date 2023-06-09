@@ -52,7 +52,7 @@ function Rtruss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
-function getRmatrices(XYZn::Matrix{Float64})
+function Rtruss(XYZn::Matrix{Float64})
     Rtruss.(eachrow(XYZn))
 end
 
@@ -89,7 +89,7 @@ end
 
 Assemble the global stiffness matrix from a vector of elemental stiffness matrices
 """
-function assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::TrussOptParams)
+function assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::AbstractOptParams)
 
     nz = zeros(p.nnz)
 

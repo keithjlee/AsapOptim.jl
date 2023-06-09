@@ -1,4 +1,37 @@
-abstract type FrameOptVariable end
+abstract type FrameOptVariable <: AbstractVariable end
+
+const validproperties = [:A, :Iz, :Iy, :Izz, :Iyy]
+
+const field2field = Dict(:X => (:iX, :iXg),
+    :x => (:iX, :iXg),
+    :Y => (:iY, :iYg),
+    :y => (:iY, :iYg),
+    :Z => (:iZ, :iZg),
+    :z => (:iZ, :iZg), 
+    :A => (:iA, :iAg),
+    :Iz => (:iIz, :iIzg),
+    :Izz => (:iIz, :iIzg),
+    :Iy => (:iIy, :iIyg),
+    :Iyy => (:iIy, :iIyg))
+
+mutable struct InternalVariable <: FrameOptVariable
+    i::Int64 #index of element, e.g. A[i] is the area variable
+    val::Float64
+    lb::Float64
+    ub::Float64
+    property::Symbol
+    iglobal::Int64
+
+    function InternalVariable(element::Asap.Element, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol)
+        @assert in(property, keys(validproperties))
+        new(element.elementID, value, lowerbound, upperbound, property)
+    end
+
+    function InternalVariable(element::Asap.Element, lowerbound::Float64, upperbound::Float64, property::Symbol)
+        @assert in(property, keys(validproperties))
+        new(element.elementID, getfield(element.section, property), lowerbound, upperbound, property)
+    end
+end
 
 mutable struct FrameOptIndexer <: AbstractIndexer
     iX::Vector{Int64}
@@ -15,11 +48,72 @@ mutable struct FrameOptIndexer <: AbstractIndexer
     iIyg::Vector{Int64}
 end
 
+function populate!(indexer::FrameOptIndexer, var::SpatialVariable)
+    field_local, field_global = field2field[var.axis]
+
+    push!(getfield(indexer, field_local), var.i)
+    push!(getfield(indexer, field_global), var.iglobal)
+
+end
+
+function populate!(indexer::FrameOptIndexer, var::AreaVariable)
+    push!(getfield(indexer, :iA), var.i)
+    push!(getfield(indexer, :iAg), var.iglobal)
+end
+
+function populate!(indexer::FrameOptIndexer, var::InternalVariable)
+    field_local, field_global = property2field[var.property]
+
+    push!(getfield(indexer, field_local), var.i)
+    push!(getfield(indexer, field_global), var.iglobal)
+end
+
+function populate!(indexer::FrameOptIndexer, var::CoupledVariable)
+    if typeof(var.referencevariable) == SpatialVariable
+        field_local, field_global = field2field[var.referencevariable.axis]
+
+        push!(getfield(indexer, field_local), var.i)
+        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
+    else if typeof(var.referencevariable) == InternalVariable
+        field_local, field_global = property2field[var.property]
+    
+        push!(getfield(indexer, field_local), var.i)
+        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
+    else
+        push!(getfield(indexer, :iA), var.i)
+    push!(getfield(indexer, :iAg), var.iglobal)
+    end
+end
+
+const FrameVariable = Union{SpatialVariable, AreaVariable, InternalVariable, CoupledVariable}
+function FrameOptIndexer(vars::Vector{FrameVariable})
+    indexer = TrussOptIndexer(
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Int64}()
+        )
+
+    for var in vars
+        populate!(indexer, var)
+    end
+    
+    indexer
+end
+
 mutable struct FrameOptParams <: AbstractOptParams
     model::Model #the reference truss model for optimization
     values::Vector{Float64} #design variables
     indexer::FrameOptIndexer #pointers to design variables and full variables
-    variables::Vector{TrussVariable}
+    variables::Vector{FrameVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
@@ -44,19 +138,24 @@ mutable struct FrameOptParams <: AbstractOptParams
     n::Int64 #total number of DOFs
     losstrace::Vector{Float64} #
     valtrace::Vector{Vector{Float64}}
-    Lstore::Vector{Float64} #current element lengths
-    Rstore::Vector{Matrix{Float64}} #current element transformation matrices
-    Kstore::Vector{Matrix{Float64}} #current element stiffness matrices (GCS)
 
 
-    function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
+    function FrameOptParams(model::Model, variables::Vector{TrussVariable})
         @assert model.processed
 
         #extract global parameters
         xyz = Asap.nodePositions(model)
         X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
-        E = getproperty.(getproperty.(model.elements, :section), :E)
-        A = getproperty.(getproperty.(model.elements, :section), :A)
+
+        #material parameters
+        sections = getproperty.(model.elements, :section)
+        E = getproperty.(sections, :E)
+        A = getproperty.(sections, :A)
+        G = getproperty.(sections, :G)
+        Iz = getproperty.(sections, :Izz)
+        Iy = getproperty.(sections, :Iyy)
+        J = getproperty.(sections, :J)
+        Ψ = getproperty.(model.elements, :Ψ)
 
         #assign global id to variables
         vals = Vector{Float64}()
@@ -66,7 +165,7 @@ mutable struct FrameOptParams <: AbstractOptParams
         #assign an index to all unique variables, collect value and bounds
         i = 1
         for var in variables
-            if typeof(var) <: TrussOptVariable
+            if typeof(var) != CoupledVariable
                 var.iglobal  = i
                 i += 1
                 push!(vals, var.val)
@@ -76,7 +175,7 @@ mutable struct FrameOptParams <: AbstractOptParams
         end
 
         #generate indexer between design variables and truss parameters
-        indexer = TrussOptIndexer(variables)
+        indexer = FrameOptIndexer(variables)
 
         #information about the structural model
         nodeids = getproperty.(model.elements, :nodeIDs)
@@ -99,6 +198,11 @@ mutable struct FrameOptParams <: AbstractOptParams
             Z, 
             E, 
             A, 
+            G,
+            Iz,
+            Iy,
+            J,
+            Ψ,
             P,
             C,
             lowerbounds, 

@@ -21,7 +21,7 @@ function solvetruss(values::Vector{Float64}, p::TrussOptParams)
     n = getnormalizedevecs(v, l)
 
     # Γ
-    Γ = getRmatrices(n)
+    Γ = Rtruss(n)
 
     # kₑ
     kₑ = ktruss.(p.E, A, l)

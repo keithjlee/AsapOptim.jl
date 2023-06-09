@@ -140,10 +140,10 @@ function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
     return R, Rtruss_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(getRmatrices), XYZn::Matrix{Float64})
-    rs = getRmatrices(XYZn)
+function ChainRulesCore.rrule(::typeof(Rtruss), XYZn::Matrix{Float64})
+    rs = Rtruss(XYZn)
 
-    function getRmatrices_pullback(R̄)
+    function Rtruss_pullback(R̄)
         dRdC = zero(XYZn)
 
         for i in axes(R̄, 1)
@@ -155,7 +155,7 @@ function ChainRulesCore.rrule(::typeof(getRmatrices), XYZn::Matrix{Float64})
         return (NoTangent(), dRdC)
     end
 
-    return rs, getRmatrices_pullback
+    return rs, Rtruss_pullback
 end
 
 """
@@ -163,7 +163,7 @@ The sensitivity of K w/r/t an elemental Kₑ is the proportional stiffness added
 
 Output is a vector: [nElements × [nDOFe × nDOFe]] of elemental stiffness matrix sensitivites
 """
-function ChainRulesCore.rrule(::typeof(assembleglobalK), Eks::Vector{Matrix{Float64}}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(assembleglobalK), Eks::Vector{Matrix{Float64}}, p::AbstractOptParams)
     K = assembleglobalK(Eks, p)
 
     function K_pullback(K̄)
