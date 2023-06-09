@@ -2,7 +2,7 @@
     Flocal(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
 [2×1] vector of end element end forces in LCS
 """
-function Flocal(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+function Flocal(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::AbstractOptParams)
 
     #Displacements w/r/t each element
     uEs = [u[id] for id in p.dofids]
@@ -25,7 +25,6 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
             # F̄ ⋅ dF/dR
             ΔR = kron(Eks[i] * u[ids[i]], I(2)) * F̄[i]
             dR[i] = reshape(ΔR, 2, 6)
-            # dR[i] = permutedims(reshape(ΔR, 6, 2), (2,1))
 
             #F̄ ⋅ dF/du
             du[ids[i]] += (Rs[i] * Eks[i])' * F̄[i]
@@ -33,7 +32,6 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
             #F̄ ⋅ dF/dK
             ΔK = kron(u[ids[i]]', Rs[i])' * F̄[i]
             dK[i] = reshape(ΔK, 6, 6)
-            # dK[i] = permutedims(reshape(ΔK, 6, 6), (2,1))
         end
 
         return (NoTangent(), du, dK, dR, NoTangent())
@@ -41,7 +39,6 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
     end
 
     return F, Flocal_pullback
-
 end
 
 """
@@ -95,7 +92,6 @@ Axial forces in truss structure
 function axialforce(t::TrussResults, p::TrussOptParams)
     Faxial(t.U, t.K, t.R, p)
 end
-export axialforce
 
 """
     axialstress(t::TrussResults, p::TrussOptParams)
@@ -105,4 +101,3 @@ function axialstress(t::TrussResults, p::TrussOptParams)
     F = Faxial(t.U, t.K, t.R, p)
     σaxial(F, t.A)
 end
-export axialstress
