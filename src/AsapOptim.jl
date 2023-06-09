@@ -6,37 +6,20 @@ using Reexport
 using Asap, AsapToolkit
 
 # Analysis dependencies
-@reexport using LinearAlgebra, SparseArrays
+using SparseArrays
+using IterativeSolvers
+@reexport using LinearAlgebra
 
 # Optimization
 @reexport using ChainRulesCore, Zygote
 @reexport import Optimization 
 @reexport using OptimizationNLopt: NLopt
-@reexport using IterativeSolvers
 
-# Truss optimization
-include("Truss/Translation.jl")
-include("Truss/Types.jl")
-include("Truss/Utilities.jl")
-export cleartrace!
+include("Types/Types.jl")
 
-# optimization parameters
-export TrussOptParams
+include("Utilities/Utilities.jl")
 
-# supertypes
-export TrussVariable
-
-# variables
-export SpatialVariable, AreaVariable, CoupledVariable
-
-# output
-export OptimResults
-
-# functions/analysis
-include("Truss/Functions.jl")
-include("Truss/Adjoints.jl")
-include("Truss/ObjectiveFunctions.jl")
-include("Truss/SecondaryFunctions.jl")
+include("Functions/Functions.jl")
 
 
 end # module AsapOptim

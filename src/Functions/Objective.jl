@@ -48,7 +48,6 @@ function solvetruss(values::Vector{Float64}, p::TrussOptParams)
         Γ,
         U)
 end
-export solvetruss
 
 """
     compliance(t::TrussResults, p::TrussOptParams)
@@ -58,14 +57,12 @@ Measure of strain energy for truss structures.
 function compliance(t::TrussResults, p::TrussOptParams)
     t.U' * p.P
 end
-export compliance
 
 """
     variation(vals::Vector{Float64}; factor = 1.)
 Penalize the distance between extrema of a set
 """
 variation(vals::Vector{Float64}; factor = 1.) = -factor * reduce(-, extrema(vals))
-export variation
 
 """
     maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
@@ -75,7 +72,6 @@ function maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
     Δ = vals .- threshold
     factor * sum(Δ .+ abs.(Δ))
 end
-export maxpenalty
 
 """
     minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
@@ -85,4 +81,3 @@ function minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
     Δ = threshold .- vals
     factor * sum(Δ .+ abs.(Δ))
 end
-export minpenalty

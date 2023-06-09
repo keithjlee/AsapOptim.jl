@@ -1,12 +1,11 @@
 using Asap, AsapToolkit, AsapOptim
-using Zygote, LinearAlgebra
 using kjlMakie; set_theme!(kjl_dark)
 
 
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 30
+    nx = 10
     dx = 1000.
     ny = 10
     dy = 1000.
@@ -18,14 +17,14 @@ begin
 end
 
 # generate and extract model
-sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :x);
+sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :xy);
 model = sf.truss;
 
 #newloads
 newloads = Vector{NodeForce}()
 for node in model.nodes
-    if node.position[2] >= ny*dy/2
-        push!(newloads, NodeForce(node, [0., 0., -30e3]))
+    if node.position[1] >= nx*dx/2
+        push!(newloads, NodeForce(node, [0., 0., -40e3]))
     end
 end
 
@@ -137,7 +136,7 @@ begin
     @time sol = Optimization.solve(prob, 
         NLopt.LD_LBFGS();
         callback = cb,
-        reltol = 1e-3,
+        reltol = 1e-6,
         )
 end
 
@@ -195,11 +194,11 @@ end
 
 for k = 1:res.niter
     i[] = k
-    sleep(.05)
+    sleep(.001)
 end
 
-iterator = 1:res.niter
+# iterator = 1:res.niter
 
-record(fig, "figures/canopy.gif", iterator; framerate = 20) do x
-    i[] = x
-end
+# record(fig, "figures/canopy.gif", iterator; framerate = 20) do x
+#     i[] = x
+# end
