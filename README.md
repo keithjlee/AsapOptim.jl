@@ -19,6 +19,137 @@ The following as an optimization problem with over 4000 variables:
 To minimize a compound objective of structural compliance + volume, solved in just over 10s with a relative stopping criteria of 1E-6.
 ![](figures/spaceframe2_optim2.gif)
 
+# Small example
+```julia
+using Asap, AsapToolkit, AsapOptim
+using Zygote, LinearAlgebra
+
+
+## Create a spaceframe
+
+# meta parameters
+begin
+    nx = 30 # number of bays in x
+    dx = 1000. # x spacing
+    ny = 10 # number of bays in 7
+    dy = 1000. # y spacing
+    dz = 1500. # spaceframe depth
+
+    sec = rand(allHSSRound()) # choose a random round HSS section
+    tube = toASAPtruss(sec, Steel_Nmm.E) # generate an aSAP section
+end
+
+# generate and extract model
+sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :x)
+model = sf.truss
+
+# Add a new set of loads on one half of structure
+newloads = Vector{NodeForce}()
+for node in model.nodes
+    if node.position[2] >= ny*dy/2
+        push!(newloads, NodeForce(node, [0., 0., -30e3]))
+    end
+end
+
+# resolve with superimposed offset loads
+Asap.solve!(model, [model.loads; newloads])
+
+#make variables
+begin
+    vars = Vector{TrussVariable}()
+
+    # top node Z bounds
+    lb = -500.
+    ub = 3500.
+
+    # bottom node Z bounds
+    lbb = -1000.
+    ubb = 1500.
+
+    # bottom node XY bounds
+    lbxy = -750.
+    ubxy = 750.
+
+    # spatial variables
+    for node in model.nodes
+
+        #top nodes can move in X, Y, Z
+        if node.id == :top
+            push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
+            push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
+            push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+        end
+
+        #bottom nodes can move in Z
+        if node.id == :bottom
+            push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
+        end
+    end
+
+    # area variables
+    for el in model.elements
+        push!(vars, AreaVariable(el, 250., 0., 20000.))
+    end
+
+end
+
+# generate a problem
+problem = TrussOptParams(model, vars);
+
+# extract design variables
+vals = problem.values
+
+# define objective function
+function obj(values::Vector{Float64}, p::TrussOptParams)
+    
+    # solve the truss and store intermediate results
+    res = solvetruss(values, p)
+    
+    # compliance of system
+    compliance(res, p)
+end
+
+# test objective
+@time o1 = obj(vals, problem) # objective value
+@time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1] # objective gradient
+
+#  define optimization problem
+begin
+
+    # define function
+    func = Optimization.OptimizationFunction(obj, 
+        Optimization.AutoZygote(),
+        )
+
+    # define problem
+    prob = Optimization.OptimizationProblem(func, vals, problem;
+        lb = problem.lb,
+        ub = problem.ub,
+        )
+
+    # optional trace storage
+    function cb(vals::Vector{Float64}, loss::Float64)
+        push!(problem.losstrace, loss)
+        push!(problem.valtrace, deepcopy(vals))
+        false
+    end
+end
+
+# solve optimization problem
+sol = Optimization.solve(prob, 
+        NLopt.LD_LBFGS();
+        callback = cb,
+        reltol = 1e-6,
+        )
+
+@show sol.solve_time
+
+# extract results
+res = OptimResults(problem, sol)
+
+@show res.losstrace
+```
+
 # Overview
 
 Structural optimization of large systems is difficult due to the inherent computational cost of understanding structural behaviour at each increment. For the direct stiffness FEA method, all structural behaviour (internal forces, stresses, deflected shape, etc...) is dependent on the nodal displacements under load, $u$. For a single step, this displacement vector is determined via a linear system of equations:
