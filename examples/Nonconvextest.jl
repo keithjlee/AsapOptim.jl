@@ -1,7 +1,9 @@
 using Asap, AsapToolkit, AsapOptim
 using kjlMakie; set_theme!(kjl_dark)
-using Nonconvex
+import Nonconvex
 Nonconvex.@load NLopt
+Nonconvex.@load MMA
+Nonconvex.@load Ipopt
 
 ### Create a spaceframe
 #meta parameters
@@ -127,107 +129,108 @@ begin
 end
 
 # generate a problem
-problem = TrussOptParams(model, vars);
-
-# extract design variables
-vals = problem.values
+params = TrussOptParams(model, vars);
 
 # define objective function
 function obj(values::Vector{Float64}, p::TrussOptParams)
     
+    #populate values
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
+    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
+
+    # vₑ
+    v = AsapOptim.getevecs(X, Y, Z, p)
+
+    # Lₑ
+    l = AsapOptim.getlengths(v)
+
+    dot(A, l)
+end
+
+function cstr(values::Vector{Float64}, p::TrussOptParams)
+
     res = solvetruss(values, p)
-    
-    compliance(res, p)
+
+    axialstress(res, p) .- 350
 end
 
-# test objective
-@time o1 = obj(vals, problem)
-@time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1];
+# special structure to store traces
+OBJ = x -> obj(x, params)
+CSTR = x -> cstr(x, params)
 
-#  define optimization problem
+optmodel = Nonconvex.Model(OBJ)
+
+#add variables and constraints
+Nonconvex.addvar!(optmodel, params.lb, params.ub, init = copy(params.values))
+Nonconvex.add_ineq_constraint!(optmodel, CSTR)
+
+#define algorithm
 begin
-    func = Optimization.OptimizationFunction(obj, 
-        Optimization.AutoZygote(),
-        )
-
-    prob = Optimization.OptimizationProblem(func, vals, problem;
-        lb = problem.lb,
-        ub = problem.ub,
-        )
-
-    function cb(vals::Vector{Float64}, loss::Float64)
-        push!(problem.losstrace, loss)
-        push!(problem.valtrace, deepcopy(vals))
-        false
-    end
-
-    cleartrace!(problem)
-    @time sol = Optimization.solve(prob, 
-        NLopt.LD_LBFGS();
-        callback = cb,
-        reltol = 1e-3,
-        )
+    alg = NLoptAlg(:LD_MMA)
+    opts = NLoptOptions(ftol_rel = 1e-4)
+    res = Nonconvex.optimize(optmodel, alg, params.values, options = opts)
 end
 
-# extract results
-res = OptimResults(problem, sol);
-res.losstrace
-
-aset = [AsapOptim.replacevalues(problem.A, problem.indexer.iA, vals[problem.indexer.iAg]) for vals in res.valtrace]
-anormalizer = maximum(maximum.(aset))
-
 begin
-    i = Observable(1)
-    lfac = Observable(20)
-    vals = @lift(res.valtrace[$i])
-
-    x = @lift(AsapOptim.addvalues(problem.X, problem.indexer.iX, $vals[problem.indexer.iXg]))
-    y = @lift(AsapOptim.addvalues(problem.Y, problem.indexer.iY, $vals[problem.indexer.iYg]))
-    z = @lift(AsapOptim.addvalues(problem.Z, problem.indexer.iZ, $vals[problem.indexer.iZg]))
-    a = @lift(AsapOptim.replacevalues(problem.A, problem.indexer.iA, $vals[problem.indexer.iAg]))
-
-    lw = @lift($a ./ anormalizer .* $lfac)
-
-    p = @lift(Point3.($x, $y, $z))
-    e = @lift(vcat([$p[id] for id in problem.nodeids]...))
-    s = @lift($p[findall(model.nodes, :support)])
-
+    alg2 = MMA()
+    opts2 = MMAOptions()
+    res2 = Nonconvex.optimize(optmodel, alg2, options = opts2)
 end
 
+begin
+    alg3 = IpoptAlg()
+    opts3 = IpoptOptions(first_order = true, tol = 1e-4)
+    res3 = Nonconvex.optimize(optmodel, alg3, options = opts3)
+end
+
+#solution
+begin
+    sol = res.minimizer
+
+    x = AsapOptim.addvalues(params.X, params.indexer.iX, sol[params.indexer.iXg])
+    y = AsapOptim.addvalues(params.Y, params.indexer.iY, sol[params.indexer.iYg])
+    z = AsapOptim.addvalues(params.Z, params.indexer.iZ, sol[params.indexer.iZg])
+    a = AsapOptim.replacevalues(params.A, params.indexer.iA, sol[params.indexer.iAg])
+
+    p1 = Point3.(x, y, z)
+    e1 = vcat([p1[id] for id in params.nodeids]...)
+
+    lfac = Observable(5.)
+    lw = @lift(a ./ maximum(a) .* $lfac)
+end
 
 begin
-    fig = Figure(resolution = (1500,750))
+    dfac = Observable(1.)
+    p0 = @lift(Point3.(getproperty.(model.nodes, :position) .+ $dfac * getproperty.(model.nodes, :displacement)))
+    e0 = @lift(vcat([$p0[id] for id in getproperty.(model.elements, :nodeIDs)]...))
+    f0 = getindex.(getproperty.(model.elements, :forces), 2)
+    c0 = maximum(abs.(f0)) .* (-1, 1) .* .2
+    s0 = @lift($p0[findall(model.nodes, :support)])
+
+    fig = Figure()
     ax = Axis3(fig[1,1],
         aspect = :data)
 
-    # gridtoggle!(ax); simplifyspines!(ax)
-    hidedecorations!(ax); hidespines!(ax)
+    gridtoggle!(ax); simplifyspines!(ax)
 
-    linesegments!(e,
-        color = :white,
-        linewidth = lw)
+    oldpos = linesegments!(e0,
+        colormap = pink2blue,
+        color = f0,
+        colorrange = c0,
+        linewidth = 4)
 
-    scatter!(s,
+    scatter!(s0,
         color = :yellow,
         strokecolor = :black,
         strokewidth = 4,
         size = 100)
-    
 
-    on(i) do _
-        reset_limits!(ax)
-    end
+    newpos = linesegments!(e1,
+        color = :white,
+        linewidth = lw)
+    
 
     fig
 end
-
-for k = 1:res.niter
-    i[] = k
-    sleep(.5)
-end
-
-# iterator = 1:res.niter
-
-# record(fig, "figures/canopy.gif", iterator; framerate = 20) do x
-#     i[] = x
-# end
