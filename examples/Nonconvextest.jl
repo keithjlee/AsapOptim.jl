@@ -123,7 +123,7 @@ begin
     end
 
     for el in model.elements
-        push!(vars, AreaVariable(el, 250., 0., 20000.))
+        push!(vars, AreaVariable(el, 10_000., 1_000., 20000.))
     end
 
 end
@@ -153,12 +153,19 @@ function cstr(values::Vector{Float64}, p::TrussOptParams)
 
     res = solvetruss(values, p)
 
-    axialstress(res, p) .- 350
+    maximum(axialstress(res, p)) .- 350
 end
 
 # special structure to store traces
 OBJ = x -> obj(x, params)
 CSTR = x -> cstr(x, params)
+
+#test
+@time OBJ(params.values)
+@time Zygote.gradient(OBJ, params.values)[1]
+
+@time CSTR(params.values)
+@time Zygote.gradient(CSTR, params.values)[1]
 
 optmodel = Nonconvex.Model(OBJ)
 

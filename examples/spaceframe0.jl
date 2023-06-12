@@ -58,6 +58,19 @@ model = sf.truss;
 
 # Asap.solve!(model, L2)
 
+# change to roller support
+for node in model.nodes[:support]
+    fixnode!(node, :zfixed)
+end
+
+# two pinned support
+begin
+    fixnode!(model.nodes[rand(sf.iX1)], :pinned)
+    fixnode!(model.nodes[rand(sf.iY1)], :pinned)
+end
+
+updateDOF!(model); solve!(model)
+
 begin
     dfac = Observable(1.)
     p0 = @lift(Point3.(getproperty.(model.nodes, :position) .+ $dfac * getproperty.(model.nodes, :displacement)))
@@ -197,10 +210,28 @@ end
 begin
     fig = Figure(resolution = (1500,750))
     ax = Axis3(fig[1,1],
+        protrusions = 75,
         aspect = :data)
 
-    # gridtoggle!(ax); simplifyspines!(ax)
-    hidedecorations!(ax); hidespines!(ax)
+    gridtoggle!(ax); simplifyspines!(ax)
+    # hidedecorations!(ax); hidespines!(ax)
+
+    linesegments!(e,
+        color = :white,
+        linewidth = lw)
+
+    scatter!(s,
+        color = :yellow,
+        strokecolor = :black,
+        strokewidth = 4,
+        size = 100)
+
+    ax2 = Axis3(fig[1,2],
+        azimuth = pi/2,
+        elevation = pi/2,
+        aspect = :data)
+
+    hidedecorations!(ax2); hidespines!(ax2)
 
     linesegments!(e,
         color = :white,
@@ -222,7 +253,7 @@ end
 
 for k = 1:res.niter
     i[] = k
-    sleep(.5)
+    sleep(.05)
 end
 
 # iterator = 1:res.niter
