@@ -189,8 +189,12 @@ end
 begin
     alg3 = IpoptAlg()
     opts3 = IpoptOptions(first_order = true, tol = 1e-4)
-    res3 = Nonconvex.optimize(optmodel, alg3, options = opts3)
+    res3 = Nonconvex.optimize(optmodel, alg3, params.values, options = opts3)
 end
+
+@show res.minimum
+@show res2.minimum
+@show res3.minimum
 
 #solution
 begin
