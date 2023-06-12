@@ -1,6 +1,7 @@
 using Asap, AsapToolkit, AsapOptim
 using kjlMakie; set_theme!(kjl_dark)
-
+using Nonconvex
+Nonconvex.@load NLopt
 
 ### Create a spaceframe
 #meta parameters
