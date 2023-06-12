@@ -153,7 +153,7 @@ function cstr(values::Vector{Float64}, p::TrussOptParams)
 
     res = solvetruss(values, p)
 
-    maximum(axialstress(res, p)) .- 350
+    maximum(axialstress(res, p)) - 350
 end
 
 # special structure to store traces
@@ -182,8 +182,8 @@ end
 
 begin
     alg2 = MMA()
-    opts2 = MMAOptions()
-    res2 = Nonconvex.optimize(optmodel, alg2, options = opts2)
+    opts2 = MMAOptions(; tol = Nonconvex.Tolerance(; frel = 1e-4))
+    res2 = Nonconvex.optimize(optmodel, alg2, params.values, options = opts2, convcriteria = KKTCriteria())
 end
 
 begin
@@ -194,7 +194,7 @@ end
 
 #solution
 begin
-    sol = res.minimizer
+    sol = res2.minimizer
 
     x = AsapOptim.addvalues(params.X, params.indexer.iX, sol[params.indexer.iXg])
     y = AsapOptim.addvalues(params.Y, params.indexer.iY, sol[params.indexer.iYg])
