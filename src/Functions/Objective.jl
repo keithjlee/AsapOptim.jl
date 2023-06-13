@@ -81,3 +81,24 @@ function minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
     Δ = threshold .- vals
     factor * sum(Δ .+ abs.(Δ))
 end
+
+"""
+    volume(values::Vector{Float64}, p::TrussOptParams)
+Extract the volume of a truss
+"""
+function volume(values::Vector{Float64}, p::TrussOptParams)
+
+    #populate values
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
+    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
+
+    # vₑ
+    v = getevecs(X, Y, Z, p)
+
+    # Lₑ
+    l = getlengths(v)
+
+    dot(A, l)
+end

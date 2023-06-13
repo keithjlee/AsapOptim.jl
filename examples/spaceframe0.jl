@@ -1,6 +1,7 @@
 using Asap, AsapToolkit, AsapOptim
 using kjlMakie; set_theme!(kjl_dark)
 
+using OptimizationOptimJL
 
 ### Create a spaceframe
 #meta parameters
@@ -69,7 +70,7 @@ begin
     fixnode!(model.nodes[rand(sf.iY1)], :pinned)
 end
 
-updateDOF!(model); solve!(model)
+updateDOF!(model); Asap.solve!(model)
 
 begin
     dfac = Observable(1.)
@@ -133,7 +134,7 @@ begin
     end
 
     for el in model.elements
-        push!(vars, AreaVariable(el, 250., 0., 20000.))
+        push!(vars, AreaVariable(el, 20000., 0., 30000.))
     end
 
 end
@@ -148,13 +149,15 @@ vals = problem.values
 function obj(values::Vector{Float64}, p::TrussOptParams)
     
     res = solvetruss(values, p)
-    
     compliance(res, p)
+
 end
 
 # test objective
 @time o1 = obj(vals, problem)
 @time g1 = Zygote.gradient(var -> obj(var, problem), vals)[1];
+
+
 
 #  define optimization problem
 begin

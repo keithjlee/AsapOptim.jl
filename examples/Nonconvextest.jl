@@ -2,8 +2,6 @@ using Asap, AsapToolkit, AsapOptim
 using kjlMakie; set_theme!(kjl_dark)
 import Nonconvex
 Nonconvex.@load NLopt
-Nonconvex.@load MMA
-Nonconvex.@load Ipopt
 
 ### Create a spaceframe
 #meta parameters
@@ -40,26 +38,27 @@ sf = generatespaceframe(nx,
     ny, 
     dy, 
     dz,
-    itp,
+    # itp,
     tube,
-    true; 
+    # true
+    ; 
     load = [0., 0., -30e3], 
-    support = :xy);
+    support = :x);
 
 model = sf.truss;
 
-#newloads
-# newloads = Vector{NodeForce}()
-# for node in model.nodes
-#     if node.position[1] ≥ nx*dx/2 && node.position[2] ≥ ny*dy/2
-#         push!(newloads, NodeForce(node, [0., 0., -40e3]))
-#     end
-# end
+begin
+    # change to roller support
+    for node in model.nodes[sf.iX1]
+        fixnode!(node, :zfixed)
+    end
 
-# iset = vec(rand(sf.isquares))
-# L2 = [NodeForce(model.nodes[i], [0., 0., -100e3]) for i in iset]
+    # two pinned support
+    # fixnode!(model.nodes[rand(sf.iX1)], :pinned)
+    # fixnode!(model.nodes[rand(sf.iY1)], :pinned)
 
-# Asap.solve!(model, L2)
+    updateDOF!(model); solve!(model)
+end
 
 begin
     dfac = Observable(1.)
@@ -110,11 +109,11 @@ begin
     for node in model.nodes
 
         #top nodes can move in X, Y, Z
-        if node.id == :top
-            push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
-            push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
-            push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
-        end
+        # if node.id == :top
+        #     push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
+        #     push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
+        #     push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+        # end
 
         #bottom nodes can move in Z
         if node.id == :bottom
@@ -123,7 +122,7 @@ begin
     end
 
     for el in model.elements
-        push!(vars, AreaVariable(el, 10_000., 1_000., 20000.))
+        push!(vars, AreaVariable(el, 28_000., 1_000., 30000.))
     end
 
 end
@@ -153,7 +152,10 @@ function cstr(values::Vector{Float64}, p::TrussOptParams)
 
     res = solvetruss(values, p)
 
-    maximum(axialstress(res, p)) - 350
+    stress = maximum(axialstress(res, p)) - 350
+    disp = - nx * dx / 360 - minimum(res.U[3:3:end])
+
+    (stress, disp)
 end
 
 # special structure to store traces
@@ -162,43 +164,30 @@ CSTR = x -> cstr(x, params)
 
 #test
 @time OBJ(params.values)
-@time Zygote.gradient(OBJ, params.values)[1]
+# @time Zygote.gradient(OBJ, params.values)[1]
 
 @time CSTR(params.values)
-@time Zygote.gradient(CSTR, params.values)[1]
+# @time Zygote.gradient(CSTR, params.values)[1]
 
-optmodel = Nonconvex.Model(OBJ)
+F = Nonconvex.TraceFunction(OBJ)
+optmodel = Nonconvex.Model(F)
 
 #add variables and constraints
 Nonconvex.addvar!(optmodel, params.lb, params.ub, init = copy(params.values))
 Nonconvex.add_ineq_constraint!(optmodel, CSTR)
 
 #define algorithm
-begin
+@time begin
     alg = NLoptAlg(:LD_MMA)
     opts = NLoptOptions(ftol_rel = 1e-4)
     res = Nonconvex.optimize(optmodel, alg, params.values, options = opts)
 end
 
-begin
-    alg2 = MMA()
-    opts2 = MMAOptions(; tol = Nonconvex.Tolerance(; frel = 1e-4))
-    res2 = Nonconvex.optimize(optmodel, alg2, params.values, options = opts2, convcriteria = KKTCriteria())
-end
-
-begin
-    alg3 = IpoptAlg()
-    opts3 = IpoptOptions(first_order = true, tol = 1e-4)
-    res3 = Nonconvex.optimize(optmodel, alg3, params.values, options = opts3)
-end
-
 @show res.minimum
-@show res2.minimum
-@show res3.minimum
 
 #solution
 begin
-    sol = res2.minimizer
+    sol = res.minimizer
 
     x = AsapOptim.addvalues(params.X, params.indexer.iX, sol[params.indexer.iXg])
     y = AsapOptim.addvalues(params.Y, params.indexer.iY, sol[params.indexer.iYg])
@@ -238,10 +227,38 @@ begin
         strokewidth = 4,
         size = 100)
 
+
+    ax2 = Axis3(fig[1,2],
+        aspect = :data)
+
     newpos = linesegments!(e1,
         color = :white,
         linewidth = lw)
     
+    linkaxes!(ax, ax2)
+
+    fig
+end
+
+a0 = getproperty.(getproperty.(model.elements, :section), :A)
+l0 = getproperty.(model.elements, :length)
+
+a1 = getproperty.(getproperty.(m1.elements, :section), :A)
+l1 = getproperty.(m1.elements, :length)
+
+begin
+    ms = 20
+    fig = Figure()
+    ax = Axis(fig[1,1],
+        aspect = 1)
+
+    scatter!(a0, l0,
+        markersize = ms,
+        color = :white)
+
+    scatter!(a1, l1,
+        markersize = ms,
+        color = blue)
 
     fig
 end

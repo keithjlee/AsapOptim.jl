@@ -19,6 +19,7 @@ export TrussOptParams
 
 # results
 include("Results.jl")
+export updatemodel
 export TrussResults
 export OptimResults
 

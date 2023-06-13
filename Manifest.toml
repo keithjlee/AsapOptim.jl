@@ -2,7 +2,7 @@
 
 julia_version = "1.9.1"
 manifest_format = "2.0"
-project_hash = "c2748a9edf247d680ff4c0514cc236fe68afb62d"
+project_hash = "799e299a6c38201560c328aaa2dbe155a323608f"
 
 [[deps.ADTypes]]
 git-tree-sha1 = "dcfdf328328f2645531c4ddebf841228aef74130"
@@ -715,12 +715,6 @@ git-tree-sha1 = "c7cb1f5d892775ba13767a87c7ada0b980ea0a71"
 uuid = "94ce4f54-9a6c-5748-9c1c-f9c7231a4531"
 version = "1.16.1+2"
 
-[[deps.LineSearches]]
-deps = ["LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "Printf"]
-git-tree-sha1 = "7bbea35cec17305fc70a0e5b4641477dc0789d9d"
-uuid = "d3d80556-e9d4-5f37-9878-2ab0fcc64255"
-version = "7.2.0"
-
 [[deps.LinearAlgebra]]
 deps = ["Libdl", "OpenBLAS_jll", "libblastrampoline_jll"]
 uuid = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
@@ -848,12 +842,6 @@ git-tree-sha1 = "51b458add76a938917772ee661ffb9d59b4c7e5d"
 uuid = "a4795742-8479-5a88-8948-cc11e1c8c1a6"
 version = "0.20.0"
 
-[[deps.NLSolversBase]]
-deps = ["DiffResults", "Distributed", "FiniteDiff", "ForwardDiff"]
-git-tree-sha1 = "a0b464d183da839699f4c79e7606d9d186ec172c"
-uuid = "d41bc354-129a-5804-8e4c-c37616107c6c"
-version = "7.8.3"
-
 [[deps.NLopt]]
 deps = ["MathOptInterface", "MathProgBase", "NLopt_jll"]
 git-tree-sha1 = "5a7e32c569200a8a03c3d55d286254b0321cd262"
@@ -898,12 +886,6 @@ deps = ["Ipopt", "LinearAlgebra", "NonconvexCore", "NonconvexUtils", "Parameters
 git-tree-sha1 = "2ea83d8e79348abd30c449c478beb876c5ecb816"
 uuid = "bf347577-a06d-49ad-a669-8c0e005493b8"
 version = "0.4.2"
-
-[[deps.NonconvexMMA]]
-deps = ["ChainRulesCore", "ForwardDiff", "LinearAlgebra", "NonconvexCore", "Optim", "Parameters", "Reexport", "Zygote"]
-git-tree-sha1 = "e88e053c5a6d211915259dcd0518a54b2ede9b0a"
-uuid = "d3d89cbb-4ecd-4604-818d-8d1ff343e4da"
-version = "1.0.0"
 
 [[deps.NonconvexNLopt]]
 deps = ["LinearAlgebra", "NLopt", "NonconvexCore", "Parameters", "Reexport", "SparseArrays", "Zygote"]
@@ -951,12 +933,6 @@ git-tree-sha1 = "13652491f6856acfd2db29360e1bbcd4565d04f1"
 uuid = "efe28fd5-8261-553b-a9e1-b2916fc3738e"
 version = "0.5.5+0"
 
-[[deps.Optim]]
-deps = ["Compat", "FillArrays", "ForwardDiff", "LineSearches", "LinearAlgebra", "NLSolversBase", "NaNMath", "Parameters", "PositiveFactorizations", "Printf", "SparseArrays", "StatsBase"]
-git-tree-sha1 = "e3a6546c1577bfd701771b477b794a52949e7594"
-uuid = "429524aa-4258-5aef-a3af-852621145aeb"
-version = "1.7.6"
-
 [[deps.Optimization]]
 deps = ["ArrayInterface", "ConsoleProgressMonitor", "DocStringExtensions", "Enzyme", "LinearAlgebra", "Logging", "LoggingExtras", "Pkg", "Printf", "ProgressLogging", "Reexport", "Requires", "SciMLBase", "SparseArrays", "TerminalLoggers"]
 git-tree-sha1 = "82ffb0d292601b9b64a1a03e043f79536d9d243c"
@@ -996,12 +972,6 @@ version = "2.5.10"
 deps = ["Artifacts", "Dates", "Downloads", "FileWatching", "LibGit2", "Libdl", "Logging", "Markdown", "Printf", "REPL", "Random", "SHA", "Serialization", "TOML", "Tar", "UUIDs", "p7zip_jll"]
 uuid = "44cfe95a-1eb2-52ea-b672-e2afdf69b78f"
 version = "1.9.0"
-
-[[deps.PositiveFactorizations]]
-deps = ["LinearAlgebra"]
-git-tree-sha1 = "17275485f373e6673f7e7f97051f703ed5b15b20"
-uuid = "85a6dd25-e78a-55b7-8502-1745935b8125"
-version = "0.2.4"
 
 [[deps.PreallocationTools]]
 deps = ["Adapt", "ArrayInterface", "ForwardDiff", "Requires"]
