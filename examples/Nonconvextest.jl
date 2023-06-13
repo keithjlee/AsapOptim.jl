@@ -3,10 +3,11 @@ using kjlMakie; set_theme!(kjl_dark)
 import Nonconvex
 Nonconvex.@load NLopt
 
+
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 25
+    nx = 10
     dx = 1000.
     ny = 15
     dy = 1000.
@@ -43,7 +44,7 @@ sf = generatespaceframe(nx,
     # true
     ; 
     load = [0., 0., -30e3], 
-    support = :x);
+    support = :xy);
 
 model = sf.truss;
 
@@ -109,11 +110,11 @@ begin
     for node in model.nodes
 
         #top nodes can move in X, Y, Z
-        # if node.id == :top
-        #     push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
-        #     push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
-        #     push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
-        # end
+        if node.id == :top
+            push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
+            push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
+            push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+        end
 
         #bottom nodes can move in Z
         if node.id == :bottom
@@ -122,7 +123,7 @@ begin
     end
 
     for el in model.elements
-        push!(vars, AreaVariable(el, 28_000., 1_000., 30000.))
+        push!(vars, AreaVariable(el, 15_000., 1_000., 30000.))
     end
 
 end
@@ -156,6 +157,7 @@ function cstr(values::Vector{Float64}, p::TrussOptParams)
     disp = - nx * dx / 360 - minimum(res.U[3:3:end])
 
     (stress, disp)
+    # stress
 end
 
 # special structure to store traces
@@ -183,7 +185,20 @@ Nonconvex.add_ineq_constraint!(optmodel, CSTR)
     res = Nonconvex.optimize(optmodel, alg, params.values, options = opts)
 end
 
+@time begin
+    Nonconvex.@load Ipopt
+    opts = IpoptOptions(; tol = 1e-2, max_iter = 1500)
+    res = Nonconvex.optimize(optmodel, IpoptAlg(), params.values; options = opts)
+end
+
 @show res.minimum
+
+m2 = updatemodel(params, res.minimizer);
+
+f = getindex.(getproperty.(m2.elements, :forces), 2)
+a = getproperty.(getproperty.(m2.elements, :section), :A)
+
+f ./ a
 
 #solution
 begin
