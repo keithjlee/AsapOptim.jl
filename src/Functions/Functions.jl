@@ -18,6 +18,7 @@ export compliance
 export variation
 export maxpenalty
 export minpenalty
+export volume
 
 include("PostProcessing.jl")
 export axialforce

@@ -3,9 +3,9 @@ using Asap, AsapToolkit, AsapOptim
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 10
+    nx = 25
     dx = 1000.
-    ny = 10
+    ny = 15
     dy = 1000.
     dz = 1500.
 
@@ -13,8 +13,33 @@ begin
     tube = toASAPtruss(sec, Steel_Nmm.E)
 end
 
+#wavy
+begin
+    using Interpolations
+    n = 5
+    x = range(0, 1, n)
+    y = range(0, 1, n)
+    z = 3000 .* rand(n,n)
+
+    itp = cubic_spline_interpolation((x,y), z)
+
+    i = range(0,1, 50)
+    j = range(0,1, 50)
+    k = [itp(i,j) for i in i, j in j]
+end
+
 # generate and extract model
-sf = generatespaceframe(nx, dx, ny, dy, dz, tube; load = [0., 0., -30e3], support = :xy);
+sf = generatespaceframe(nx, 
+    dx, 
+    ny, 
+    dy, 
+    dz,
+    itp,
+    tube,
+    true; 
+    load = [0., 0., -30e3], 
+    support = :xy);
+
 model = sf.truss;
 
 #make variables
@@ -51,7 +76,7 @@ begin
 
     # area variables
     for el in model.elements
-        push!(vars, AreaVariable(el, 250., 0., 20000.))
+        push!(vars, AreaVariable(el, 20000., 0., 30000.))
     end
 
 end
@@ -66,13 +91,15 @@ vals = params.values
 function obj(values::Vector{Float64}, p::TrussOptParams)
     
     res = solvetruss(values, p)
-    
     compliance(res, p)
+
 end
 
 # test objective
 @time o1 = obj(vals, params)
 @time g1 = Zygote.gradient(var -> obj(var, params), vals)[1]
+
+
 
 #  define optimization problem
 begin
