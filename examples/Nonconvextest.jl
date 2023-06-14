@@ -7,7 +7,7 @@ Nonconvex.@load NLopt
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 10
+    nx = 20
     dx = 1000.
     ny = 15
     dy = 1000.
@@ -44,7 +44,7 @@ sf = generatespaceframe(nx,
     # true
     ; 
     load = [0., 0., -30e3], 
-    support = :xy);
+    support = :corner);
 
 model = sf.truss;
 
@@ -69,8 +69,11 @@ begin
     c0 = maximum(abs.(f0)) .* (-1, 1) .* .2
     s0 = @lift($p0[findall(model.nodes, :support)])
 
-    fig = Figure()
+    fig = Figure(
+        # backgroundcolor = :blue
+        )
     ax = Axis3(fig[1,1],
+        protrusions = 75,
         aspect = :data)
 
     gridtoggle!(ax); simplifyspines!(ax)
@@ -99,14 +102,14 @@ begin
     lb = -500.
     ub = 3500.
 
-    lbb = -1000.
-    ubb = 1500.
+    lbb = -2000.
+    ubb = 750.
 
     #nodal xy variables for bottom nodes
     lbxy = -750.
     ubxy = 750.
 
-    # spatial variables
+    #spatial variables
     for node in model.nodes
 
         #top nodes can move in X, Y, Z
@@ -117,9 +120,9 @@ begin
         end
 
         #bottom nodes can move in Z
-        if node.id == :bottom
-            push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
-        end
+        # if node.id == :bottom
+        #     push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
+        # end
     end
 
     for el in model.elements
@@ -160,35 +163,23 @@ function cstr(values::Vector{Float64}, p::TrussOptParams)
     # stress
 end
 
-# special structure to store traces
-OBJ = x -> obj(x, params)
-CSTR = x -> cstr(x, params)
-
 #test
-@time OBJ(params.values)
-# @time Zygote.gradient(OBJ, params.values)[1]
+@time obj(params.values, params)
 
-@time CSTR(params.values)
-# @time Zygote.gradient(CSTR, params.values)[1]
+@time cstr(params.values, params)
 
-F = Nonconvex.TraceFunction(OBJ)
+F = Nonconvex.TraceFunction(x -> obj(x, params))
 optmodel = Nonconvex.Model(F)
 
 #add variables and constraints
 Nonconvex.addvar!(optmodel, params.lb, params.ub, init = copy(params.values))
-Nonconvex.add_ineq_constraint!(optmodel, CSTR)
+Nonconvex.add_ineq_constraint!(optmodel, x -> cstr(x, params))
 
 #define algorithm
 @time begin
     alg = NLoptAlg(:LD_MMA)
-    opts = NLoptOptions(ftol_rel = 1e-4)
+    opts = NLoptOptions(ftol_rel = 1e-6)
     res = Nonconvex.optimize(optmodel, alg, params.values, options = opts)
-end
-
-@time begin
-    Nonconvex.@load Ipopt
-    opts = IpoptOptions(; tol = 1e-2, max_iter = 1500)
-    res = Nonconvex.optimize(optmodel, IpoptAlg(), params.values; options = opts)
 end
 
 @show res.minimum
@@ -216,15 +207,18 @@ begin
     lw = @lift(a ./ maximum(a) .* $lfac)
 end
 
+ms = 20
+nb = 25
 begin
-    dfac = Observable(1.)
-    p0 = @lift(Point3.(getproperty.(model.nodes, :position) .+ $dfac * getproperty.(model.nodes, :displacement)))
-    e0 = @lift(vcat([$p0[id] for id in getproperty.(model.elements, :nodeIDs)]...))
-    f0 = getindex.(getproperty.(model.elements, :forces), 2)
-    c0 = maximum(abs.(f0)) .* (-1, 1) .* .2
-    s0 = @lift($p0[findall(model.nodes, :support)])
+    p1 = @lift(Point3.(getproperty.(m2.nodes, :position) .+ $dfac * getproperty.(m2.nodes, :displacement)))
+    e1 = @lift(vcat([$p1[id] for id in getproperty.(m2.elements, :nodeIDs)]...))
+    f1 = getindex.(getproperty.(m2.elements, :forces), 2)
+    c1 = maximum(abs.(f1)) .* (-1, 1) .* .2
+    s1 = @lift($p1[findall(m2.nodes, :support)])
 
     fig = Figure()
+
+    ### geometry plots
     ax = Axis3(fig[1,1],
         aspect = :data)
 
@@ -246,34 +240,66 @@ begin
     ax2 = Axis3(fig[1,2],
         aspect = :data)
 
+    hidedecorations!(ax2); hidespines!(ax2)
+
     newpos = linesegments!(e1,
-        color = :white,
+        color = f1,
+        colormap = pink2blue,
+        colorrange = c1,
         linewidth = lw)
     
     linkaxes!(ax, ax2)
 
-    fig
-end
+    ### AL scatters
+    ax_al = Axis(fig[2,1],
+        aspect = 4,
+        xlabel = "A [mm²]",
+        ylabel = "L [mm]")
 
-a0 = getproperty.(getproperty.(model.elements, :section), :A)
-l0 = getproperty.(model.elements, :length)
+    scatter!(getproperty.(getproperty.(model.elements, :section), :A),
+        getproperty.(model.elements, :length),
+        color = sign.(f0),
+        colormap = pink2blue,
+        markersize = ms)
 
-a1 = getproperty.(getproperty.(m1.elements, :section), :A)
-l1 = getproperty.(m1.elements, :length)
+    ax2_al = Axis(fig[2,2],
+        aspect = 4,
+        xlabel = "A [mm²]",
+        ylabel = "L [mm]")
 
-begin
-    ms = 20
-    fig = Figure()
-    ax = Axis(fig[1,1],
-        aspect = 1)
+    scatter!(a,
+        getproperty.(m2.elements, :length),
+        color = sign.(f1),
+        colormap = pink2blue,
+        markersize = ms)
 
-    scatter!(a0, l0,
-        markersize = ms,
+    linkyaxes!(ax_al, ax2_al)
+
+    ### stress histograms
+    ax_stress = Axis(fig[3,1],
+        aspect = 3,
+        xlabel = "σ [MPa]",
+        )
+
+    hideydecorations!(ax_stress)
+
+    hist!(f0 ./ sec.A,
         color = :white)
 
-    scatter!(a1, l1,
-        markersize = ms,
-        color = blue)
+    ax2_stress = Axis(fig[3,2],
+        aspect = 3,
+        xlabel = "σ [MPa]",
+        )
+
+    hideydecorations!(ax2_stress)
+
+    hist!(f1 ./ a,
+        color = :white)
+
+    on(dfac) do _
+        reset_limits!(ax)
+        reset_limits!(ax2)
+    end
 
     fig
 end
