@@ -7,6 +7,10 @@ function getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p:
     p.C * [X Y Z]
 end
 
+function getevecs(X, Y, Z, p::AbstractOptParams)
+    p.C * [X Y Z]
+end
+
 """
 The elemental vectors are derived from V = C * XYZ where:
 
@@ -39,12 +43,30 @@ function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{
     return v, getevecs_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(getevecs), X, Y, Z, p::AbstractOptParams)
+    v = getevecs(X, Y, Z, p)
+
+    function getevecs_pullback(v̄)
+        
+        dv = p.C' * v̄
+
+        return (NoTangent(), dv[:,1], dv[:,2], dv[:,3], NoTangent())
+        
+    end
+
+    return v, getevecs_pullback
+end
+
 """
     getlengths(XYZ::Matrix{Float64})
 
 Get the [nₑ × 1] vector of element lengths
 """
 function getlengths(XYZ::Matrix{Float64})
+    norm.(eachrow(XYZ))
+end
+
+function getlengths(XYZ)
     norm.(eachrow(XYZ))
 end
 
@@ -68,12 +90,28 @@ function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64})
     return l, l_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(getlengths), XYZ)
+    l = getlengths(XYZ)
+
+    function l_pullback(l̄)
+        dl = l̄ ./ l .* XYZ 
+        
+        return (NoTangent(), dl)
+    end
+
+    return l, l_pullback
+end
+
 """
     getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
 
 Get the unit vector representation of elements (local x axis)
 """
 function getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZ ./ Ls
+end
+
+function getnormalizedevecs(XYZ, Ls)
     XYZ ./ Ls
 end
 
@@ -84,6 +122,20 @@ dg/dXYZ = df/dXYZn ⋅ dXYZn/dXYZ = v̄ ⋅ dXYZn/dXYZ = v̄ ⋅ [1 1 1; 1 1 1; 
 dg/dL = v̄ ⋅ dXYZn/dL = -v̄ ⋅ XYZ / L^2 = -v̄ ⋅ XYZn / L
 """
 function ChainRulesCore.rrule(::typeof(getnormalizedevecs), XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZn = getnormalizedevecs(XYZ, Ls)
+
+    function getnormv_pullback(v̄)
+        dxyz = v̄ ./ Ls .* ones(size(XYZn)...)
+
+        dL = sum.(eachrow(-XYZn .* v̄ ./ Ls))
+
+        return (NoTangent(), dxyz, dL)
+    end
+
+    return XYZn, getnormv_pullback
+end
+
+function ChainRulesCore.rrule(::typeof(getnormalizedevecs), XYZ, Ls)
     XYZn = getnormalizedevecs(XYZ, Ls)
 
     function getnormv_pullback(v̄)
