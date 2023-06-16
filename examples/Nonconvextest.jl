@@ -7,9 +7,9 @@ Nonconvex.@load NLopt
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 20
+    nx = 10
     dx = 1000.
-    ny = 15
+    ny = 10
     dy = 1000.
     dz = 1500.
 
@@ -18,48 +18,18 @@ begin
     σ = 350.
 end
 
-#wavy
-begin
-    using Interpolations
-    n = 5
-    x = range(0, 1, n)
-    y = range(0, 1, n)
-    z = 3000 .* rand(n,n)
-
-    itp = cubic_spline_interpolation((x,y), z)
-
-    i = range(0,1, 50)
-    j = range(0,1, 50)
-    k = [itp(i,j) for i in i, j in j]
-end
-
 # generate and extract model
 sf = generatespaceframe(nx, 
     dx, 
     ny, 
     dy, 
     dz,
-    # itp,
     tube,
-    # true
     ; 
     load = [0., 0., -30e3], 
-    support = :corner);
+    support = :xy);
 
 model = sf.truss;
-
-begin
-    # change to roller support
-    for node in model.nodes[sf.iX1]
-        fixnode!(node, :zfixed)
-    end
-
-    # two pinned support
-    # fixnode!(model.nodes[rand(sf.iX1)], :pinned)
-    # fixnode!(model.nodes[rand(sf.iY1)], :pinned)
-
-    updateDOF!(model); solve!(model)
-end
 
 begin
     dfac = Observable(1.)
@@ -115,14 +85,14 @@ begin
         #top nodes can move in X, Y, Z
         if node.id == :top
             push!(vars, SpatialVariable(node, 0., lb, ub, :Z))
-            push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
-            push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
+            # push!(vars, SpatialVariable(node, 0., lbxy, ubxy, :X))
+            # push!(vars, SpatialVariable(node, 0.,  lbxy, ubxy, :Y))
         end
 
         #bottom nodes can move in Z
-        # if node.id == :bottom
-        #     push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
-        # end
+        if node.id == :bottom
+            push!(vars, SpatialVariable(node, 0., lbb, ubb, :Z))
+        end
     end
 
     for el in model.elements
@@ -168,6 +138,8 @@ end
 
 @time cstr(params.values, params)
 
+@time g1 = Zygote.gradient(x -> obj(x, params), params.values)[1]
+
 F = Nonconvex.TraceFunction(x -> obj(x, params))
 optmodel = Nonconvex.Model(F)
 
@@ -186,22 +158,11 @@ end
 
 m2 = updatemodel(params, res.minimizer);
 
-f = getindex.(getproperty.(m2.elements, :forces), 2)
-a = getproperty.(getproperty.(m2.elements, :section), :A)
-
-f ./ a
-
 #solution
 begin
     sol = res.minimizer
 
-    x = AsapOptim.addvalues(params.X, params.indexer.iX, sol[params.indexer.iXg])
-    y = AsapOptim.addvalues(params.Y, params.indexer.iY, sol[params.indexer.iYg])
-    z = AsapOptim.addvalues(params.Z, params.indexer.iZ, sol[params.indexer.iZg])
     a = AsapOptim.replacevalues(params.A, params.indexer.iA, sol[params.indexer.iAg])
-
-    p1 = Point3.(x, y, z)
-    e1 = vcat([p1[id] for id in params.nodeids]...)
 
     lfac = Observable(5.)
     lw = @lift(a ./ maximum(a) .* $lfac)
@@ -245,7 +206,7 @@ begin
     newpos = linesegments!(e1,
         color = f1,
         colormap = pink2blue,
-        colorrange = c1,
+        colorrange = c0,
         linewidth = lw)
     
     linkaxes!(ax, ax2)

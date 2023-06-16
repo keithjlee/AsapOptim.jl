@@ -37,7 +37,25 @@ function Rtruss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function Rtruss(Cxyz)
+    Cx, Cy, Cz = Cxyz
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
 function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
+    R = Rtruss(Cxyz)
+
+    function Rtruss_pullback(R̄)
+        return (NoTangent(),
+            [dot(R̄, dRdx_truss),
+            dot(R̄, dRdy_truss),
+            dot(R̄, dRdz_truss)])
+    end
+
+    return R, Rtruss_pullback
+end
+
+function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz)
     R = Rtruss(Cxyz)
 
     function Rtruss_pullback(R̄)
@@ -59,7 +77,29 @@ function Rtruss(XYZn::Matrix{Float64})
     Rtruss.(eachrow(XYZn))
 end
 
+function Rtruss(XYZn)
+    Rtruss.(eachrow(XYZn))
+end
+
 function ChainRulesCore.rrule(::typeof(Rtruss), XYZn::Matrix{Float64})
+    rs = Rtruss(XYZn)
+
+    function Rtruss_pullback(R̄)
+        dRdC = zero(XYZn)
+
+        for i in axes(R̄, 1)
+            dRdC[i, 1] = dot(R̄[i], dRdx_truss)
+            dRdC[i, 2] = dot(R̄[i], dRdy_truss)
+            dRdC[i, 3] = dot(R̄[i], dRdz_truss)
+        end
+
+        return (NoTangent(), dRdC)
+    end
+
+    return rs, Rtruss_pullback
+end
+
+function ChainRulesCore.rrule(::typeof(Rtruss), XYZn)
     rs = Rtruss(XYZn)
 
     function Rtruss_pullback(R̄)

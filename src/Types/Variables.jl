@@ -52,7 +52,7 @@ end
 
 mutable struct CoupledVariable <: AbstractVariable
     i::Int64
-    referencevariable::TrussOptVariable
+    referencevariable::AbstractVariable
 
     function CoupledVariable(node::TrussNode, ref::SpatialVariable)
         new(node.nodeID, ref)
