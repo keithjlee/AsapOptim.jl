@@ -7,11 +7,11 @@ Nonconvex.@load NLopt
 ### Create a spaceframe
 #meta parameters
 begin
-    nx = 10
-    dx = 1000.
-    ny = 10
+    nx = 21
+    dx = 1200.
+    ny = 15
     dy = 1000.
-    dz = 1500.
+    dz = 2000.
 
     sec = rand(allHSSRound())
     tube = toASAPtruss(sec, Steel_Nmm.E)
@@ -27,9 +27,14 @@ sf = generatespaceframe(nx,
     tube,
     ; 
     load = [0., 0., -30e3], 
-    support = :xy);
+    support = :y);
 
 model = sf.truss;
+
+for node in model.nodes[sf.iY1]
+    fixnode!(node, :zfixed)
+end
+updateDOF!(model); solve!(model)
 
 begin
     dfac = Observable(1.)
@@ -138,8 +143,6 @@ end
 
 @time cstr(params.values, params)
 
-@time g1 = Zygote.gradient(x -> obj(x, params), params.values)[1]
-
 F = Nonconvex.TraceFunction(x -> obj(x, params))
 optmodel = Nonconvex.Model(F)
 
@@ -150,11 +153,12 @@ Nonconvex.add_ineq_constraint!(optmodel, x -> cstr(x, params))
 #define algorithm
 @time begin
     alg = NLoptAlg(:LD_MMA)
-    opts = NLoptOptions(ftol_rel = 1e-6)
+    opts = NLoptOptions(ftol_rel = 1e-6, maxeval = 500)
     res = Nonconvex.optimize(optmodel, alg, params.values, options = opts)
 end
 
 @show res.minimum
+@show cstr(res.minimizer, params)
 
 m2 = updatemodel(params, res.minimizer);
 
