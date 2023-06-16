@@ -5,12 +5,18 @@ Replace the values of `values[indices]` with the values in `newvalues` in a diff
 """
 function replacevalues(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
     
-    # v2 = copy(values)
-    # v2[indices] .= newvalues
+    v2 = copy(values)
+    v2[indices] .= newvalues
 
-    values[indices] .= newvalues
+    return v2
+end
 
-    return values
+function replacevalues(values, indices, newvalues)
+    
+    v2 = copy(values)
+    v2[indices] .= newvalues
+
+    return v2
 end
 
 """
@@ -37,6 +43,18 @@ function ChainRulesCore.rrule(::typeof(replacevalues), values::Vector{Float64}, 
     return v, replacevalues_pullback 
 end
 
+function ChainRulesCore.rrule(::typeof(replacevalues), values, indices, newvalues)
+
+    v = replacevalues(values, indices, newvalues)
+
+    function replacevalues_pullback(v̄)
+
+        return NoTangent(), NoTangent(), NoTangent(), v̄[indices]
+
+    end
+
+    return v, replacevalues_pullback 
+end
 
 """
     addvalues(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
@@ -45,18 +63,37 @@ Add the values of `increments` to the current values in `values` at `indices`. D
 """
 function addvalues(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
 
-    # v2 = copy(values)
-    # v2[indices] .+= increments
+    v2 = copy(values)
+    v2[indices] .+= increments
 
-    values[indices] .+= increments
+    return v2
+end
 
-    return values
+function addvalues(values, indices, increments)
+
+    v2 = copy(values)
+    v2[indices] .+= increments
+
+    return v2
 end
 
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement
 """
 function ChainRulesCore.rrule(::typeof(addvalues), values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
+
+    v = addvalues(values, indices, increments)
+
+    function addvalues_pullback(v̄)
+
+        return NoTangent(), NoTangent(), NoTangent(), v̄[indices]
+
+    end
+
+    return v, addvalues_pullback 
+end
+
+function ChainRulesCore.rrule(::typeof(addvalues), values, indices, increments)
 
     v = addvalues(values, indices, increments)
 
