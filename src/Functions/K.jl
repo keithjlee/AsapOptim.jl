@@ -7,10 +7,6 @@ function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
     transpose.(rs) .* ks .* rs
 end
 
-function getglobalks(rs, ks)
-    transpose.(rs) .* ks .* rs
-end
-
 """
     assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::TrussOptParams)
 
@@ -27,35 +23,12 @@ function assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::AbstractOptPar
     SparseMatrixCSC(p.n, p.n, p.cp, p.rv, nz)
 end
 
-function assembleglobalK(elementalKs, p::AbstractOptParams)
-
-    nz = zeros(p.nnz)
-
-    for (k, i) in zip(elementalKs, p.inzs)
-        nz[i] .+= vec(k)
-    end
-
-    SparseMatrixCSC(p.n, p.n, p.cp, p.rv, nz)
-end
-
 """
 The sensitivity of K w/r/t an elemental Kₑ is the proportional stiffness added to K from Kₑ
 
 Output is a vector: [nElements × [nDOFe × nDOFe]] of elemental stiffness matrix sensitivites
 """
 function ChainRulesCore.rrule(::typeof(assembleglobalK), Eks::Vector{Matrix{Float64}}, p::AbstractOptParams)
-    K = assembleglobalK(Eks, p)
-
-    function K_pullback(K̄)
-        dEks = [Matrix(K̄[id, id]) for id in p.dofids]
-
-        return NoTangent(), dEks, NoTangent()
-    end
-
-    return K, K_pullback
-end
-
-function ChainRulesCore.rrule(::typeof(assembleglobalK), Eks, p::AbstractOptParams)
     K = assembleglobalK(Eks, p)
 
     function K_pullback(K̄)

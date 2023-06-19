@@ -8,11 +8,6 @@ function solveU(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
     cg(K[id, id], p.P[id])
 end
 
-function solveU(K, p::AbstractOptParams)
-    id = p.freeids
-    cg(K[id, id], p.P[id])
-end
-
 """
 u = inv(K) * P
 
@@ -37,26 +32,6 @@ Which is an [ndof × ndof] matrix where:
 Columnᵢ = uᵢ .* ΔK
 """
 function ChainRulesCore.rrule(::typeof(solveU), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
-    u = solveU(K, p)
-
-    function solveU_pullback(ū)
-
-        #initialize
-        dudK = zeros(p.n, p.n)
-
-        #sensitivities w/r/t active DOFs
-        dKΔ = cg(K[p.freeids, p.freeids], ū)
-
-        #assign to proper indices
-        dudK[p.freeids, p.freeids] .= kron(u', dKΔ)
-
-        return NoTangent(), -dudK, NoTangent()
-    end
-
-    return u, solveU_pullback
-end
-
-function ChainRulesCore.rrule(::typeof(solveU), K, p::AbstractOptParams)
     u = solveU(K, p)
 
     function solveU_pullback(ū)

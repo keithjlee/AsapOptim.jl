@@ -11,14 +11,6 @@ function replacevalues(values::Vector{Float64}, indices::Vector{Int64}, newvalue
     return v2
 end
 
-function replacevalues(values, indices, newvalues)
-    
-    v2 = copy(values)
-    v2[indices] .= newvalues
-
-    return v2
-end
-
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement.
 
@@ -31,19 +23,6 @@ df/dnewvalues = (dvalues/dnewvalues)ᵀv̄ = [nnewvalues × 1]
 Is simply the values of v̄ at the indices of the new values.
 """
 function ChainRulesCore.rrule(::typeof(replacevalues), values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
-
-    v = replacevalues(values, indices, newvalues)
-
-    function replacevalues_pullback(v̄)
-
-        return NoTangent(), NoTangent(), NoTangent(), v̄[indices]
-
-    end
-
-    return v, replacevalues_pullback 
-end
-
-function ChainRulesCore.rrule(::typeof(replacevalues), values, indices, newvalues)
 
     v = replacevalues(values, indices, newvalues)
 
@@ -69,31 +48,10 @@ function addvalues(values::Vector{Float64}, indices::Vector{Int64}, increments::
     return v2
 end
 
-function addvalues(values, indices, increments)
-
-    v2 = copy(values)
-    v2[indices] .+= increments
-
-    return v2
-end
-
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement
 """
 function ChainRulesCore.rrule(::typeof(addvalues), values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
-
-    v = addvalues(values, indices, increments)
-
-    function addvalues_pullback(v̄)
-
-        return NoTangent(), NoTangent(), NoTangent(), v̄[indices]
-
-    end
-
-    return v, addvalues_pullback 
-end
-
-function ChainRulesCore.rrule(::typeof(addvalues), values, indices, increments)
 
     v = addvalues(values, indices, increments)
 
