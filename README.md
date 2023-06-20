@@ -1,5 +1,7 @@
 ![](figures/canopy.gif)
 
+**NOTE**: AsapOptim is currently unstable in Julia 1.9+; use with Julia 1.8.
+
 # AsapOptim
 
 This is a very much WIP package for high-performing *general* structural optimization in the [aSAP.jl](https://github.com/keithjlee/Asap) environment. It provides the following:
