@@ -21,5 +21,5 @@ export minpenalty
 export volume
 
 include("PostProcessing.jl")
-export axialforce
+export Faxial
 export axialstress

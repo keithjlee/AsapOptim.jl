@@ -89,7 +89,7 @@ end
     axialforce(t::TrussResults, p::TrussOptParams)
 Axial forces in truss structure
 """
-function axialforce(t::TrussResults, p::TrussOptParams)
+function Faxial(t::TrussResults, p::TrussOptParams)
     Faxial(t.U, t.K, t.R, p)
 end
 
