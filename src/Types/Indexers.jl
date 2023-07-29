@@ -40,6 +40,12 @@ function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
     end
 end
 
+# function populate!(indexer::TrussOptIndexer, var::MirroredVariable)
+
+#     field_local, field_global = axis2field[var.referencevariable.axis]
+
+# end
+
 """
     TrussOptIndexer(vars::Vector{TrussVariable})
 

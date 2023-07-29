@@ -63,5 +63,14 @@ mutable struct CoupledVariable <: AbstractVariable
     end
 end
 
+mutable struct MirroredVariable <: AbstractVariable
+    i::Int64
+    referencevariable::SpatialVariable
 
-const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
+    function MirroredVariable(node::TrussNode, ref::SpatialVariable)
+        new(node.nodeID, ref)
+    end
+end
+
+
+const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable, MirroredVariable}
