@@ -93,6 +93,46 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
 
 end
 
+function updatemodel(p::NetworkOptParams, u::Vector{Float64})
+    
+    #final values
+    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg])
+    Q = replacevalues(p.Q, p.indexer.iQ, u[p.indexer.iQg])
+
+    #new model
+    nodes = Vector{FDMnode}()
+    elements = Vector{FDMelement}()
+    loads = Vector{FDMload}()
+
+    #new nodes
+    for (node, x, y, z) in zip(p.network.nodes, X, Y, Z)
+        newnode = FDMnode([x, y, z], node.dof)
+        newnode.id = node.id
+        push!(nodes, newnode)
+    end
+
+    #new elements
+    for (q, el) in zip(Q, p.model.elements)
+        newelement = FDMelement(nodes, el.iStart, el.iEnd, q)
+        newelement.id = el.id
+        push!(elements, newelement)
+    end
+
+    #new loads
+    for load in p.model.loads
+        newload = FDMload(nodes[load.node.nodeID], load.value)
+        push!(loads, newload)
+    end
+
+    network = Network(nodes, elements, loads)
+    solve!(network)
+
+    return network
+
+end
+
 # """
 # Store the results of an optimization run and generate a new structural model based on results
 # """
@@ -128,4 +168,11 @@ mutable struct TrussResults
     K::Vector{Matrix{Float64}}
     R::Vector{Matrix{Float64}}
     U::Vector{Float64}
+end
+
+mutable struct NetworkResults
+    X::Vector{Float64}
+    Y::Vector{Float64}
+    Z::Vector{Float64}
+    Q::Vector{Float64}
 end

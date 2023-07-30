@@ -102,3 +102,44 @@ function volume(values::Vector{Float64}, p::TrussOptParams)
 
     dot(A, l)
 end
+
+"""
+    solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
+
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
+"""
+function solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
+    
+    #populate values
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
+    q = replacevalues(p.q, p.indexer.iQ, values[p.indexer.iQg])
+
+    # fixed nodal positions
+    xyz_f = [X[p.F] Y[p.F] Z[p.F]]
+
+    # diagonal q matrix
+    Q = diagm(q)
+
+    #solve for free positions
+    xyz_n = (p.Cn' * Q * p.Cn) \ (p.Pn - p.Cn' * Q * p.Cf * xyz_f)
+
+    X2 = replacevalues(X, p.N, xyz_n[:, 1])
+    Y2 = replacevalues(Y, p.N, xyz_n[:, 2])
+    Z2 = replacevalues(Z, p.N, xyz_n[:, 3])
+
+    # Store values for continuity in gradients
+    return NetworkResults(X2,
+        Y2,
+        Z2,
+        q)
+end
+
+function target(r::NetworkResults, p::NetworkOptParams)
+    norm(p.X - r.X) + norm(p.Y - r.Y) + norm(p.Z - p.Z)
+end
+
+function target(r::NetworkResults, target::Matrix{Float64})
+    norm(target .- [r.X r.Y r.Z])
+end

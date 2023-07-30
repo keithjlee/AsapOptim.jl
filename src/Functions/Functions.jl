@@ -20,6 +20,9 @@ export maxpenalty
 export minpenalty
 export volume
 
+export solvenetwork
+export target
+
 include("PostProcessing.jl")
 export Faxial
 export axialstress
