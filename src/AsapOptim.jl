@@ -3,7 +3,7 @@ module AsapOptim
 using Reexport
 
 # Asap dependencies
-using Asap, AsapToolkit
+using Asap#, AsapToolkit
 
 # Analysis dependencies
 using SparseArrays
@@ -12,8 +12,6 @@ using IterativeSolvers
 
 # Optimization
 @reexport using ChainRulesCore, Zygote
-@reexport import Optimization 
-@reexport using OptimizationNLopt: NLopt
 
 include("Types/Types.jl")
 

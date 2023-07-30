@@ -21,7 +21,7 @@ export TrussOptParams
 include("Results.jl")
 export updatemodel
 export TrussResults
-export OptimResults
+# export OptimResults
 
 export TrussVariable
 
