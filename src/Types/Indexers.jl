@@ -100,7 +100,7 @@ end
 
 Generate the index translation layer between network parameters and design variables
 """
-function NetworkOptIndexer(vars::Vector{TrussVariable})
+function NetworkOptIndexer(vars::Vector{NetworkVariable})
     indexer = NetworkOptIndexer(Vector{Int64}(),
         Vector{Int64}(),
         Vector{Int64}(),
