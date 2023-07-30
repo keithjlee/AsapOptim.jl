@@ -104,7 +104,7 @@ mutable struct QVariable <: AbstractVariable
     end
 
     function QVariable(element::FDMelement, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, element.section.A, lowerbound, upperbound)
+        new(element.elementID, value, lowerbound, upperbound)
     end
 end
 
