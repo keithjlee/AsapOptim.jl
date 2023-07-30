@@ -101,3 +101,11 @@ function axialstress(t::TrussResults, p::TrussOptParams)
     F = Faxial(t.U, t.K, t.R, p)
     σaxial(F, t.A)
 end
+
+"""
+    axialforce(t::NetworkResults, p::NetworkOptParams)
+Axial forces in FDM network
+"""
+function Faxial(t::NetworkResults, p::NetworkOptParams)
+    norm.(eachrow(p.C * [t.X t.Y t.Z])) .* t.Q
+end
