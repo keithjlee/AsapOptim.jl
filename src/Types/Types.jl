@@ -23,6 +23,7 @@ export NetworkOptParams
 # results
 include("Results.jl")
 export updatemodel
+export updatenetwork
 export TrussResults
 export NetworkResults
 # export OptimResults

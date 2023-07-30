@@ -93,13 +93,13 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
 
 end
 
-function updatemodel(p::NetworkOptParams, u::Vector{Float64})
+function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
     
     #final values
     X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg])
     Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg])
     Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg])
-    Q = replacevalues(p.Q, p.indexer.iQ, u[p.indexer.iQg])
+    Q = replacevalues(p.q, p.indexer.iQ, u[p.indexer.iQg])
 
     #new model
     nodes = Vector{FDMnode}()
