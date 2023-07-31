@@ -3,6 +3,8 @@ abstract type AbstractVariable end
 abstract type TrussOptVariable end
 abstract type AbstractIndexer end
 
+include("utilities.jl")
+
 # variables
 include("Variables.jl")
 export SpatialVariable

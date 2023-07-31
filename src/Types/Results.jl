@@ -81,7 +81,7 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
 
     #new loads
     for load in p.model.loads
-        newload = NodeForce(nodes[load.point.nodeID], load.force)
+        newload = NodeForce(nodes[load.node.nodeID], load.value)
         newload.id = load.id
         push!(loads, newload)
     end
@@ -122,7 +122,7 @@ function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
 
     #new loads
     for load in p.network.loads
-        newload = FDMload(nodes[load.node.nodeID], load.value)
+        newload = FDMload(nodes[load.point.nodeID], load.force)
         push!(loads, newload)
     end
 
