@@ -114,14 +114,14 @@ function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
     end
 
     #new elements
-    for (q, el) in zip(Q, p.model.elements)
+    for (q, el) in zip(Q, p.network.elements)
         newelement = FDMelement(nodes, el.iStart, el.iEnd, q)
         newelement.id = el.id
         push!(elements, newelement)
     end
 
     #new loads
-    for load in p.model.loads
+    for load in p.network.loads
         newload = FDMload(nodes[load.node.nodeID], load.value)
         push!(loads, newload)
     end
