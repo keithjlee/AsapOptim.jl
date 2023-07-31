@@ -81,7 +81,7 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
 
     #new loads
     for load in p.model.loads
-        newload = NodeForce(nodes[load.node.nodeID], load.value)
+        newload = NodeForce(nodes[load.point.nodeID], load.force)
         newload.id = load.id
         push!(loads, newload)
     end
