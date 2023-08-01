@@ -116,29 +116,23 @@ A variable whose value points to an existing variable
 mutable struct CoupledVariable <: AbstractVariable
     i::Int64
     referencevariable::AbstractVariable
+    factor::Real
 
-    function CoupledVariable(node::TrussNode, ref::SpatialVariable)
-        new(node.nodeID, ref)
+    function CoupledVariable(node::TrussNode, ref::SpatialVariable, factor = 1.)
+        new(node.nodeID, ref, factor)
     end
 
-    function CoupledVariable(element::TrussElement, ref::AreaVariable)
-        new(element.elementID, ref)
+    function CoupledVariable(element::TrussElement, ref::AreaVariable, factor = 1.)
+        @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
+        new(element.elementID, ref, factor)
     end
 
-    function CoupledVariable(element::FDMelement, ref::QVariable)
-        new(element.elementID, ref)
-    end
-end
-
-mutable struct MirroredVariable <: AbstractVariable
-    i::Int64
-    referencevariable::SpatialVariable
-
-    function MirroredVariable(node::TrussNode, ref::SpatialVariable)
-        new(node.nodeID, ref)
+    function CoupledVariable(element::FDMelement, ref::QVariable, factor = 1.)
+        @assert factor > 0 "Coupling factor must be greater than 0 when referring to force density variables"
+        new(element.elementID, ref, factor)
     end
 end
 
 
-const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable, MirroredVariable}
-const NetworkVariable = Union{SpatialVariable, QVariable}
+const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
+const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable}

@@ -25,8 +25,6 @@ mutable struct TrussOptParams <: AbstractOptParams
     nodeids::Vector{Vector{Int64}} # [[iNodeStart, iNodeEnd] for element in elements]
     dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     n::Int64 #total number of DOFs
-    losstrace::Vector{Float64} #
-    valtrace::Vector{Vector{Float64}}
 
     function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
         @assert model.processed
@@ -93,9 +91,7 @@ mutable struct TrussOptParams <: AbstractOptParams
             freeids,
             nodeids,
             dofids,
-            model.nDOFs,
-            Vector{Float64}(),
-            Vector{Vector{Float64}}(),
+            model.nDOFs
             )
 
     end
@@ -123,8 +119,6 @@ mutable struct NetworkOptParams <: AbstractOptParams
     ub::Vector{Float64} #upper bounds of variables
     N::Vector{Int64}
     F::Vector{Int64}
-    losstrace::Vector{Float64} #
-    valtrace::Vector{Vector{Float64}}
 
     function NetworkOptParams(network::Network, variables::Vector{NetworkVariable})
         @assert network.processed "network must be processed"
@@ -170,9 +164,7 @@ mutable struct NetworkOptParams <: AbstractOptParams
             lowerbounds,
             upperbounds,
             network.N,
-            network.F,
-            Vector{Float64}(),
-            Vector{Vector{Float64}}(),
+            network.F
             )
 
     end

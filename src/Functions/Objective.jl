@@ -6,10 +6,10 @@ Solve and store all relevant intermediate variables after an analysis step. This
 function solvetruss(values::Vector{Float64}, p::TrussOptParams)
     
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
-    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
     # vₑ
     v = getevecs(X, Y, Z, p)
@@ -89,10 +89,10 @@ Extract the volume of a truss
 function volume(values::Vector{Float64}, p::TrussOptParams)
 
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
-    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg])
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
     # vₑ
     v = getevecs(X, Y, Z, p)
@@ -111,10 +111,10 @@ Solve and store all relevant intermediate variables after an analysis step. This
 function solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
     
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg])
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg])
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg])
-    q = replacevalues(p.q, p.indexer.iQ, values[p.indexer.iQg])
+    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    q = replacevalues(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ)
 
     # fixed nodal positions
     xyz_f = [X[p.F] Y[p.F] Z[p.F]]
