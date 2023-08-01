@@ -87,16 +87,16 @@ Generate the index translation layer between model parameters and design variabl
 function TrussOptIndexer(vars::Vector{TrussVariable})
     indexer = TrussOptIndexer(Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         )
 
     for var in vars
@@ -115,16 +115,16 @@ Generate the index translation layer between network parameters and design varia
 function NetworkOptIndexer(vars::Vector{NetworkVariable})
     indexer = NetworkOptIndexer(Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}(),
+        Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{<:Real}())
+        Vector{Real}())
 
     for var in vars
         populate!(indexer, var)
