@@ -44,13 +44,13 @@ end
 function populate!(indexer::TrussOptIndexer, var::AreaVariable)
     push!(getfield(indexer, :iA), var.i)
     push!(getfield(indexer, :iAg), var.iglobal)
-    push!(getfield(indexer, field_factor), 1.)
+    push!(getfield(indexer, :fA), 1.)
 end
 
 function populate!(indexer::NetworkOptIndexer, var::QVariable)
     push!(getfield(indexer, :iQ), var.i)
     push!(getfield(indexer, :iQg), var.iglobal)
-    push!(getfield(indexer, field_factor), 1.)
+    push!(getfield(indexer, :fQ), 1.)
 end
 
 function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
