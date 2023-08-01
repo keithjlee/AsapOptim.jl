@@ -55,10 +55,10 @@ Generate a new structural model from the results of an optimization
 function updatemodel(p::TrussOptParams, u::Vector{Float64})
     
     #final values
-    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg])
-    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg])
-    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg])
-    A = replacevalues(p.A, p.indexer.iA, u[p.indexer.iAg])
+    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    A = replacevalues(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
 
     #new model
     nodes = Vector{TrussNode}()
@@ -96,10 +96,10 @@ end
 function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
     
     #final values
-    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg])
-    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg])
-    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg])
-    Q = replacevalues(p.q, p.indexer.iQ, u[p.indexer.iQg])
+    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    Q = replacevalues(p.q, p.indexer.iQ, u[p.indexer.iQg] .* p.indexer.fQ)
 
     #new model
     nodes = Vector{FDMnode}()
