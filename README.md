@@ -10,16 +10,16 @@ This is a very much WIP package for high-performing *general* structural optimiz
 - A complete set of adjoint functions (see below) for extremely high-performing automatic differentiation during gradient calculations
 - A set of differentiable definitions of common structural functions to define a custom objective
 
-Currently supports Truss structures, with frame elements following closely.
+Currently supports Truss structures and Tensile/Compressive networks using the Force Density Method
 
-The following as an optimization problem with over 4000 variables:
+<!-- The following as an optimization problem with over 4000 variables:
 - Z position of nodes at the top of the space frame
 - Z position of nodes at the bottom of the space frame (different bounds)
 - XY position of the support nodes (each set of 4 support nodes are rigidly tied to each other)
 - Area of all elements
 
 To minimize a compound objective of structural compliance + volume, solved in just over 10s with a relative stopping criteria of 1E-6.
-![](figures/spaceframe2_optim2.gif)
+![](figures/spaceframe2_optim2.gif) -->
 
 # Small example
 ```julia
@@ -152,7 +152,7 @@ res = OptimResults(problem, sol)
 @show res.losstrace
 ```
 
-# Overview
+<!-- # Overview
 
 Structural optimization of large systems is difficult due to the inherent computational cost of understanding structural behaviour at each increment. For the direct stiffness FEA method, all structural behaviour (internal forces, stresses, deflected shape, etc...) is dependent on the nodal displacements under load, $u$. For a single step, this displacement vector is determined via a linear system of equations:
 
@@ -344,4 +344,4 @@ webelements = model.elements[:web]
 web_area_master = AreaVariable(webelements[1], 500., 100., 20_000)
 
 all_other_webs = [CoupledVariable(element, web_area_master) for element in webelements[2:end]]
-```
+``` -->
