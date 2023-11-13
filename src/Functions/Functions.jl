@@ -4,7 +4,7 @@ export add_values
 
 include("Geometry.jl")
 
-include("r_truss.jl")
+include("Rtruss.jl")
 
 include("Ktruss.jl")
 

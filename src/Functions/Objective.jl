@@ -116,7 +116,7 @@ function solve_network(values::Vector{Float64}, p::NetworkOptParams)
 end
 
 function target(r::NetworkResults, p::NetworkOptParams)
-    norm(p.X - r.X) + norm(p.Y - r.Y) + norm(p.Z - p.Z)
+    norm([(p.X - r.X) (p.Y - r.Y) (p.Z - p.Z)])
 end
 
 function target(r::NetworkResults, target::Matrix{Float64})
