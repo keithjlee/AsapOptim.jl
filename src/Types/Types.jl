@@ -12,6 +12,10 @@ export AreaVariable
 export QVariable
 export CoupledVariable
 
+# unions
+export TrussVariable
+export NetworkVariable
+
 # indexers
 include("Indexers.jl")
 export TrussOptIndexer
@@ -28,10 +32,7 @@ export updatemodel
 export updatenetwork
 export TrussResults
 export NetworkResults
-# export OptimResults
-
-export TrussVariable
-export NetworkVariable
+export GeometricProperties
 
 # misc. functions
 function cleartrace!(params::AbstractOptParams)

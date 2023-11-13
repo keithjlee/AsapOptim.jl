@@ -27,7 +27,9 @@ mutable struct TrussOptParams <: AbstractOptParams
     n::Int64 #total number of DOFs
 
     function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
-        @assert model.processed
+        
+        #model must be pre-proces
+        model.processed || (Asap.process!(model))
 
         #extract global parameters
         xyz = Asap.nodePositions(model)

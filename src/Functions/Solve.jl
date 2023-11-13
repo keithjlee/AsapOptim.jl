@@ -13,7 +13,7 @@ u = inv(K) * P
 
 if obj = f(u), then the gradient of obj with respect to an independent variable x is achieved through the chain rule:
 
-dObj/dx = df/du ⋅ du/dK ⋅ ... = ū ⋅ dy/dK ⋅ ...
+dObj/dx = df/du ⋅ du/dK ⋅ ... = ū ⋅ du/dK ⋅ ...
 
 For this rule, we are concerned with finding du/dK, or the [ndof × ndof] matrix of sensitivites that we can propagate backwards to the final objective.
 
