@@ -1,17 +1,15 @@
 module AsapOptim
 
-using Reexport
-
 # Asap dependencies
-using Asap#, AsapToolkit
+using Asap
 
 # Analysis dependencies
 using SparseArrays
 using IterativeSolvers
-@reexport using LinearAlgebra
+using LinearAlgebra
 
 # Optimization
-@reexport using ChainRulesCore, Zygote
+using ChainRulesCore, Zygote
 
 include("Types/Types.jl")
 

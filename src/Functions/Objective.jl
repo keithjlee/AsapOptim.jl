@@ -83,27 +83,6 @@ function min_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
 end
 
 """
-    volume(values::Vector{Float64}, p::TrussOptParams)
-Extract the volume of a truss
-"""
-function volume(values::Vector{Float64}, p::TrussOptParams)
-
-    #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
-
-    # vₑ
-    v = getevecs(X, Y, Z, p)
-
-    # Lₑ
-    l = getlengths(v)
-
-    dot(A, l)
-end
-
-"""
     solve_network(values::Vector{Float64}, p::NetworkOptParams)
 
 Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis

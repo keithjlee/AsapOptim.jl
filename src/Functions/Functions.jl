@@ -18,7 +18,6 @@ export compliance
 export variation
 export max_penalty
 export min_penalty
-export volume
 
 export solve_network
 export target
