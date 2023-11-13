@@ -6,10 +6,10 @@ Generate a new structural model from the results of an optimization
 function updatemodel(p::TrussOptParams, u::Vector{Float64})
     
     #final values
-    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
-    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
-    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
-    A = replacevalues(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
+    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    A = replace_values(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
 
     #new model
     nodes = Vector{TrussNode}()
@@ -52,10 +52,10 @@ Generate a new FDM network from the results of an optimization
 function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
     
     #final values
-    X = addvalues(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
-    Y = addvalues(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
-    Z = addvalues(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
-    Q = replacevalues(p.q, p.indexer.iQ, u[p.indexer.iQg] .* p.indexer.fQ)
+    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    Q = replace_values(p.q, p.indexer.iQ, u[p.indexer.iQg] .* p.indexer.fQ)
 
     #new model
     nodes = Vector{FDMnode}()
@@ -158,10 +158,10 @@ struct GeometricProperties
     function GeometricProperties(design_variables::Vector{Float64}, opt_params::TrussOptParams)
 
         #populate values
-        X = addvalues(opt_params.X, opt_params.indexer.iX, design_variables[opt_params.indexer.iXg] .* opt_params.indexer.fX)
-        Y = addvalues(opt_params.Y, opt_params.indexer.iY, design_variables[opt_params.indexer.iYg] .* opt_params.indexer.fY)
-        Z = addvalues(opt_params.Z, opt_params.indexer.iZ, design_variables[opt_params.indexer.iZg] .* opt_params.indexer.fZ)
-        A = replacevalues(opt_params.A, opt_params.indexer.iA, design_variables[opt_params.indexer.iAg] .* opt_params.indexer.fA)
+        X = add_values(opt_params.X, opt_params.indexer.iX, design_variables[opt_params.indexer.iXg] .* opt_params.indexer.fX)
+        Y = add_values(opt_params.Y, opt_params.indexer.iY, design_variables[opt_params.indexer.iYg] .* opt_params.indexer.fY)
+        Z = add_values(opt_params.Z, opt_params.indexer.iZ, design_variables[opt_params.indexer.iZg] .* opt_params.indexer.fZ)
+        A = replace_values(opt_params.A, opt_params.indexer.iA, design_variables[opt_params.indexer.iAg] .* opt_params.indexer.fA)
 
         # [nₑₗ × 3] matrix where row i is the vector representation of element i, from the start node to the end node; ||vecₑ|| = Lₑ
         evecs = getevecs(X, Y, Z, p)

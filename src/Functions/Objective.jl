@@ -3,13 +3,13 @@
 
 Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function solvetruss(values::Vector{Float64}, p::TrussOptParams)
+function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
     # vₑ
     v = getevecs(X, Y, Z, p)
@@ -36,7 +36,7 @@ function solvetruss(values::Vector{Float64}, p::TrussOptParams)
     u = solveU(K, p)
 
     # U
-    U = replacevalues(zeros(p.n), p.freeids, u)
+    U = replace_values(zeros(p.n), p.freeids, u)
 
     # Store values for continuity in gradients
     return TrussResults(X,
@@ -65,19 +65,19 @@ Penalize the distance between extrema of a set
 variation(vals::Vector{Float64}; factor = 1.) = -factor * reduce(-, extrema(vals))
 
 """
-    maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+    max_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
 Penalize values above a threshold
 """
-function maxpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+function max_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
     Δ = vals .- threshold
     factor * sum(Δ .+ abs.(Δ))
 end
 
 """
-    minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+    min_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
 Penalize values below a threshold
 """
-function minpenalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
+function min_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
     Δ = threshold .- vals
     factor * sum(Δ .+ abs.(Δ))
 end
@@ -89,10 +89,10 @@ Extract the volume of a truss
 function volume(values::Vector{Float64}, p::TrussOptParams)
 
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    A = replacevalues(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
     # vₑ
     v = getevecs(X, Y, Z, p)
@@ -104,17 +104,17 @@ function volume(values::Vector{Float64}, p::TrussOptParams)
 end
 
 """
-    solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
+    solve_network(values::Vector{Float64}, p::NetworkOptParams)
 
 Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
+function solve_network(values::Vector{Float64}, p::NetworkOptParams)
     
     #populate values
-    X = addvalues(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = addvalues(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = addvalues(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    q = replacevalues(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ)
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    q = replace_values(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ)
 
     # fixed nodal positions
     xyz_f = [X[p.F] Y[p.F] Z[p.F]]
@@ -125,9 +125,9 @@ function solvenetwork(values::Vector{Float64}, p::NetworkOptParams)
     #solve for free positions
     xyz_n = (p.Cn' * Q * p.Cn) \ (p.Pn - p.Cn' * Q * p.Cf * xyz_f)
 
-    X2 = replacevalues(X, p.N, xyz_n[:, 1])
-    Y2 = replacevalues(Y, p.N, xyz_n[:, 2])
-    Z2 = replacevalues(Z, p.N, xyz_n[:, 3])
+    X2 = replace_values(X, p.N, xyz_n[:, 1])
+    Y2 = replace_values(Y, p.N, xyz_n[:, 2])
+    Z2 = replace_values(Z, p.N, xyz_n[:, 3])
 
     # Store values for continuity in gradients
     return NetworkResults(X2,

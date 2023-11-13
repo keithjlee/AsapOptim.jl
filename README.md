@@ -121,13 +121,13 @@ d_max = min(nx * dx, ny * dy) / 240
 function cstr(values::Vector{Float64}, p::TrussOptParams)
 
     #structural analysis
-    res = solvetruss(values, p)
+    res = solve_truss(values, p)
 
     #vertical displacements
     d_vertical = res.U[3:3:end]
 
     #axial stresses
-    σ = axialstress(res, p)
+    σ = axial_stress(res, p)
 
     #maximum vertical displacement
     d_critical = maximum(abs.(d_vertical))

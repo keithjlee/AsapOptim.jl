@@ -45,7 +45,7 @@ end
     Flocal(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
 [2×1] vector of end element end forces in LCS
 """
-function Faxial(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+function axial_force(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
     fvecs = Flocal(u, Eks, Rs, p)
     getindex.(fvecs, 2)
 end
@@ -89,16 +89,16 @@ end
     axialforce(t::TrussResults, p::TrussOptParams)
 Axial forces in truss structure
 """
-function Faxial(t::TrussResults, p::TrussOptParams)
-    Faxial(t.U, t.K, t.R, p)
+function axial_force(t::TrussResults, p::TrussOptParams)
+    axial_force(t.U, t.K, t.R, p)
 end
 
 """
-    axialstress(t::TrussResults, p::TrussOptParams)
+    axial_stress(t::TrussResults, p::TrussOptParams)
 Axial stresses in truss structure
 """
-function axialstress(t::TrussResults, p::TrussOptParams)
-    F = Faxial(t.U, t.K, t.R, p)
+function axial_stress(t::TrussResults, p::TrussOptParams)
+    F = axial_force(t.U, t.K, t.R, p)
     σaxial(F, t.A)
 end
 
@@ -106,6 +106,6 @@ end
     axialforce(t::NetworkResults, p::NetworkOptParams)
 Axial forces in FDM network
 """
-function Faxial(t::NetworkResults, p::NetworkOptParams)
+function axial_force(t::NetworkResults, p::NetworkOptParams)
     norm.(eachrow(p.C * [t.X t.Y t.Z])) .* t.Q
 end
