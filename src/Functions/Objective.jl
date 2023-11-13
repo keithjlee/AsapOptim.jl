@@ -12,28 +12,28 @@ function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
     # vₑ
-    v = getevecs(X, Y, Z, p)
+    v = get_element_vectors(X, Y, Z, p)
 
     # Lₑ
-    l = getlengths(v)
+    l = get_element_lengths(v)
 
     # vnₑ
-    n = getnormalizedevecs(v, l)
+    n = get_normalized_element_vectors(v, l)
 
     # Γ
-    Γ = Rtruss(n)
+    Γ = r_truss(n)
 
     # kₑ
-    kₑ = ktruss.(p.E, A, l)
+    kₑ = k_truss.(p.E, A, l)
 
     # Kₑ
-    Kₑ = getglobalks(Γ, kₑ)
+    Kₑ = get_global_ks(Γ, kₑ)
 
     # K
-    K = assembleglobalK(Kₑ, p)
+    K = assemble_global_K(Kₑ, p)
 
     # K⁻¹P
-    u = solveU(K, p)
+    u = solve_u(K, p)
 
     # U
     U = replace_values(zeros(p.n), p.freeids, u)

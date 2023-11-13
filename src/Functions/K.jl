@@ -1,18 +1,18 @@
 """
-    getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+    get_global_ks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
 
 Get a vector of elemental stiffness matrices in GCS given a vector of transformation matrices and a vector of elemental stiffness matrices in LCS
 """
-function getglobalks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
+function get_global_ks(rs::Vector{Matrix{Float64}}, ks::Vector{Matrix{Float64}})
     transpose.(rs) .* ks .* rs
 end
 
 """
-    assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::TrussOptParams)
+    assemble_global_K(elementalKs::Vector{Matrix{Float64}}, p::TrussOptParams)
 
 Assemble the global stiffness matrix from a vector of elemental stiffness matrices
 """
-function assembleglobalK(elementalKs::Vector{Matrix{Float64}}, p::AbstractOptParams)
+function assemble_global_K(elementalKs::Vector{Matrix{Float64}}, p::AbstractOptParams)
 
     nz = zeros(p.nnz)
 
@@ -28,8 +28,8 @@ The sensitivity of K w/r/t an elemental Kₑ is the proportional stiffness added
 
 Output is a vector: [nElements × [nDOFe × nDOFe]] of elemental stiffness matrix sensitivites
 """
-function ChainRulesCore.rrule(::typeof(assembleglobalK), Eks::Vector{Matrix{Float64}}, p::AbstractOptParams)
-    K = assembleglobalK(Eks, p)
+function ChainRulesCore.rrule(::typeof(assemble_global_K), Eks::Vector{Matrix{Float64}}, p::AbstractOptParams)
+    K = assemble_global_K(Eks, p)
 
     function K_pullback(K̄)
         dEks = [Matrix(K̄[id, id]) for id in p.dofids]

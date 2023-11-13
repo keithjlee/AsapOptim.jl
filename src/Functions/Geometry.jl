@@ -1,9 +1,9 @@
 """
-    getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
+    get_element_vectors(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::TrussOptParams)
 
 Get the [nₑ × 3] matrix where each row is the [x,y,z] vector of an element
 """
-function getevecs(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
+function get_element_vectors(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
     p.C * [X Y Z]
 end
 
@@ -25,10 +25,10 @@ dg/dX = CᵀV̄
 
 and likewise for Y, Z.
 """
-function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
-    v = getevecs(X, Y, Z, p)
+function ChainRulesCore.rrule(::typeof(get_element_vectors), X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
+    v = get_element_vectors(X, Y, Z, p)
 
-    function getevecs_pullback(v̄)
+    function get_element_vectors_pullback(v̄)
         
         dv = p.C' * v̄
 
@@ -36,16 +36,16 @@ function ChainRulesCore.rrule(::typeof(getevecs), X::Vector{Float64}, Y::Vector{
         
     end
 
-    return v, getevecs_pullback
+    return v, get_element_vectors_pullback
 end
 
 
 """
-    getlengths(XYZ::Matrix{Float64})
+    get_element_lengths(XYZ::Matrix{Float64})
 
 Get the [nₑ × 1] vector of element lengths
 """
-function getlengths(XYZ::Matrix{Float64})
+function get_element_lengths(XYZ::Matrix{Float64})
     norm.(eachrow(XYZ))
 end
 
@@ -57,8 +57,8 @@ dL/dx = x/L
 
 dg/dx = dg/dL ⋅ dL/dx = L̄ dL/dx
 """
-function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64})
-    l = getlengths(XYZ)
+function ChainRulesCore.rrule(::typeof(get_element_lengths), XYZ::Matrix{Float64})
+    l = get_element_lengths(XYZ)
 
     function l_pullback(l̄)
         dl = l̄ ./ l .* XYZ 
@@ -70,11 +70,11 @@ function ChainRulesCore.rrule(::typeof(getlengths), XYZ::Matrix{Float64})
 end
 
 """
-    getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    get_normalized_element_vectors(XYZ::Matrix{Float64}, Ls::Vector{Float64})
 
 Get the unit vector representation of elements (local x axis)
 """
-function getnormalizedevecs(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+function get_normalized_element_vectors(XYZ::Matrix{Float64}, Ls::Vector{Float64})
     XYZ ./ Ls
 end
 
@@ -84,8 +84,8 @@ g = f(XYZn)
 dg/dXYZ = df/dXYZn ⋅ dXYZn/dXYZ = v̄ ⋅ dXYZn/dXYZ = v̄ ⋅ [1 1 1; 1 1 1; ...] ./ L
 dg/dL = v̄ ⋅ dXYZn/dL = -v̄ ⋅ XYZ / L^2 = -v̄ ⋅ XYZn / L
 """
-function ChainRulesCore.rrule(::typeof(getnormalizedevecs), XYZ::Matrix{Float64}, Ls::Vector{Float64})
-    XYZn = getnormalizedevecs(XYZ, Ls)
+function ChainRulesCore.rrule(::typeof(get_normalized_element_vectors), XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZn = get_normalized_element_vectors(XYZ, Ls)
 
     function getnormv_pullback(v̄)
         dxyz = v̄ ./ Ls .* ones(size(XYZn)...)

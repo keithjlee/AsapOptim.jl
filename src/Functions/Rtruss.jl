@@ -3,66 +3,66 @@ const dRdy_truss = [0. 1. 0. 0. 0. 0.; 0. 0. 0. 0. 1. 0.]
 const dRdz_truss = [0. 0. 1. 0. 0. 0.; 0. 0. 0. 0. 0. 1.]
 
 """
-    Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
+    r_truss(Cx::Float64, Cy::Float64, Cz::Float64)
 
 Transformation matrix for truss element
 """
-function Rtruss(Cx::Float64, Cy::Float64, Cz::Float64)
+function r_truss(Cx::Float64, Cy::Float64, Cz::Float64)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
 """
 Adjoint for global transformation matrix
 """
-function ChainRulesCore.rrule(::typeof(Rtruss), Cx::Float64, Cy::Float64, Cz::Float64)
-    R = Rtruss(Cx, Cy, Cz)
+function ChainRulesCore.rrule(::typeof(r_truss), Cx::Float64, Cy::Float64, Cz::Float64)
+    R = r_truss(Cx, Cy, Cz)
 
-    function Rtruss_pullback(R̄)
+    function r_truss_pullback(R̄)
         return (NoTangent(),
             dot(R̄, dRdx_truss),
             dot(R̄, dRdy_truss),
             dot(R̄, dRdz_truss))
     end
 
-    return R, Rtruss_pullback
+    return R, r_truss_pullback
 end
 
 """
-    Rtruss(Cxyz::SubArray)
+    r_truss(Cxyz::SubArray)
 
 Transformation of sliced view of matrix of element vectors
 """
-function Rtruss(Cxyz::SubArray)
+function r_truss(Cxyz::SubArray)
     Cx, Cy, Cz = Cxyz
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
-function ChainRulesCore.rrule(::typeof(Rtruss), Cxyz::SubArray)
-    R = Rtruss(Cxyz)
+function ChainRulesCore.rrule(::typeof(r_truss), Cxyz::SubArray)
+    R = r_truss(Cxyz)
 
-    function Rtruss_pullback(R̄)
+    function r_truss_pullback(R̄)
         return (NoTangent(),
             [dot(R̄, dRdx_truss),
             dot(R̄, dRdy_truss),
             dot(R̄, dRdz_truss)])
     end
 
-    return R, Rtruss_pullback
+    return R, r_truss_pullback
 end
 
 """
-    Rtruss(XYZn::Matrix{Float64})
+    r_truss(XYZn::Matrix{Float64})
 
 Get all transformation matrices from a [nₑ × 3] matrix of all normalized element local x vectors
 """
-function Rtruss(XYZn::Matrix{Float64})
-    Rtruss.(eachrow(XYZn))
+function r_truss(XYZn::Matrix{Float64})
+    r_truss.(eachrow(XYZn))
 end
 
-function ChainRulesCore.rrule(::typeof(Rtruss), XYZn::Matrix{Float64})
-    rs = Rtruss(XYZn)
+function ChainRulesCore.rrule(::typeof(r_truss), XYZn::Matrix{Float64})
+    rs = r_truss(XYZn)
 
-    function Rtruss_pullback(R̄)
+    function r_truss_pullback(R̄)
         dRdC = zero(XYZn)
 
         for i in axes(R̄, 1)
@@ -74,5 +74,5 @@ function ChainRulesCore.rrule(::typeof(Rtruss), XYZn::Matrix{Float64})
         return (NoTangent(), dRdC)
     end
 
-    return rs, Rtruss_pullback
+    return rs, r_truss_pullback
 end

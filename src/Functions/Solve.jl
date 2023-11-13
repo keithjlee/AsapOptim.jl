@@ -1,9 +1,9 @@
 """
-    solveU(K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
+    solve_u(K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
 
 Displacement of free DOFs
 """
-function solveU(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
+function solve_u(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
     id = p.freeids
     cg(K[id, id], p.P[id])
 end
@@ -31,10 +31,10 @@ Which is an [ndof × ndof] matrix where:
 
 Columnᵢ = uᵢ .* ΔK
 """
-function ChainRulesCore.rrule(::typeof(solveU), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
-    u = solveU(K, p)
+function ChainRulesCore.rrule(::typeof(solve_u), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
+    u = solve_u(K, p)
 
-    function solveU_pullback(ū)
+    function solve_u_pullback(ū)
 
         #initialize
         dudK = zeros(p.n, p.n)
@@ -48,5 +48,5 @@ function ChainRulesCore.rrule(::typeof(solveU), K::SparseMatrixCSC{Float64, Int6
         return NoTangent(), -dudK, NoTangent()
     end
 
-    return u, solveU_pullback
+    return u, solve_u_pullback
 end

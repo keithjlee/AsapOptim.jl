@@ -1,19 +1,19 @@
 """
-    ktruss(E::Float64, A::Float64, L::Float64)
+    k_truss(E::Float64, A::Float64, L::Float64)
 
 Get the element truss stiffness matrix in the local coordinate system
 """
-function ktruss(E::Float64, A::Float64, L::Float64)
+function k_truss(E::Float64, A::Float64, L::Float64)
     E * A / L * [1 -1; -1 1]
 end
 
 """
 Adjoint w/r/t element variables E, A, L for the local stiffness matrix of a truss element
 """
-function ChainRulesCore.rrule(::typeof(ktruss), E::Float64, A::Float64, L::Float64)
-    k = ktruss(E, A, L)
+function ChainRulesCore.rrule(::typeof(k_truss), E::Float64, A::Float64, L::Float64)
+    k = k_truss(E, A, L)
 
-    function ktruss_pullback(k̄)
+    function k_truss_pullback(k̄)
 
         # ∇E = dot(k̄, (A / L * [1 -1; -1 1]))
         ∇A = dot(k̄, (E / L * [1 -1; -1 1]))
@@ -22,7 +22,7 @@ function ChainRulesCore.rrule(::typeof(ktruss), E::Float64, A::Float64, L::Float
         return (NoTangent(), NoTangent(), ∇A, ∇L)
     end
 
-    return k, ktruss_pullback
+    return k, k_truss_pullback
 end
 
 """
@@ -31,7 +31,7 @@ end
 Broadcast function for vectors of element properties
 """
 function getlocalks(E::Vector{Float64}, A::Vector{Float64}, L::Vector{Float64})
-    ktruss.(E, A, L)
+    k_truss.(E, A, L)
 end
 
 """
@@ -47,8 +47,8 @@ function kglobal(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, E::
     len = norm(veclocal)
 
     cx, cy, cz = veclocal ./ len
-    r = Rtruss(cx, cy, cz)
-    kloc = ktruss(E, A, len)
+    r = r_truss(cx, cy, cz)
+    kloc = k_truss(E, A, len)
 
     r' * kloc * r
 end
