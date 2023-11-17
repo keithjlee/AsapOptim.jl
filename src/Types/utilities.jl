@@ -1,13 +1,13 @@
 """
-Set all values of a sparse matrix to *explicit* zeros. IE if S::SparseMatrixCSC has n non-zero values, explicitzero(S) results in the same sparsity pattern with n 0s.
+Set all values of a sparse matrix to *explicit* zeros. IE if S::SparseMatrixCSC has n non-zero values, explicit_zero(S) results in the same sparsity pattern with n 0s.
 """
-explicitzero(A::SparseMatrixCSC) = SparseMatrixCSC(size(A)..., A.colptr, A.rowval, zero(A.nzval))
+explicit_zero(A::SparseMatrixCSC) = SparseMatrixCSC(size(A)..., A.colptr, A.rowval, zero(A.nzval))
 
 """
-    getinz(S::SparseMatrix, ids::Vector{Int64}, ndofpernode::Int64)
+    get_inz(S::SparseMatrix, ids::Vector{Int64}, ndofpernode::Int64)
 Get the indices in S.nzval, S.rowval with respect to a given set of indices in the global DOF order.
 """
-function getinz(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64}, ndofpernode::Int64)
+function get_inz(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64}, ndofpernode::Int64)
     inzvals = Vector{Int64}()
 
     # the row/column index of the starting node DOF1 in S
@@ -37,9 +37,9 @@ function getinz(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64}, ndofpern
 end
 
 """
-    allinz(model::Model)
+    all_inz(model::Model)
 
-For each element in the model, extract the location in the global stiffness matrix CSC structure corresponding to the column-wise values of the elemental stiffness matrix in GCS. IE given the result inz ∈ allinz(model) that corresponds to element E:
+For each element in the model, extract the location in the global stiffness matrix CSC structure corresponding to the column-wise values of the elemental stiffness matrix in GCS. IE given the result inz ∈ all_inz(model) that corresponds to element E:
 
 ```julia-repl   
 julia> model.S.nzval[inz] = vec(E.K) + vec(E2.K) + ...
@@ -49,5 +49,5 @@ Where E2... are other elements that share nodes with E (may not exist).
 
 This allows for a highly efficient method of regenerating the global stiffness matrix with new values while reusing the known sparsity pattern.
 """
-allinz(model::TrussModel) = [getinz(model.S, id, 3) for id in getproperty.(model.elements, :globalID)]
-allinz(model::Model) = [getinz(model.S, id, 6) for id in getproperty.(model.elements, :globalID)]
+all_inz(model::TrussModel) = [get_inz(model.S, id, 3) for id in getproperty.(model.elements, :globalID)]
+all_inz(model::Model) = [get_inz(model.S, id, 6) for id in getproperty.(model.elements, :globalID)]

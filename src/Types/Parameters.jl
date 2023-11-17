@@ -67,7 +67,7 @@ mutable struct TrussOptParams <: AbstractOptParams
         P = model.P
 
         #sparsity pattern of K
-        inzs = allinz(model)
+        inzs = all_inz(model)
         cp = model.S.colptr
         rv = model.S.rowval
         nnz = length(model.S.nzval)
