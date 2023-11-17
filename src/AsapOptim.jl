@@ -9,7 +9,7 @@ using IterativeSolvers
 using LinearAlgebra
 
 # Optimization
-using ChainRulesCore, Zygote
+using ChainRulesCore
 
 include("Types/Types.jl")
 
