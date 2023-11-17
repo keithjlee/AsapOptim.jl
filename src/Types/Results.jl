@@ -164,7 +164,7 @@ struct GeometricProperties
         A = replace_values(opt_params.A, opt_params.indexer.iA, design_variables[opt_params.indexer.iAg] .* opt_params.indexer.fA)
 
         # [nₑₗ × 3] matrix where row i is the vector representation of element i, from the start node to the end node; ||vecₑ|| = Lₑ
-        evecs = get_element_vectors(X, Y, Z, p)
+        evecs = get_element_vectors(X, Y, Z, opt_params)
         L = get_element_lengths(evecs)
 
         return new(
