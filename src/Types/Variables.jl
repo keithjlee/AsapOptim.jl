@@ -111,7 +111,13 @@ end
 """
     CoupledVariable <: AbstractVariable
 
-A variable whose value points to an existing variable
+A variable whose value points to an existing variable.
+
+```julia
+var = CoupledVariable(variable::Union{TrussNode, TrussElement, FDMelement}, reference::Union{SpatialVariable, AreaVariable, QVaraible}, factor = 1.0)
+```
+
+Where `factor` is a scalar factor applied to the value of `reference` before assigning to `variable`. IE to enforce a mirrored value, use `factor = -1.0`.
 """
 mutable struct CoupledVariable <: AbstractVariable
     i::Int64
