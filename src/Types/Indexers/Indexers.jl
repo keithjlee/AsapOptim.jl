@@ -15,10 +15,10 @@ const axis2field = Dict(:X => (:iX, :iXg, :fX),
     :z => (:iZ, :iZg, :fZ))
 
 const property2field = Dict(
-    :A => (:iA, iAg, :fA),
-    :Ix => (:iIx, iIxg, :fIx),
-    :Iy => (:iIy, iIyg, :fIy),
-    :J => (:iJ, iJg, :fJ)
+    :A => (:iA, :iAg, :fA),
+    :Ix => (:iIx, :iIxg, :fIx),
+    :Iy => (:iIy, :iIyg, :fIy),
+    :J => (:iJ, :iJg, :fJ)
 )
 
 include("TrussIndexer.jl")

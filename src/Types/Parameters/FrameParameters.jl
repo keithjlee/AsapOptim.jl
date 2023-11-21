@@ -6,6 +6,7 @@ struct FrameOptParams <: AbstractOptParams
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
+    Ψ::Vector{Float64} #all roll angles |n_element|
     E::Vector{Float64} #all element young's modulii |n_element|
     G::Vector{Float64} #all element shear modulii |n_element|
     A::Vector{Float64} #all element areas |n_element|
@@ -36,6 +37,7 @@ struct FrameOptParams <: AbstractOptParams
         #spatial positions
         xyz = node_positions(model)
         X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
+        Ψ = getproperty.(model.elements, :Ψ)
 
         #Material properties
         sections = getproperty.(model.elements, :section)
@@ -90,10 +92,42 @@ struct FrameOptParams <: AbstractOptParams
         rv = model.S.rowval
         nnz = length(model.S.nzval)
 
-        #GENERATE
+        #sparsity pattern of K
+        inzs = all_inz(model)
+        cp = model.S.colptr
+        rv = model.S.rowval
+        nnz = length(model.S.nzval)
 
 
-
+        new(
+            model,
+            vals,
+            indexer,
+            variables,
+            X,
+            Y,
+            Z,
+            Ψ,
+            E,
+            G,
+            A,
+            Ix,
+            Iy,
+            J,
+            P,
+            Pf,
+            C,
+            lowerbounds,
+            upperbounds,
+            cp,
+            rv,
+            nnz,
+            inzs,
+            freeids,
+            nodeids,
+            dofids,
+            model.nDOFs
+        )
 
 
     end

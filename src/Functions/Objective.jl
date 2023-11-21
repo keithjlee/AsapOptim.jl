@@ -1,5 +1,5 @@
 """
-    solve(values::Vector{Float64}, p::TrussOptParams)
+    solve_truss(values::Vector{Float64}, p::TrussOptParams)
 
 Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
@@ -34,6 +34,57 @@ function solve_truss(values::Vector{Float64}, p::TrussOptParams)
 
     # K⁻¹P
     u = solve_u(K, p)
+
+    # U
+    U = replace_values(zeros(p.n), p.freeids, u)
+
+    # Store values for continuity in gradients
+    return TrussResults(X,
+        Y,
+        Z,
+        A,
+        l,
+        Kₑ,
+        Γ,
+        U)
+end
+
+"""
+    solve_truss_direct(values::Vector{Float64}, p::TrussOptParams)
+
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
+"""
+function solve_truss_direct(values::Vector{Float64}, p::TrussOptParams)
+    
+    #populate values
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+
+    # vₑ: 
+    v = get_element_vectors(X, Y, Z, p)
+
+    # Lₑ
+    l = get_element_lengths(v)
+
+    # vnₑ
+    n = get_normalized_element_vectors(v, l)
+
+    # Γ
+    Γ = r_truss(n)
+
+    # kₑ
+    kₑ = k_truss.(p.E, A, l)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u_direct(K, p)
 
     # U
     U = replace_values(zeros(p.n), p.freeids, u)
