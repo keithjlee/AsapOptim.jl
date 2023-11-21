@@ -1,2 +1,3 @@
 scratch.jl
 scratch/frame_test.jl
+scratch/segfault_test.jl
