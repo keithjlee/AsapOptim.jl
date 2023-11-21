@@ -1,28 +1,35 @@
-abstract type AbstractOptParams end
+# Abstract types
 abstract type AbstractVariable end
-abstract type TrussOptVariable end
+abstract type IndependentVariable <: AbstractVariable end
 abstract type AbstractIndexer end
+abstract type AbstractOptParams end
 
 include("utilities.jl")
 
-# variables
-include("Variables.jl")
+# Variables
+include("Variables/Variables.jl")
+
+# Independent structural variables
 export SpatialVariable
 export AreaVariable
+export SectionVariable
+
+# Independent force density variable
 export QVariable
+
+# Coupled variable
 export CoupledVariable
 
-# unions
+# Unions
 export TrussVariable
 export NetworkVariable
+export FrameVariable
 
-# indexers
-include("Indexers.jl")
-export TrussOptIndexer
-export NetworkOptIndexer
+# Indexers
+include("Indexers/Indexers.jl")
 
-# parameters
-include("Parameters.jl")
+# Optimization parameters
+include("Parameters/Parameters.jl")
 export TrussOptParams
 export NetworkOptParams
 
@@ -33,10 +40,3 @@ export updatenetwork
 export TrussResults
 export NetworkResults
 export GeometricProperties
-
-# misc. functions
-function cleartrace!(params::AbstractOptParams)
-    empty!(params.losstrace)
-    empty!(params.valtrace)
-end
-export cleartrace!
