@@ -11,7 +11,7 @@ function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
     A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
 
-    # vₑ
+    # vₑ: 
     v = get_element_vectors(X, Y, Z, p)
 
     # Lₑ
@@ -26,7 +26,7 @@ function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     # kₑ
     kₑ = k_truss.(p.E, A, l)
 
-    # Kₑ
+    # Kₑ = ΓᵀkₑΓ
     Kₑ = get_global_ks(Γ, kₑ)
 
     # K
