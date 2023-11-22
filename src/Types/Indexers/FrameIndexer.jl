@@ -20,6 +20,7 @@ mutable struct FrameOptIndexer <: AbstractIndexer
     iJ::Vector{Int64}
     iJg::Vector{Int64}
     fJ::Vector{<:Real}
+    iN::Vector{<:Real}
 end
 
 function populate!(indexer::FrameOptIndexer, var::AreaVariable)
@@ -77,6 +78,7 @@ function FrameOptIndexer(vars::Vector{FrameVariable})
         Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
+        Vector{Real}(),
         Vector{Real}()
         )
 

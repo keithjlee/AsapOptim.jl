@@ -77,10 +77,28 @@ mutable struct AreaVariable <: IndependentVariable
     end
 end
 
+"""
+    NumericVariable <: IndependentVariable
+
+A variable that holds a numeric value.
+
+```julia
+    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64)
+```
+"""
+mutable struct NumericVariable <: IndependentVariable
+    val::Float64
+    lb::Float64
+    ub::Float64
+    iglobal::Int64
+
+    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64) = new(value, lowerbound, upperbound)
+end
+
 include("NetworkVariables.jl")
 include("FrameVariables.jl")
 include("CoupledVariables.jl")
 
-const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
-const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable}
-const FrameVariable = Union{SpatialVariable, AreaVariable, SectionVariable, CoupledVariable}
+const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable, NumericVariable}
+const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable, NumericVariable}
+const FrameVariable = Union{SpatialVariable, AreaVariable, SectionVariable, CoupledVariable, NumericVariable}

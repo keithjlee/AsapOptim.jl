@@ -9,6 +9,9 @@ include("utilities.jl")
 # Variables
 include("Variables/Variables.jl")
 
+# Independent numeric variables
+export NumericVariable
+
 # Independent structural variables
 export SpatialVariable
 export AreaVariable
