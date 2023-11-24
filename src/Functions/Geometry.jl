@@ -7,6 +7,10 @@ function get_element_vectors(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{F
     p.C * [X Y Z]
 end
 
+function get_element_vectors_notangent(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
+    p.C * [X Y Z]
+end
+
 """
 The elemental vectors are derived from V = C * XYZ where:
 
@@ -49,6 +53,10 @@ function get_element_lengths(XYZ::Matrix{Float64})
     norm.(eachrow(XYZ))
 end
 
+function get_element_lengths_notangent(XYZ::Matrix{Float64})
+    norm.(eachrow(XYZ))
+end
+
 """
 For a single element, given its vector representation:
 
@@ -75,6 +83,10 @@ end
 Get the unit vector representation of elements (local x axis)
 """
 function get_normalized_element_vectors(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+    XYZ ./ Ls
+end
+
+function get_normalized_element_vectors_notangent(XYZ::Matrix{Float64}, Ls::Vector{Float64})
     XYZ ./ Ls
 end
 
