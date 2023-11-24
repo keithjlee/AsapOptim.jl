@@ -11,6 +11,7 @@ mutable struct NetworkOptIndexer <: AbstractIndexer
     iQ::Vector{Int64}
     iQg::Vector{Int64}
     fQ::Vector{<:Real}
+    iN::Vector{<:Real}
 end
 
 function populate!(indexer::NetworkOptIndexer, var::QVariable)
@@ -39,9 +40,7 @@ end
 Generate the index translation layer between network parameters and design variables
 """
 function NetworkOptIndexer(vars::Vector{NetworkVariable})
-    indexer = NetworkOptIndexer(Vector{Int64}(),
-        Vector{Int64}(),
-        Vector{Real}(),
+    indexer = NetworkOptIndexer(
         Vector{Int64}(),
         Vector{Int64}(),
         Vector{Real}(),
@@ -50,7 +49,12 @@ function NetworkOptIndexer(vars::Vector{NetworkVariable})
         Vector{Real}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}())
+        Vector{Real}(),
+        Vector{Int64}(),
+        Vector{Int64}(),
+        Vector{Real}(),
+        Vector{Real}()
+        )
 
     for var in vars
         populate!(indexer, var)

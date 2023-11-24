@@ -11,6 +11,10 @@ function r_truss(Cx::Float64, Cy::Float64, Cz::Float64)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function r_truss_notangent(Cx::Float64, Cy::Float64, Cz::Float64)
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
 """
 Adjoint for global transformation matrix
 """
@@ -37,6 +41,11 @@ function r_truss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function r_truss_notangent(Cxyz::SubArray)
+    Cx, Cy, Cz = Cxyz
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
 function ChainRulesCore.rrule(::typeof(r_truss), Cxyz::SubArray)
     R = r_truss(Cxyz)
 
@@ -57,6 +66,10 @@ Get all transformation matrices from a [nₑ × 3] matrix of all normalized elem
 """
 function r_truss(XYZn::Matrix{Float64})
     r_truss.(eachrow(XYZn))
+end
+
+function r_truss_notangent(XYZn::Matrix{Float64})
+    r_truss_notangent.(eachrow(XYZn))
 end
 
 function ChainRulesCore.rrule(::typeof(r_truss), XYZn::Matrix{Float64})

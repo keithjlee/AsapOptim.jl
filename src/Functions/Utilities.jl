@@ -9,6 +9,7 @@ function replace_values(values::Vector{Float64}, indices::Vector{Int64}, newvalu
     v2[indices] .= newvalues
 
     return v2
+
 end
 
 """

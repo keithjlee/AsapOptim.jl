@@ -6,6 +6,10 @@ function populate!(indexer::AbstractIndexer, var::SpatialVariable)
     push!(getfield(indexer, field_factor), 1.)
 end
 
+function populate!(indexer::AbstractIndexer, var::NumericVariable)
+    push!(getfield(indexer, :iN), var.iglobal)
+end
+
 # quick reference to relevant field in TrussOptIndexer from variables
 const axis2field = Dict(:X => (:iX, :iXg, :fX),
     :x => (:iX, :iXg, :fX),

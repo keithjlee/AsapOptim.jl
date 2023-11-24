@@ -27,19 +27,3 @@ function r_frame(Cxyz::Array, Ψ::Float64; tol = 1e-5)
     
     [Λ zeros(3,9); zeros(3,3) Λ zeros(3,6); zeros(3,6) Λ zeros(3,3); zeros(3,9) Λ]
 end
-
-xyz = normalize(rand(3))
-psi = pi/2 * rand()
-
-r_frame(xyz, psi)
-
-F = rand(12)
-function _obj(cxyz::Array, psi::Float64)
-
-    r = r_frame(cxyz, psi)
-
-    norm(r * F)
-end
-
-o1 = _obj(xyz, psi)
-@time g1 = Zygote.gradient(x -> _obj(x, psi), xyz)[1]
