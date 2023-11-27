@@ -18,7 +18,16 @@ mutable struct CoupledVariable <: AbstractVariable
         new(node.nodeID, ref, factor)
     end
 
-    function CoupledVariable(element::TrussElement, ref::AreaVariable, factor = 1.)
+    function CoupledVariable(node::Node, ref::SpatialVariable, factor = 1.)
+        new(node.nodeID, ref, factor)
+    end
+
+    function CoupledVariable(element::Union{Element, TrussElement}, ref::AreaVariable, factor = 1.)
+        @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
+        new(element.elementID, ref, factor)
+    end
+
+    function CoupledVariable(element::Element, ref::SectionVariable, factor = 1.)
         @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
         new(element.elementID, ref, factor)
     end
