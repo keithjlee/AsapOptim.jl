@@ -1,95 +1,4 @@
 """
-    updatemodel(p::TrussOptParams, u::Vector{Float64})
-
-Generate a new structural model from the results of an optimization
-"""
-function updatemodel(p::TrussOptParams, u::Vector{Float64})
-    
-    #final values
-    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
-    A = replace_values(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
-
-    #new model
-    nodes = Vector{TrussNode}()
-    elements = Vector{TrussElement}()
-    loads = Vector{NodeForce}()
-
-    #new nodes
-    for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
-        newnode = TrussNode([x, y, z], node.dof)
-        newnode.id = node.id
-        push!(nodes, newnode)
-    end
-
-    #new elements
-    for (id, e, a, el) in zip(p.nodeids, p.E, A, p.model.elements)
-        newelement = TrussElement(nodes, id, TrussSection(a, e))
-        newelement.id = el.id
-        push!(elements, newelement)
-    end
-
-    #new loads
-    for load in p.model.loads
-        newload = NodeForce(nodes[load.node.nodeID], load.value)
-        newload.id = load.id
-        push!(loads, newload)
-    end
-
-    model = TrussModel(nodes, elements, loads)
-    solve!(model)
-
-    return model
-
-end
-
-"""
-    updatenetwork(p::TrussOptParams, u::Vector{Float64})
-
-Generate a new FDM network from the results of an optimization
-"""
-function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
-    
-    #final values
-    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
-    Q = replace_values(p.q, p.indexer.iQ, u[p.indexer.iQg] .* p.indexer.fQ)
-
-    #new model
-    nodes = Vector{FDMnode}()
-    elements = Vector{FDMelement}()
-    loads = Vector{FDMload}()
-
-    #new nodes
-    for (node, x, y, z) in zip(p.network.nodes, X, Y, Z)
-        newnode = FDMnode([x, y, z], node.dof)
-        newnode.id = node.id
-        push!(nodes, newnode)
-    end
-
-    #new elements
-    for (q, el) in zip(Q, p.network.elements)
-        newelement = FDMelement(nodes, el.iStart, el.iEnd, q)
-        newelement.id = el.id
-        push!(elements, newelement)
-    end
-
-    #new loads
-    for load in p.network.loads
-        newload = FDMload(nodes[load.point.nodeID], load.force)
-        push!(loads, newload)
-    end
-
-    network = Network(nodes, elements, loads)
-    solve!(network)
-
-    return network
-
-end
-
-"""
     TrussResults
 
 Results of a differentiable structural analysis of a truss model.
@@ -131,6 +40,35 @@ struct NetworkResults
     Y::Vector{Float64}
     Z::Vector{Float64}
     Q::Vector{Float64}
+end
+
+"""
+    TrussResults
+
+Results of a differentiable structural analysis of a truss model.
+
+Fields:
+- X: x-position of all nodes
+- Y: y-position of all nodes
+- Z: z-position of all nodes
+- A: Area of all elements
+- L: Length of all elements
+- K: Elemental stiffness matrices in GCS
+- R: Elemental transformation matrices
+- U: Displacement vector of all nodes
+"""
+struct FrameResults
+    X::Vector{Float64}
+    Y::Vector{Float64}
+    Z::Vector{Float64}
+    A::Vector{Float64}
+    Ix::Vector{Float64}
+    Iy::Vector{Float64}
+    J::Vector{Float64}
+    L::Vector{Float64}
+    K::Vector{Matrix{Float64}}
+    R::Vector{Matrix{Float64}}
+    U::Vector{Float64}
 end
 
 """

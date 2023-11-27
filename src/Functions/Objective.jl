@@ -109,29 +109,6 @@ function compliance(t::TrussResults, p::TrussOptParams)
     t.U' * p.P
 end
 
-"""
-    variation(vals::Vector{Float64}; factor = 1.)
-Penalize the distance between extrema of a set
-"""
-variation(vals::Vector{Float64}; factor = 1.) = -factor * reduce(-, extrema(vals))
-
-"""
-    max_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
-Penalize values above a threshold
-"""
-function max_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
-    Δ = vals .- threshold
-    factor * sum(Δ .+ abs.(Δ))
-end
-
-"""
-    min_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
-Penalize values below a threshold
-"""
-function min_penalty(vals::Vector{Float64}, threshold::Float64; factor = 1.)
-    Δ = threshold .- vals
-    factor * sum(Δ .+ abs.(Δ))
-end
 
 """
     solve_network(values::Vector{Float64}, p::NetworkOptParams)
@@ -172,4 +149,112 @@ end
 
 function target(r::NetworkResults, target::Matrix{Float64})
     norm(target .- [r.X r.Y r.Z])
+end
+
+function solve_frame(values::Vector{Float64}, p::FrameOptParams)
+
+    #populate values
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+
+    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    Ix = replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx)
+    Iy = replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy)
+    J = replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ)
+
+    # vₑ: 
+    v = get_element_vectors(X, Y, Z, p)
+
+    # Lₑ
+    L = get_element_lengths(v)
+
+    # vnₑ
+    n = get_normalized_element_vectors(v, L)
+
+    # Γ
+    Γ = r_frame(n, p.Ψ)
+
+    # kₑ
+    kₑ = k_frame.(p.E, p.G, A, L, Ix, Iy, J)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u(K, p)
+
+    # U
+    U = replace_values(zeros(p.n), p.freeids, u)
+
+    return FrameResults(
+        X,
+        Y,
+        Z,
+        A,
+        Ix,
+        Iy,
+        J,
+        L,
+        Kₑ,
+        Γ,
+        U
+    )
+end
+
+function solve_frame_direct(values::Vector{Float64}, p::FrameOptParams)
+
+    #populate values
+    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+
+    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    Ix = replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx)
+    Iy = replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy)
+    J = replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ)
+
+    # vₑ: 
+    v = get_element_vectors(X, Y, Z, p)
+
+    # Lₑ
+    L = get_element_lengths(v)
+
+    # vnₑ
+    n = get_normalized_element_vectors(v, L)
+
+    # Γ
+    Γ = r_frame(n, p.Ψ)
+
+    # kₑ
+    kₑ = k_frame.(p.E, p.G, A, L, Ix, Iy, J)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u_direct(K, p)
+
+    # U
+    U = replace_values(zeros(p.n), p.freeids, u)
+
+    return FrameResults(
+        X,
+        Y,
+        Z,
+        A,
+        Ix,
+        Iy,
+        J,
+        L,
+        Kₑ,
+        Γ,
+        U
+    )
 end

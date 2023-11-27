@@ -1,7 +1,7 @@
 struct FrameOptParams <: AbstractOptParams
     model::Model #the reference  model for optimization
     values::Vector{Float64} #design variables
-    indexer::TrussOptIndexer #pointers to design variables and full variables
+    indexer::FrameOptIndexer #pointers to design variables and full variables
     variables::Vector{TrussVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
@@ -27,7 +27,7 @@ struct FrameOptParams <: AbstractOptParams
     dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     n::Int64 #total number of DOFs
 
-    function OptParams(model::Model, variables::Vector{FrameVariable})
+    function FrameOptParams(model::Model, variables::Vector{FrameVariable})
 
         #assert model is processed
         model.processed || (Asap.process!(model))

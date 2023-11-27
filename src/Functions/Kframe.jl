@@ -5,19 +5,34 @@ Element stiffness matrix for a fixed-fixed frame element in LCS
 """
 function k_frame(E::Float64, G::Float64, A::Float64, L::Float64, Ix::Float64, Iy::Float64, J::Float64)
 
-    return [
-        E*A/L 0 0 0 0 0 -A*E/L 0 0 0 0 0;
-        0 12Ix*E/L^3 0 0 0 6Ix*E/L^2 0 -12Ix*E/L^3 0 0 0 6Ix*E/L^2;
-        0 0 12Iy*E/L^3 0 -6Iy*E/L^2 0 0 0 -12Iy*E/L^3 0 -6Iy*E/L^2 0;
-        0 0 0 G*J/L 0 0 0 0 0 -G*J/L 0 0;
-        0 0 -6Iy*E/L^2 0 4Iy*E/L 0 0 0 6Iy*E/L^2 0 2Iy*E/L 0;
-        0 6Ix*E/L^2 0 0 0 4Ix*E/L 0 -6Ix*E/L^2 0 0 0 2Ix*E/L;
-        -A*E/L 0 0 0 0 0 A*E/L 0 0 0 0 0;
-        0 -12Ix*E/L^3 0 0 0 -6Ix*E/L^2 0 12Ix*E/L^3 0 0 0 -6Ix*E/L^2;
-        0 0 -12Iy*E/L^3 0 6Iy*E/L^2 0 0 0 12Iy*E/L^3 0 6Iy*E/L^2 0;
-        0 0 0 -G*J/L 0 0 0 0 0 G*J/L 0 0;
-        0 0 -6Iy*E/L^2 0 2Iy*E/L 0 0 0 6Iy*E/L^2 0 4Iy*E/L 0;
-        0 6Ix*E/L^2 0 0 0 2Ix*E/L 0 -6Ix*E/L^2 0 0 0 4Ix*E/L
+    # return [
+    #     E*A/L 0 0 0 0 0 -A*E/L 0 0 0 0 0;
+    #     0 12Ix*E/L^3 0 0 0 6Ix*E/L^2 0 -12Ix*E/L^3 0 0 0 6Ix*E/L^2;
+    #     0 0 12Iy*E/L^3 0 -6Iy*E/L^2 0 0 0 -12Iy*E/L^3 0 -6Iy*E/L^2 0;
+    #     0 0 0 G*J/L 0 0 0 0 0 -G*J/L 0 0;
+    #     0 0 -6Iy*E/L^2 0 4Iy*E/L 0 0 0 6Iy*E/L^2 0 2Iy*E/L 0;
+    #     0 6Ix*E/L^2 0 0 0 4Ix*E/L 0 -6Ix*E/L^2 0 0 0 2Ix*E/L;
+    #     -A*E/L 0 0 0 0 0 A*E/L 0 0 0 0 0;
+    #     0 -12Ix*E/L^3 0 0 0 -6Ix*E/L^2 0 12Ix*E/L^3 0 0 0 -6Ix*E/L^2;
+    #     0 0 -12Iy*E/L^3 0 6Iy*E/L^2 0 0 0 12Iy*E/L^3 0 6Iy*E/L^2 0;
+    #     0 0 0 -G*J/L 0 0 0 0 0 G*J/L 0 0;
+    #     0 0 -6Iy*E/L^2 0 2Iy*E/L 0 0 0 6Iy*E/L^2 0 4Iy*E/L 0;
+    #     0 6Ix*E/L^2 0 0 0 2Ix*E/L 0 -6Ix*E/L^2 0 0 0 4Ix*E/L
+    #     ]
+
+    E / L^3 * [
+        A*L^2 0 0 0 0 0 -A*L^2 0 0 0 0 0;
+        0 12Ix 0 0 0 6L*Ix 0 -12Ix 0 0 0 6L*Ix;
+        0 0 12Iy 0 -6L*Iy 0 0 0 -12Iy 0 -6L*Iy 0;
+        0 0 0 G*J*L^2/E 0 0 0 0 0 -G*J*L^2/E 0 0;
+        0 0 -6L*Iy 0 4L^2*Iy 0 0 0 6L*Iy 0 2L^2*Iy 0;
+        0 6L*Ix 0 0 0 4L^2*Ix 0 -6L*Ix 0 0 0 2L^2*Ix;
+        -A*L^2 0 0 0 0 0 A*L^2 0 0 0 0 0;
+        0 -12Ix 0 0 0 -6L*Ix 0 12Ix 0 0 0 -6L*Ix;
+        0 0 -12Iy 0 6L*Iy 0 0 0 12Iy 0 6L*Iy 0;
+        0 0 0 -G*J*L^2/E 0 0 0 0 0 G*J*L^2/E 0 0;
+        0 0 -6L*Iy 0 2L^2*Iy 0 0 0 6L*Iy 0 4L^2*Iy 0;
+        0 6L*Ix 0 0 0 2L^2*Ix 0 -6L*Ix 0 0 0 4L^2*Ix
         ]
 end
 

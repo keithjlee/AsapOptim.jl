@@ -109,3 +109,160 @@ Axial forces in FDM network
 function axial_force(t::NetworkResults, p::NetworkOptParams)
     norm.(eachrow(p.C * [t.X t.Y t.Z])) .* t.Q
 end
+
+"""
+    updatemodel(p::TrussOptParams, u::Vector{Float64})
+
+Generate a new structural model from the results of an optimization
+"""
+function updatemodel(p::TrussOptParams, u::Vector{Float64})
+    
+    #final values
+    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    A = replace_values(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
+
+    #new model
+    nodes = Vector{TrussNode}()
+    elements = Vector{TrussElement}()
+    loads = Vector{NodeForce}()
+
+    #new nodes
+    for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
+        newnode = TrussNode([x, y, z], node.dof)
+        newnode.id = node.id
+        push!(nodes, newnode)
+    end
+
+    #new elements
+    for (id, e, a, el) in zip(p.nodeids, p.E, A, p.model.elements)
+        newelement = TrussElement(nodes, id, TrussSection(a, e))
+        newelement.id = el.id
+        push!(elements, newelement)
+    end
+
+    #new loads
+    for load in p.model.loads
+        newload = NodeForce(nodes[load.node.nodeID], load.value)
+        newload.id = load.id
+        push!(loads, newload)
+    end
+
+    model = TrussModel(nodes, elements, loads)
+    solve!(model)
+
+    return model
+
+end
+
+"""
+    updatenetwork(p::TrussOptParams, u::Vector{Float64})
+
+Generate a new FDM network from the results of an optimization
+"""
+function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
+    
+    #final values
+    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+    Q = replace_values(p.q, p.indexer.iQ, u[p.indexer.iQg] .* p.indexer.fQ)
+
+    #new model
+    nodes = Vector{FDMnode}()
+    elements = Vector{FDMelement}()
+    loads = Vector{FDMload}()
+
+    #new nodes
+    for (node, x, y, z) in zip(p.network.nodes, X, Y, Z)
+        newnode = FDMnode([x, y, z], node.dof)
+        newnode.id = node.id
+        push!(nodes, newnode)
+    end
+
+    #new elements
+    for (q, el) in zip(Q, p.network.elements)
+        newelement = FDMelement(nodes, el.iStart, el.iEnd, q)
+        newelement.id = el.id
+        push!(elements, newelement)
+    end
+
+    #new loads
+    for load in p.network.loads
+        newload = FDMload(nodes[load.point.nodeID], load.force)
+        push!(loads, newload)
+    end
+
+    network = Network(nodes, elements, loads)
+    solve!(network)
+
+    return network
+
+end
+
+"""
+    updatemodel(p::TrussOptParams, u::Vector{Float64})
+
+Generate a new structural model from the results of an optimization
+"""
+function updatemodel(p::FrameOptParams, u::Vector{Float64})
+    
+    #final values
+    X = add_values(p.X, p.indexer.iX, u[p.indexer.iXg] .* p.indexer.fX)
+    Y = add_values(p.Y, p.indexer.iY, u[p.indexer.iYg] .* p.indexer.fY)
+    Z = add_values(p.Z, p.indexer.iZ, u[p.indexer.iZg] .* p.indexer.fZ)
+
+    A = replace_values(p.A, p.indexer.iA, u[p.indexer.iAg] .* p.indexer.fA)
+    Ix = replace_values(p.Ix, p.indexer.iIx, u[p.indexer.iIxg] .* p.indexer.fIx)
+    Iy = replace_values(p.Iy, p.indexer.iIy, u[p.indexer.iIyg] .* p.indexer.fIy)
+    J = replace_values(p.J, p.indexer.iJ, u[p.indexer.iJg] .* p.indexer.fJ)
+
+    #new model
+    nodes = Vector{Node}()
+    elements = Vector{Element}()
+    loads = Vector{Asap.Load}()
+
+    #new nodes
+    for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
+        newnode = Node([x, y, z], node.dof, node.id)
+        push!(nodes, newnode)
+    end
+
+    #new elements
+    for (id, el, a, ix, iy, j) in zip(p.nodeids, p.model.elements, A, Ix, Iy, J)
+        section = deepcopy(el.section)
+
+        newsection = Section(a, section.E, section.G, ix, iy, j)
+        newelement = Element(nodes, id, newsection)
+        newelement.id = el.id
+        push!(elements, newelement)
+    end
+
+    #new loads
+    for load in p.model.loads
+
+        if typeof(load) <: Asap.NodeLoad
+            newload = typeof(load)(nodes[load.node.nodeID], load.value)
+            newload.id = load.id
+            push!(loads, newload)
+        else
+            if typeof(load) == Asap.PointLoad
+                newload = PointLoad(elements[load.element.elementID], load.position, load.value)
+                newload.id = load.id
+                push!(loads, newload)
+            else
+                newload = typeof(load)(elements[load.element.elementID], load.value)
+                newload.id = load.id
+                push!(loads, newload)
+            end
+        end
+    end
+
+    model = Model(nodes, elements, loads)
+    solve!(model)
+
+    return model
+
+end
+

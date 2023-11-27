@@ -5,8 +5,10 @@ export add_values
 include("Geometry.jl")
 
 include("Rtruss.jl")
+include("Rframe.jl")
 
 include("Ktruss.jl")
+include("Kframe.jl")
 
 include("K.jl")
 
@@ -15,13 +17,14 @@ include("Solve.jl")
 include("Objective.jl")
 export solve_truss
 export compliance
-export variation
-export max_penalty
-export min_penalty
 
 export solve_network
 export target
 
+export solve_frame
+
 include("PostProcessing.jl")
 export axial_force
 export axial_stress
+export updatemodel
+export updatenetwork

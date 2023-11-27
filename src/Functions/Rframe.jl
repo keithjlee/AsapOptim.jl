@@ -1,4 +1,4 @@
-function r_frame(Cxyz::Array, Ψ::Float64; tol = 1e-5)
+function r_frame(Cxyz::AbstractArray, Ψ::Float64; tol = 1e-4)
 
     #local x vector cosines
     Cx, Cy, Cz = Cxyz
@@ -27,3 +27,5 @@ function r_frame(Cxyz::Array, Ψ::Float64; tol = 1e-5)
     
     [Λ zeros(3,9); zeros(3,3) Λ zeros(3,6); zeros(3,6) Λ zeros(3,3); zeros(3,9) Λ]
 end
+
+r_frame(XYZn::Matrix{Float64}, Ψ::Vector{Float64}; tol = 1e-4) = [r_frame(xyzn, psi; tol = tol) for (xyzn, psi) in zip(eachrow(XYZn), Ψ)]

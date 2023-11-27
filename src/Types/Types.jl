@@ -35,11 +35,10 @@ include("Indexers/Indexers.jl")
 include("Parameters/Parameters.jl")
 export TrussOptParams
 export NetworkOptParams
+export FrameOptParams
 
 # results
 include("Results.jl")
-export updatemodel
-export updatenetwork
 export TrussResults
 export NetworkResults
 export GeometricProperties
