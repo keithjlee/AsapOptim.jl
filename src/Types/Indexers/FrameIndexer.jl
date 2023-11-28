@@ -21,12 +21,31 @@ mutable struct FrameOptIndexer <: AbstractIndexer
     iJg::Vector{Int64}
     fJ::Vector{<:Real}
     iN::Vector{<:Real}
+    activeX::Bool
+    activeY::Bool
+    activeZ::Bool
+    activeA::Bool
+    activeIx::Bool
+    activeIy::Bool
+    activeJ::Bool
 end
 
 function populate!(indexer::FrameOptIndexer, var::AreaVariable)
     push!(getfield(indexer, :iA), var.i)
     push!(getfield(indexer, :iAg), var.iglobal)
     push!(getfield(indexer, :fA), 1.)
+
+    indexer.activeA = true
+end
+
+function populate!(indexer::FrameOptIndexer, var::SectionVariable)
+    field_local, field_global, field_factor = property2field(var.property)
+
+    push!(getfield(indexer, field_local), var.i)
+    push!(getfield(indexer, field_global), var.iglobal)
+    push!(getfield(indexer, field_factor), 1.)
+
+    setfield!(indexer, property2active[var.property], true)
 end
 
 function populate!(indexer::FrameOptIndexer, var::CoupledVariable)
@@ -79,7 +98,14 @@ function FrameOptIndexer(vars::Vector{FrameVariable})
         Vector{Int64}(),
         Vector{Int64}(),
         Vector{Real}(),
-        Vector{Real}()
+        Vector{Real}(),
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false
         )
 
     for var in vars

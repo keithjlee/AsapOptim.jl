@@ -17,6 +17,10 @@ mutable struct TrussOptIndexer <: AbstractIndexer
     iAg::Vector{Int64}
     fA::Vector{<:Real}
     iN::Vector{Int64} #index of numeric variables
+    activeX::Bool
+    activeY::Bool
+    activeZ::Bool
+    activeA::Bool
 end
 
 
@@ -24,6 +28,8 @@ function populate!(indexer::TrussOptIndexer, var::AreaVariable)
     push!(getfield(indexer, :iA), var.i)
     push!(getfield(indexer, :iAg), var.iglobal)
     push!(getfield(indexer, :fA), 1.)
+
+    indexer.activeA = true
 end
 
 function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
@@ -59,7 +65,11 @@ function TrussOptIndexer(vars::Vector{TrussVariable})
         Vector{Int64}(),
         Vector{Int64}(),
         Vector{Real}(),
-        Vector{Real}()
+        Vector{Real}(),
+        false,
+        false,
+        false,
+        false
         )
 
     for var in vars

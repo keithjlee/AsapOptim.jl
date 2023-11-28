@@ -96,10 +96,10 @@ struct GeometricProperties
     function GeometricProperties(design_variables::Vector{Float64}, opt_params::TrussOptParams)
 
         #populate values
-        X = add_values(opt_params.X, opt_params.indexer.iX, design_variables[opt_params.indexer.iXg] .* opt_params.indexer.fX)
-        Y = add_values(opt_params.Y, opt_params.indexer.iY, design_variables[opt_params.indexer.iYg] .* opt_params.indexer.fY)
-        Z = add_values(opt_params.Z, opt_params.indexer.iZ, design_variables[opt_params.indexer.iZg] .* opt_params.indexer.fZ)
-        A = replace_values(opt_params.A, opt_params.indexer.iA, design_variables[opt_params.indexer.iAg] .* opt_params.indexer.fA)
+        X = opt_params.indexer.activeX ? add_values(opt_params.X, opt_params.indexer.iX, design_variables[opt_params.indexer.iXg] .* opt_params.indexer.fX) : opt_params.X
+        Y = opt_params.indexer.activeY ? add_values(opt_params.Y, opt_params.indexer.iY, design_variables[opt_params.indexer.iYg] .* opt_params.indexer.fY) : opt_params.Y
+        Z = opt_params.indexer.activeZ ? add_values(opt_params.Z, opt_params.indexer.iZ, design_variables[opt_params.indexer.iZg] .* opt_params.indexer.fZ) : opt_params.Z
+        A = opt_params.indexer.activeA ? replace_values(opt_params.A, opt_params.indexer.iA, design_variables[opt_params.indexer.iAg] .* opt_params.indexer.fA) : opt_params.A
 
         # [nₑₗ × 3] matrix where row i is the vector representation of element i, from the start node to the end node; ||vecₑ|| = Lₑ
         evecs = get_element_vectors(X, Y, Z, opt_params)

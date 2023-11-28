@@ -6,10 +6,11 @@ Solve and store all relevant intermediate variables after an analysis step. This
 function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     
     #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    A = p.indexer.activeA ? replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
+
 
     # vₑ: 
     v = get_element_vectors(X, Y, Z, p)
@@ -57,10 +58,10 @@ Solve and store all relevant intermediate variables after an analysis step. This
 function solve_truss_direct(values::Vector{Float64}, p::TrussOptParams)
     
     #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
+    X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    A = p.indexer.activeA ? replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
 
     # vₑ 
     v = get_element_vectors(X, Y, Z, p)
@@ -118,16 +119,16 @@ Solve and store all relevant intermediate variables after an analysis step. This
 function solve_network(values::Vector{Float64}, p::NetworkOptParams)
     
     #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
-    q = replace_values(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ)
+    X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    q = p.indexer.activeQ ? replace_values(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ) : p.q
 
     # fixed nodal positions
     xyz_f = [X[p.F] Y[p.F] Z[p.F]]
 
     # diagonal q matrix
-    Q = diagm(q)
+    Q = sparse(diagm(q))
 
     #solve for free positions
     xyz_n = (p.Cn' * Q * p.Cn) \ (p.Pn - p.Cn' * Q * p.Cf * xyz_f)
@@ -154,14 +155,14 @@ end
 function solve_frame(values::Vector{Float64}, p::FrameOptParams)
 
     #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
 
-    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
-    Ix = replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx)
-    Iy = replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy)
-    J = replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ)
+    A = p.indexer.activeA ? replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
+    Ix = p.indexer.activeIx ? replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx) : p.Ix
+    Iy = p.indexer.activeIy ? replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy) : p.Iy
+    J = p.indexer.activeJ ? replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ) : p.J
 
     # vₑ: 
     v = get_element_vectors(X, Y, Z, p)
@@ -208,14 +209,14 @@ end
 function solve_frame_direct(values::Vector{Float64}, p::FrameOptParams)
 
     #populate values
-    X = add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX)
-    Y = add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY)
-    Z = add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ)
+    X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
 
-    A = replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA)
-    Ix = replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx)
-    Iy = replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy)
-    J = replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ)
+    A = p.indexer.activeA ? replace_values(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
+    Ix = p.indexer.activeIx ? replace_values(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx) : p.Ix
+    Iy = p.indexer.activeIy ? replace_values(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy) : p.Iy
+    J = p.indexer.activeJ ? replace_values(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ) : p.J
 
     # vₑ: 
     v = get_element_vectors(X, Y, Z, p)
