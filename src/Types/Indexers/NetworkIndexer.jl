@@ -12,12 +12,18 @@ mutable struct NetworkOptIndexer <: AbstractIndexer
     iQg::Vector{Int64}
     fQ::Vector{<:Real}
     iN::Vector{<:Real}
+    activeX::Bool
+    activeY::Bool
+    activeZ::Bool
+    activeQ::Bool
 end
 
 function populate!(indexer::NetworkOptIndexer, var::QVariable)
     push!(getfield(indexer, :iQ), var.i)
     push!(getfield(indexer, :iQg), var.iglobal)
     push!(getfield(indexer, :fQ), 1.)
+
+    indexer.activeQ = true
 end
 
 function populate!(indexer::NetworkOptIndexer, var::CoupledVariable)
@@ -53,7 +59,11 @@ function NetworkOptIndexer(vars::Vector{NetworkVariable})
         Vector{Int64}(),
         Vector{Int64}(),
         Vector{Real}(),
-        Vector{Real}()
+        Vector{Real}(),
+        false,
+        false,
+        false,
+        false
         )
 
     for var in vars
