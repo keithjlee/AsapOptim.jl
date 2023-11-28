@@ -39,7 +39,7 @@ function populate!(indexer::FrameOptIndexer, var::AreaVariable)
 end
 
 function populate!(indexer::FrameOptIndexer, var::SectionVariable)
-    field_local, field_global, field_factor = property2field(var.property)
+    field_local, field_global, field_factor = property2field[var.property]
 
     push!(getfield(indexer, field_local), var.i)
     push!(getfield(indexer, field_global), var.iglobal)
