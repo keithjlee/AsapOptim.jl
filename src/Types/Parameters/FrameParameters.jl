@@ -2,7 +2,7 @@ struct FrameOptParams <: AbstractOptParams
     model::Model #the reference  model for optimization
     values::Vector{Float64} #design variables
     indexer::FrameOptIndexer #pointers to design variables and full variables
-    variables::Vector{TrussVariable}
+    variables::Vector{FrameVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
