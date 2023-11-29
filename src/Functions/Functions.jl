@@ -16,12 +16,14 @@ include("Solve.jl")
 
 include("Objective.jl")
 export solve_truss
+export solve_truss_direct
 export compliance
 
 export solve_network
 export target
 
 export solve_frame
+export solve_frame_direct
 
 include("PostProcessing.jl")
 export axial_force
