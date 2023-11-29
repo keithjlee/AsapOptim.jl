@@ -41,7 +41,7 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
     return F, Flocal_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::FrameOptParams)
 
     F = Flocal(u, Eks, Rs, p)
 
