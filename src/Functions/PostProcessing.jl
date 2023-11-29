@@ -41,6 +41,36 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
     return F, Flocal_pullback
 end
 
+function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+
+    F = Flocal(u, Eks, Rs, p)
+
+    function Flocal_pullback(F̄)
+        du = zero(u)
+        dK = zero.(Eks)
+        dR = zero.(Rs)
+        ids = p.dofids
+
+        for i in eachindex(ids)
+            # F̄ ⋅ dF/dR
+            ΔR = kron(Eks[i] * u[ids[i]], I(2)) * F̄[i]
+            dR[i] = reshape(ΔR, 12, 12)
+
+            #F̄ ⋅ dF/du
+            du[ids[i]] += (Rs[i] * Eks[i])' * F̄[i]
+
+            #F̄ ⋅ dF/dK
+            ΔK = kron(u[ids[i]]', Rs[i])' * F̄[i]
+            dK[i] = reshape(ΔK, 12, 12)
+        end
+
+        return (NoTangent(), du, dK, dR, NoTangent())
+
+    end
+
+    return F, Flocal_pullback
+end
+
 """
     Flocal(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
 [2×1] vector of end element end forces in LCS
