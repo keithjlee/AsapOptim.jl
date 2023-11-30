@@ -1,4 +1,4 @@
-![](figures/canopy.gif)
+![](figures/cstr_volume_opt.gif)
 
 # AsapOptim
 
