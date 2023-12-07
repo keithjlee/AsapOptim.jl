@@ -41,6 +41,11 @@ function r_truss(Cxyz::SubArray)
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
 end
 
+function r_truss(Cxyz::Vector{Float64})
+    Cx, Cy, Cz = Cxyz
+    [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
+end
+
 function r_truss_notangent(Cxyz::SubArray)
     Cx, Cy, Cz = Cxyz
     [Cx Cy Cz 0. 0. 0.; 0. 0. 0. Cx Cy Cz]
