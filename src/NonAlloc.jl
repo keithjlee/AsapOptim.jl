@@ -87,14 +87,26 @@ end
 
 function assemble_K!(K::SparseMatrixCSC{Float64, Int64}, Ke::Array{Float64, 3}, params::TrussOptParams)
 
-    K.nzval .= 0
-
     for i in eachindex(K.nzval)
         K.nzval[i] = 0.
     end
 
     for i in axes(Ke, 3)
         K.nzval[params.inzs[i]] += Ke[:, :, i][:]
+        # K[params.dofids[i], params.dofids[i]] += Ke[:, :, i]
+    end
+
+    nothing
+end
+
+function assemble_K!(prob::TrussOptProblem, params::TrussOptParams)
+
+    for i in eachindex(prob.K.nzval)
+        prob.K.nzval[i] = 0.
+    end
+
+    for i in axes(prob.Ke, 3)
+        prob.K.nzval[params.inzs[i]] += prob.Ke[:, :, i][:]
         # K[params.dofids[i], params.dofids[i]] += Ke[:, :, i]
     end
 
@@ -131,22 +143,7 @@ function nonalloc(x::Vector{Float64}, prob::TrussOptProblem, params::TrussOptPar
     end
 
     #assemble global K
-    prob.K.nzval .= 0
-    for i in axes(prob.Ke, 3)
-        prob.K.nzval[params.inzs[i]] .+= prob.Ke[:, :, i][:]
-    end
-
-    # assemble_K!(prob.K, prob.Ke, params)
-
-    # for i in eachindex(prob.nzval)
-    #     prob.nzval[i] = 0.
-    # end
-
-    # for i in axes(prob.Ke, 3)
-    #     prob.nzval[params.inzs[i]] += prob.Ke[:, :, i][:]
-    # end
-
-    # prob.K = SparseMatrixCSC(params.n, params.n, params.cp, params.rv, prob.nzval)
+    assemble_K!(prob, params)
 
     norm(prob.K)
 end

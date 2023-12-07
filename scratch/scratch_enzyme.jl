@@ -99,9 +99,10 @@ begin
 end
 
 #Allocation function
+using BenchmarkTools
 begin
     @time y_alloc = alloc(x0, params)
-    @time ∇y_alloc = Zygote.gradient(x -> alloc(x, params), x0)[1]
+    # @time ∇y_alloc = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
@@ -115,17 +116,17 @@ begin
     prob = TrussOptProblem(model)
     prob_collector = shadow(prob)
 
-    # bx = zero(x0)
+    bx = zero(x0)
 
-    # @time Enzyme.autodiff(
-    #     Enzyme.Reverse, 
-    #     nonalloc,
-    #     Duplicated(x0, bx), 
-    #     Duplicated(prob, prob_collector),
-    #     Enzyme.Const(params)
-    # )
+    @time Enzyme.autodiff(
+        Enzyme.Reverse, 
+        nonalloc,
+        Duplicated(x0, bx), 
+        Duplicated(prob, prob_collector),
+        Enzyme.Const(params)
+    )
 
-    # ∇y_nonalloc = deepcopy(bx)
+    ∇y_nonalloc = deepcopy(bx)
 
     @show y_nonalloc
 end;
@@ -136,3 +137,14 @@ end;
 
 prob_collector = shadow(prob)
 dprob = Duplicated(prob, prob_collector)
+
+using SparseArrays
+S2 = spzeros(length(model.S.nzval), model.nElements)
+
+for i in 1:model.nElements
+    S2[params.inzs[i], i] = model.elements[i].K[:]
+end
+
+nzval2 = vec(sum(S2, dims = 2))
+
+@show norm(model.S.nzval - nzval2)
