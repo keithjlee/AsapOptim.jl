@@ -63,19 +63,42 @@ mutable struct TrussOptProblem
 
 end
 
-export get_shadow
-function get_shadow(problem::TrussOptProblem)
+export shadow
+function shadow(problem::TrussOptProblem)
 
     shadow = deepcopy(problem)
 
     for field in fieldnames(TrussOptProblem)
 
-        setproperty!(shadow, field, zero(getproperty(shadow, field)))
-
+        if typeof(getproperty(shadow, field)) == SparseMatrixCSC{Float64, Int64}
+            setproperty!(shadow, field, explicit_zero(getproperty(shadow, field)))
+        else
+            setproperty!(shadow, field, zero(getproperty(shadow, field)))
+        end
     end
 
     return shadow
 
+end
+
+function solve_u!(u::Vector{Float64}, K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
+    u[:] = K \ params.P
+end
+
+function assemble_K!(K::SparseMatrixCSC{Float64, Int64}, Ke::Array{Float64, 3}, params::TrussOptParams)
+
+    K.nzval .= 0
+
+    for i in eachindex(K.nzval)
+        K.nzval[i] = 0.
+    end
+
+    for i in axes(Ke, 3)
+        K.nzval[params.inzs[i]] += Ke[:, :, i][:]
+        # K[params.dofids[i], params.dofids[i]] += Ke[:, :, i]
+    end
+
+    nothing
 end
 
 export nonalloc
@@ -90,10 +113,12 @@ function nonalloc(x::Vector{Float64}, prob::TrussOptProblem, params::TrussOptPar
     #element vectors
     prob.v .= params.C * prob.XYZ
 
-    #element lengths and normalized vectors
+    #element lengths, normalized vectors
     for i in axes(prob.v, 1)
         prob.L[i] = norm(prob.v[i, :])
         prob.n[i, :] = prob.v[i, :] / prob.L[i]
+
+        # prob.K.nzval[params.inzs[i]] .-= prob.Ke[:, :, i][:]
     end
 
     #get local stiffness matrix, transformation matrix, and global stiffness matrix
@@ -101,11 +126,29 @@ function nonalloc(x::Vector{Float64}, prob::TrussOptProblem, params::TrussOptPar
 
         prob.Γ[:, :, i] = r_truss(prob.n[i, :])
         prob.ke[:, :, i] = k_truss(params.E[i], prob.A[i], prob.L[i])
-        prob.Ke[:, :, i] = prob.Γ[:, :, i]' * prob.ke[:, :, i] * prob.Γ[:, :, i]
+        prob.Ke[:, :, i] = Symmetric(prob.Γ[:, :, i]' * prob.ke[:, :, i] * prob.Γ[:, :, i])
 
     end
 
-    sum([norm(prob.Ke[:, :, i]) for i in axes(prob.Ke, 3)])
+    #assemble global K
+    prob.K.nzval .= 0
+    for i in axes(prob.Ke, 3)
+        prob.K.nzval[params.inzs[i]] .+= prob.Ke[:, :, i][:]
+    end
+
+    # assemble_K!(prob.K, prob.Ke, params)
+
+    # for i in eachindex(prob.nzval)
+    #     prob.nzval[i] = 0.
+    # end
+
+    # for i in axes(prob.Ke, 3)
+    #     prob.nzval[params.inzs[i]] += prob.Ke[:, :, i][:]
+    # end
+
+    # prob.K = SparseMatrixCSC(params.n, params.n, params.cp, params.rv, prob.nzval)
+
+    norm(prob.K)
 end
 
 export alloc
@@ -136,5 +179,8 @@ function alloc(x::Vector{Float64}, p::TrussOptParams)
     # Kₑ = ΓᵀkₑΓ
     Kₑ = get_global_ks(Γ, kₑ)
 
-    sum(norm.(Kₑ))
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    norm(K)
 end
