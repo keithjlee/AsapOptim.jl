@@ -17,77 +17,86 @@ end
 begin
     nx = 13
     dx = 1000.
+
+    ny = 8
     dy = 1500.
+
+    dz = 2200.
 end
 
 #generate model
 begin
-    w2d = Warren2D(nx ,dx, dy, asap_section; load = [0., -40e3, 0.])
-    model = w2d.model
+    gen = Warren2D(nx ,dx, dy, asap_section; load = [0., -40e3, 0.])
+    gen = SpaceFrame(nx, dx, ny, dy, dz, asap_section; load = [0., 0., -10e3])
+
+    model = gen.model
     geo = Geo(model)
 end
 
 #visualize
-# begin
-#     dfac = Observable(0.)
-#     cfac = Observable(.75)
-#     lfac = Observable(5.)
-#     mfac = Observable(15.)
+begin
+    dfac = Observable(0.)
+    cfac = Observable(.75)
+    lfac = Observable(5.)
+    mfac = Observable(15.)
 
-#     pts = @lift(Point2.(geo.nodes_xy .+ $dfac .* geo.disp_xy))
-#     els = @lift(vcat([$pts[id] for id in geo.indices]...))
-#     cr = @lift($cfac .* (-1, 1) .* geo.max_abs_force)
-#     lw = @lift(geo.areas ./ geo.max_area .* $lfac)
-# end
+    pts = @lift(Point2.(geo.nodes_xy .+ $dfac .* geo.disp_xy))
+    els = @lift(vcat([$pts[id] for id in geo.indices]...))
+    cr = @lift($cfac .* (-1, 1) .* geo.max_abs_force)
+    lw = @lift(geo.areas ./ geo.max_area .* $lfac)
+end
 
-# begin
-#     fig = Figure(backgroundcolor = :white)
-#     ax = Axis(
-#         fig[1,1],
-#         aspect = DataAspect()
-#     )
+begin
+    fig = Figure(backgroundcolor = :white)
+    ax = Axis(
+        fig[1,1],
+        aspect = DataAspect()
+    )
 
-#     hidespines!(ax)
-#     tickstoggle!(ax)
+    hidespines!(ax)
+    tickstoggle!(ax)
 
-#     ls_els = linesegments!(
-#         els,
-#         color = geo.forces,
-#         colorrange = cr,
-#         linewidth = lw,
-#         colormap = pink2blue
-#     )
+    ls_els = linesegments!(
+        els,
+        color = geo.forces,
+        colorrange = cr,
+        linewidth = lw,
+        colormap = pink2blue
+    )
 
-#     sc_nds = scatter!(
-#         pts,
-#         color = :white,
-#         strokecolor = :black,
-#         markersize = mfac
-#     )
+    sc_nds = scatter!(
+        pts,
+        color = :white,
+        strokecolor = :black,
+        markersize = mfac
+    )
 
 
-#     sl = Slider(
-#         fig[2,1],
-#         startvalue = 0.,
-#         range = 0:100
-#     )
+    sl = Slider(
+        fig[2,1],
+        startvalue = 0.,
+        range = 0:100
+    )
 
-#     on(sl.value) do val
-#         dfac[] = val
-#     end
+    on(sl.value) do val
+        dfac[] = val
+    end
 
-#     on(dfac) do _
-#         autolimits!(ax)
-#     end
+    on(dfac) do _
+        autolimits!(ax)
+    end
 
-#     fig
-# end
+    fig
+end
 
 #make parameters
 begin
     vars = Vector{TrussVariable}()
-    for node in model.nodes[:topchord]
-        push!(vars, SpatialVariable(node, 0., -dy/2, dy, :Y))
+    # for node in model.nodes[:topchord]
+    #     push!(vars, SpatialVariable(node, 0., -dy/2, dy, :Y))
+    # end
+    for node in model.nodes[:top]
+        push!(vars, SpatialVariable(node, 0., -dz/2, dz, :Z))
     end
 
     for element in model.elements
@@ -99,13 +108,12 @@ begin
 end
 
 #Allocation function
-using BenchmarkTools
 begin
     @time y_alloc = alloc(x0, params)
-    # @time ∇y_alloc = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
+
 
 #implicit non allocating function
 begin
@@ -113,38 +121,44 @@ begin
 
     @time y_nonalloc = nonalloc(x0, prob0, params)
 
-    prob = TrussOptProblem(model)
-    prob_collector = shadow(prob)
+    # prob = TrussOptProblem(model)
+    # prob_collector = shadow(prob)
 
-    bx = zero(x0)
+    # bx = zero(x0)
 
-    @time Enzyme.autodiff(
-        Enzyme.Reverse, 
-        nonalloc,
-        Duplicated(x0, bx), 
-        Duplicated(prob, prob_collector),
-        Enzyme.Const(params)
-    )
+    # @time Enzyme.autodiff(
+    #     Enzyme.Reverse, 
+    #     nonalloc,
+    #     Duplicated(x0, bx), 
+    #     Duplicated(prob, prob_collector),
+    #     Enzyme.Const(params)
+    # )
 
-    ∇y_nonalloc = deepcopy(bx)
+    # ∇y_nonalloc = deepcopy(bx)
 
     @show y_nonalloc
 end;
 
-@show y_alloc - y_nonalloc
+#implicit non allocating function
+begin
+    prob1 = TrussOptProblem2(model)
 
-∇comp = [∇y_alloc ∇y_nonalloc]
+    @time y_nonalloc = nonalloc(x0, prob1, params)
 
-prob_collector = shadow(prob)
-dprob = Duplicated(prob, prob_collector)
+    # prob = TrussOptProblem(model)
+    # prob_collector = shadow(prob)
 
-using SparseArrays
-S2 = spzeros(length(model.S.nzval), model.nElements)
+    # bx = zero(x0)
 
-for i in 1:model.nElements
-    S2[params.inzs[i], i] = model.elements[i].K[:]
-end
+    # @time Enzyme.autodiff(
+    #     Enzyme.Reverse, 
+    #     nonalloc,
+    #     Duplicated(x0, bx), 
+    #     Duplicated(prob, prob_collector),
+    #     Enzyme.Const(params)
+    # )
 
-nzval2 = vec(sum(S2, dims = 2))
+    # ∇y_nonalloc = deepcopy(bx)
 
-@show norm(model.S.nzval - nzval2)
+    @show y_nonalloc
+end;
