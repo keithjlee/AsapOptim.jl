@@ -3,7 +3,7 @@ begin
     using Asap, AsapToolkit, AsapOptim
     using kjlMakie; set_theme!(kjl_light)
     using Enzyme, Zygote
-    using LinearAlgebra
+    using LinearAlgebra, SparseArrays
 end
 
 # meta parameters
@@ -15,10 +15,10 @@ end
 
 # geometry
 begin
-    nx = 13
+    nx = 15
     dx = 1000.
 
-    ny = 8
+    ny = 25
     dy = 1500.
 
     dz = 2200.
@@ -26,7 +26,7 @@ end
 
 #generate model
 begin
-    gen = Warren2D(nx ,dx, dy, asap_section; load = [0., -40e3, 0.])
+    # gen = Warren2D(nx ,dx, dy, asap_section; load = [0., -40e3, 0.])
     gen = SpaceFrame(nx, dx, ny, dy, dz, asap_section; load = [0., 0., -10e3])
 
     model = gen.model
@@ -105,11 +105,16 @@ begin
 
     params = TrussOptParams(model, vars)
     x0 = params.values
+
+    prob = TrussOptProblem(model)
 end
 
 #Allocation function
+using BenchmarkTools
 begin
     @time y_alloc = alloc(x0, params)
+
+    @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
@@ -117,36 +122,32 @@ end;
 
 #implicit non allocating function
 begin
-    prob0 = TrussOptProblem(model)
 
-    @time y_nonalloc = nonalloc(x0, prob0, params)
+    prob = TrussOptProblem(model)
+    prob_collector = shadow(prob)
 
-    # prob = TrussOptProblem(model)
-    # prob_collector = shadow(prob)
+    @time y_nonalloc = nonalloc(x0, prob, params)
 
-    # bx = zero(x0)
+    bx = zero(x0)
 
-    # @time Enzyme.autodiff(
-    #     Enzyme.Reverse, 
-    #     nonalloc,
-    #     Duplicated(x0, bx), 
-    #     Duplicated(prob, prob_collector),
-    #     Enzyme.Const(params)
-    # )
+    @time Enzyme.autodiff(
+        Enzyme.Reverse, 
+        nonalloc,
+        Duplicated(x0, bx), 
+        Duplicated(prob, prob_collector),
+        Enzyme.Const(params)
+    )
 
-    # ∇y_nonalloc = deepcopy(bx)
+    dy_enzyme = deepcopy(bx)
 
     @show y_nonalloc
 end;
 
-#implicit non allocating function
 begin
-    prob1 = TrussOptProblem2(model)
 
-    @time y_nonalloc = nonalloc(x0, prob1, params)
+    prob2 = TrussOptProblem2(model)
 
-    # prob = TrussOptProblem(model)
-    # prob_collector = shadow(prob)
+    @time y_nonalloc = nonalloc(x0, prob2, params)
 
     # bx = zero(x0)
 
@@ -158,7 +159,20 @@ begin
     #     Enzyme.Const(params)
     # )
 
-    # ∇y_nonalloc = deepcopy(bx)
+    # dy_enzyme = deepcopy(bx)
 
     @show y_nonalloc
 end;
+
+begin
+    prob = TrussOptProblem(model)
+    dprob = shadow(prob)
+end
+
+Enzyme.autodiff(
+    Enzyme.Reverse,
+    AsapOptim.assemble_K!,
+    Enzyme.Const,
+    Duplicated(prob, dprob),
+    Enzyme.Const(params)
+)

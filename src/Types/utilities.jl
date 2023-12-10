@@ -3,6 +3,10 @@ Set all values of a sparse matrix to *explicit* zeros. IE if S::SparseMatrixCSC 
 """
 explicit_zero(A::SparseMatrixCSC) = SparseMatrixCSC(size(A)..., A.colptr, A.rowval, zero(A.nzval))
 
+function explicit_zero!(A::SparseMatrixCSC)
+    A.nzval .= 0
+end
+
 """
     get_inz(S::SparseMatrix, ids::Vector{Int64}, ndofpernode::Int64)
 Get the indices in S.nzval, S.rowval with respect to a given set of indices in the global DOF order.
