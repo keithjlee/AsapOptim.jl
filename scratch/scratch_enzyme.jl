@@ -1,7 +1,7 @@
 # initialize
 begin
     using Asap, AsapToolkit, AsapOptim
-    using kjlMakie; set_theme!(kjl_light)
+    # using kjlMakie; set_theme!(kjl_light)
     using Enzyme, Zygote
     using LinearAlgebra, SparseArrays
 end
@@ -34,60 +34,60 @@ begin
 end
 
 #visualize
-begin
-    dfac = Observable(0.)
-    cfac = Observable(.75)
-    lfac = Observable(5.)
-    mfac = Observable(15.)
+# begin
+#     dfac = Observable(0.)
+#     cfac = Observable(.75)
+#     lfac = Observable(5.)
+#     mfac = Observable(15.)
 
-    pts = @lift(Point2.(geo.nodes_xy .+ $dfac .* geo.disp_xy))
-    els = @lift(vcat([$pts[id] for id in geo.indices]...))
-    cr = @lift($cfac .* (-1, 1) .* geo.max_abs_force)
-    lw = @lift(geo.areas ./ geo.max_area .* $lfac)
-end
+#     pts = @lift(Point2.(geo.nodes_xy .+ $dfac .* geo.disp_xy))
+#     els = @lift(vcat([$pts[id] for id in geo.indices]...))
+#     cr = @lift($cfac .* (-1, 1) .* geo.max_abs_force)
+#     lw = @lift(geo.areas ./ geo.max_area .* $lfac)
+# end
 
-begin
-    fig = Figure(backgroundcolor = :white)
-    ax = Axis(
-        fig[1,1],
-        aspect = DataAspect()
-    )
+# begin
+#     fig = Figure(backgroundcolor = :white)
+#     ax = Axis(
+#         fig[1,1],
+#         aspect = DataAspect()
+#     )
 
-    hidespines!(ax)
-    tickstoggle!(ax)
+#     hidespines!(ax)
+#     tickstoggle!(ax)
 
-    ls_els = linesegments!(
-        els,
-        color = geo.forces,
-        colorrange = cr,
-        linewidth = lw,
-        colormap = pink2blue
-    )
+#     ls_els = linesegments!(
+#         els,
+#         color = geo.forces,
+#         colorrange = cr,
+#         linewidth = lw,
+#         colormap = pink2blue
+#     )
 
-    sc_nds = scatter!(
-        pts,
-        color = :white,
-        strokecolor = :black,
-        markersize = mfac
-    )
+#     sc_nds = scatter!(
+#         pts,
+#         color = :white,
+#         strokecolor = :black,
+#         markersize = mfac
+#     )
 
 
-    sl = Slider(
-        fig[2,1],
-        startvalue = 0.,
-        range = 0:100
-    )
+#     sl = Slider(
+#         fig[2,1],
+#         startvalue = 0.,
+#         range = 0:100
+#     )
 
-    on(sl.value) do val
-        dfac[] = val
-    end
+#     on(sl.value) do val
+#         dfac[] = val
+#     end
 
-    on(dfac) do _
-        autolimits!(ax)
-    end
+#     on(dfac) do _
+#         autolimits!(ax)
+#     end
 
-    fig
-end
+#     fig
+# end
 
 #make parameters
 begin
@@ -107,14 +107,14 @@ begin
     x0 = params.values
 
     prob = TrussOptProblem(model)
-end
+    prob2 = TrussOptProblem2(model)
+end;
 
 #Allocation function
-using BenchmarkTools
 begin
     @time y_alloc = alloc(x0, params)
 
-    @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
+    # @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
@@ -128,17 +128,17 @@ begin
 
     @time y_nonalloc = nonalloc(x0, prob, params)
 
-    bx = zero(x0)
+    # bx1 = zero(x0)
 
-    @time Enzyme.autodiff(
-        Enzyme.Reverse, 
-        nonalloc,
-        Duplicated(x0, bx), 
-        Duplicated(prob, prob_collector),
-        Enzyme.Const(params)
-    )
+    # @time Enzyme.autodiff(
+    #     Enzyme.Reverse, 
+    #     nonalloc,
+    #     Duplicated(x0, bx1), 
+    #     Duplicated(prob, prob_collector),
+    #     Enzyme.Const(params)
+    # )
 
-    dy_enzyme = deepcopy(bx)
+    # dy_enzyme = deepcopy(bx1)
 
     @show y_nonalloc
 end;
@@ -146,33 +146,44 @@ end;
 begin
 
     prob2 = TrussOptProblem2(model)
+    prob2_collector = shadow(prob2)
 
-    @time y_nonalloc = nonalloc(x0, prob2, params)
+    @time y_nonalloc2 = nonalloc(x0, prob2, params)
 
-    # bx = zero(x0)
+    bx2 = zero(x0)
 
-    # @time Enzyme.autodiff(
-    #     Enzyme.Reverse, 
-    #     nonalloc,
-    #     Duplicated(x0, bx), 
-    #     Duplicated(prob, prob_collector),
-    #     Enzyme.Const(params)
-    # )
+    @time Enzyme.autodiff(
+        Enzyme.Reverse, 
+        nonalloc,
+        Duplicated(x0, bx2), 
+        Duplicated(prob2, prob2_collector),
+        Enzyme.Const(params)
+    )
 
-    # dy_enzyme = deepcopy(bx)
+    dy_enzyme2 = deepcopy(bx2)
 
-    @show y_nonalloc
+    @show y_nonalloc2
 end;
 
-begin
-    prob = TrussOptProblem(model)
-    dprob = shadow(prob)
+using LinearSolve, LinearAlgebra
+
+n = 1000
+A = sprand(Float64, n, n, .01);
+dA = AsapOptim.explicit_zero(A);
+b1 = rand(n);
+db1 = zeros(n);
+b2 = rand(n);
+db2 = zeros(n);
+
+function f(A, b1, b2; alg = LUFactorization())
+    prob = LinearProblem(A, b1)
+
+    sol1 = LinearSolve.solve(prob, alg)
+
+    s1 = sol1.u
+    norm(s1)
 end
 
-Enzyme.autodiff(
-    Enzyme.Reverse,
-    AsapOptim.assemble_K!,
-    Enzyme.Const,
-    Duplicated(prob, dprob),
-    Enzyme.Const(params)
-)
+f(A, b1, b2) # Uses BLAS
+
+Enzyme.autodiff(Reverse, f, Duplicated(A, dA), Duplicated(b1, db1), Duplicated(b2, db2))

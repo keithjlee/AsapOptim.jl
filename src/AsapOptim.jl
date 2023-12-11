@@ -6,6 +6,7 @@ using Asap
 # Analysis dependencies
 using SparseArrays
 using StaticArrays
+using IterativeSolvers, LinearSolve
 using LinearAlgebra
 
 # Optimization
