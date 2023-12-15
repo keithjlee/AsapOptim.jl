@@ -3,7 +3,6 @@ begin
     using Asap, AsapToolkit, AsapOptim
     # using kjlMakie; set_theme!(kjl_light)
     using Enzyme, Zygote
-    using LinearAlgebra, SparseArrays
 end
 
 # meta parameters
@@ -107,14 +106,16 @@ begin
     x0 = params.values
 
     prob = TrussOptProblem(model)
-    prob2 = TrussOptProblem2(model)
 end;
 
 #Allocation function
+
+x0 = params.values .* rand() .* 5
+
 begin
     @time y_alloc = alloc(x0, params)
 
-    # @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
+    @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
@@ -128,62 +129,17 @@ begin
 
     @time y_nonalloc = nonalloc(x0, prob, params)
 
-    # bx1 = zero(x0)
-
-    # @time Enzyme.autodiff(
-    #     Enzyme.Reverse, 
-    #     nonalloc,
-    #     Duplicated(x0, bx1), 
-    #     Duplicated(prob, prob_collector),
-    #     Enzyme.Const(params)
-    # )
-
-    # dy_enzyme = deepcopy(bx1)
-
-    @show y_nonalloc
-end;
-
-begin
-
-    prob2 = TrussOptProblem2(model)
-    prob2_collector = shadow(prob2)
-
-    @time y_nonalloc2 = nonalloc(x0, prob2, params)
-
-    bx2 = zero(x0)
+    bx1 = zero(x0)
 
     @time Enzyme.autodiff(
         Enzyme.Reverse, 
         nonalloc,
-        Duplicated(x0, bx2), 
-        Duplicated(prob2, prob2_collector),
+        Duplicated(x0, bx1), 
+        Duplicated(prob, prob_collector),
         Enzyme.Const(params)
     )
 
-    dy_enzyme2 = deepcopy(bx2)
+    dy_enzyme = deepcopy(bx1)
 
-    @show y_nonalloc2
+    @show y_nonalloc
 end;
-
-using LinearSolve, LinearAlgebra
-
-n = 1000
-A = sprand(Float64, n, n, .01);
-dA = AsapOptim.explicit_zero(A);
-b1 = rand(n);
-db1 = zeros(n);
-b2 = rand(n);
-db2 = zeros(n);
-
-function f(A, b1, b2; alg = LUFactorization())
-    prob = LinearProblem(A, b1)
-
-    sol1 = LinearSolve.solve(prob, alg)
-
-    s1 = sol1.u
-    norm(s1)
-end
-
-f(A, b1, b2) # Uses BLAS
-
-Enzyme.autodiff(Reverse, f, Duplicated(A, dA), Duplicated(b1, db1), Duplicated(b2, db2))

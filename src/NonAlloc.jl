@@ -1,71 +1,6 @@
 abstract type AbstractTrussOptProblem end
+
 mutable struct TrussOptProblem <: AbstractTrussOptProblem
-    XYZ::Matrix{Float64} #[nₙ × 3] nodal positions
-    A::Vector{Float64} #[nₑ × 1] element areas
-    v::Matrix{Float64} #[nₑ × 3] matrix of element vectors
-    L::Vector{Float64} #[nₑ × 1] element lengths
-    n::Matrix{Float64} #[nₑ × 3] normalized element vectors
-    Γ::Array{Float64, 3} #[2 × 6 × nₑ] of transformation matrices
-    ke::Array{Float64, 3} #[2 × 2 × nₑ] of stiffness matrices in LCS
-    Ke::Array{Float64, 3} #[6 × 6 × nₑ] of stiffness matrices in GCS
-    K::SparseMatrixCSC{Float64, Int64} #[ndof × ndof] global stiffness matrix
-    u::Vector{Float64} #[ndof × 1] displacement vector
-
-    function TrussOptProblem()
-    end
-
-    function TrussOptProblem(model::TrussModel)
-
-        XYZ = node_positions(model)
-
-        #initialize
-        A = zeros(model.nElements)
-        v = zeros(model.nElements, 3)
-        L = zeros(model.nElements)
-        n = zeros(model.nElements, 3)
-
-        Γ = Array{Float64, 3}(undef, 2, 6, model.nElements)
-        ke = Array{Float64, 3}(undef, 2, 2, model.nElements)
-        Ke = Array{Float64, 3}(undef, 6, 6, model.nElements)
-
-        for i in eachindex(model.elements)
-
-            element = model.elements[i]
-
-            A[i] = element.section.A
-            L[i] = element.length
-            n[i, :] = first(element.LCS)
-            v[i, :] = element.length * first(element.LCS)
-
-            Γ[:, :, i] = element.R
-            Ke[:, :, i] = element.K
-            ke[:, :, i] = element.R * element.K * element.R'
-
-        end
-
-        K = model.S
-        u = model.u
-
-        new(
-            XYZ,
-            A,
-            v,
-            L,
-            n,
-            Γ,
-            ke,
-            Ke,
-            K,
-            u
-        )
-
-
-    end
-
-end
-
-export TrussOptProblem2
-mutable struct TrussOptProblem2 <: AbstractTrussOptProblem
     XYZ::Matrix{Float64} #[nₙ × 3] nodal positions
     A::Vector{Float64} #[nₑ × 1] element areas
     v::Matrix{Float64} #[nₑ × 3] matrix of element vectors
@@ -78,10 +13,10 @@ mutable struct TrussOptProblem2 <: AbstractTrussOptProblem
     u::Vector{Float64} #[ndof × 1] displacement vector
     # lincache::LinearSolve.LinearCache
 
-    function TrussOptProblem2()
+    function TrussOptProblem()
     end
 
-    function TrussOptProblem2(model::TrussModel; alg = KLUFactorization())
+    function TrussOptProblem(model::TrussModel; alg = KLUFactorization())
 
         XYZ = node_positions(model)
 
@@ -140,23 +75,6 @@ function shadow(problem::TrussOptProblem)
 
     shadow = deepcopy(problem)
 
-    for field in fieldnames(typeof(problem))
-
-        if typeof(getproperty(shadow, field)) == SparseMatrixCSC{Float64, Int64}
-            setproperty!(shadow, field, explicit_zero(getproperty(shadow, field)))
-        else
-            setproperty!(shadow, field, zero(getproperty(shadow, field)))
-        end
-    end
-
-    return shadow
-
-end
-
-function shadow(problem::TrussOptProblem2)
-
-    shadow = deepcopy(problem)
-
     shadow.XYZ = zero(problem.XYZ)
     shadow.A = zero(problem.A)
     shadow.v = zero(problem.v)
@@ -174,62 +92,39 @@ end
 
 function element_update!(prob::TrussOptProblem, params::TrussOptParams)
     #get local stiffness matrix, transformation matrix, and global stiffness matrix
-    @simd for i in axes(prob.ke, 3)
-        prob.Γ[:, :, i] = r_truss(prob.n[i, :])
-        prob.ke[:, :, i] = k_truss(params.E[i], prob.A[i], prob.L[i])
-        prob.Ke[:, :, i] = prob.Γ[:, :, i]' * prob.ke[:, :, i] * prob.Γ[:, :, i]
-
-    end
-end
-
-function element_update!(prob::TrussOptProblem2, params::TrussOptParams)
-    #get local stiffness matrix, transformation matrix, and global stiffness matrix
-    @inbounds @simd for i in eachindex(prob.ke)
-        prob.Γ[i] .= r_truss_static(prob.n[i, :])
+    for i in eachindex(prob.ke)
+        prob.Γ[i][1, 1:3] = prob.n[i,:]
+        prob.Γ[i][2, 4:6] = prob.n[i,:]
         prob.ke[i] .= (params.E[i] * prob.A[i] / prob.L[i] * [1 -1; -1 1])
         prob.Ke[i] .= prob.Γ[i]' * prob.ke[i] * prob.Γ[i]
-
     end
 end
 
 function assemble_K!(prob::TrussOptProblem, params::TrussOptParams)
-
-
     fill!(nonzeros(prob.K), 0.)
-    @simd for i in axes(prob.Ke, 3)
-        prob.K.nzval[params.inzs[i]] += prob.Ke[:, :, i][:]
-    end
-end
-
-function assemble_K!(prob::TrussOptProblem2, params::TrussOptParams)
-
-
-    fill!(nonzeros(prob.K), 0.)
-    @simd for i in eachindex(prob.Ke)
-        @views prob.K.nzval[params.inzs[i]] += prob.Ke[i][:]
+    for i in eachindex(prob.Ke)
+        prob.K.nzval[params.inzs[i]] += prob.Ke[i][:]
+        # prob.K[params.dofids[i], params.dofids[i]] += prob.Ke[i]
     end
 end
 
 function solve_u!(prob::TrussOptProblem, params::TrussOptParams)
-    
-    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
-    ls = init(lp, KLUFactorization())
-    LinearSolve.solve!(ls)
-
-    prob.u[params.freeids] = ls.u
-end
-
-function solve_u!(prob::TrussOptProblem2, params::TrussOptParams)
-
-    LinearSolve.solve!(prob.lincache)
-
-    prob.u[params.freeids] .= copy(prob.lincache.u)
+    prob.u[params.freeids] = prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
 end
 
 function solve_u!(u::Vector{Float64}, K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
     u[params.freeids] = K[params.freeids, params.freeids] \ params.P[params.freeids]
 end
 
+
+function solve_u(prob::TrussOptProblem, params::TrussOptParams)
+
+    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    ls = init(lp, KLUFactorization())
+    LinearSolve.solve!(ls)
+
+    copy(ls.u)
+end
 
 export nonalloc
 function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::TrussOptParams)
@@ -245,19 +140,30 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
 
     #element lengths, normalized vectors
     @simd for i in axes(prob.v, 1)
-        @views prob.L[i] = norm(prob.v[i, :])
-        @views prob.n[i, :] = prob.v[i, :] / prob.L[i]
+        prob.L[i] = norm(prob.v[i, :])
+        prob.n[i, :] = prob.v[i, :] / prob.L[i]
     end
 
     #update element-wise stiffness/transformation information
     element_update!(prob, params)
 
+    # sum(norm.(prob.Ke))
+
     #assemble global K
     assemble_K!(prob, params)
 
-    solve_u!(prob.u, prob.K, params)
+    # norm(prob.K)
+    # # solve_u!(prob, params)
+    # # solve_u!(prob.u, prob.K, params)
 
-    norm(prob.u)
+    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    ls = LinearSolve.solve(lp, LUFactorization())
+    norm(ls.u)
+
+    # prob.u[params.freeids] = ls.u
+
+    # # prob.u[params.freeids] .= prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
+    # norm(prob.u)
 end
 
 
@@ -289,16 +195,19 @@ function alloc(x::Vector{Float64}, p::TrussOptParams)
     # Kₑ = ΓᵀkₑΓ
     Kₑ = get_global_ks(Γ, kₑ)
 
-    # K
+    # sum(norm.(Kₑ))
+    # # K
     K = assemble_global_K(Kₑ, p)
 
-    norm(K)
-    # K⁻¹P
+    # norm(K)
+    # # norm(K)
+    # # K⁻¹P
     u = solve_u_direct(K, p)
+    norm(u)
 
-    # U
-    U = replace_values(zeros(p.n), p.freeids, u)
-    norm(U)
+    # # U
+    # U = replace_values(zeros(p.n), p.freeids, u)
+    # norm(U)
 
     # norm(U)
     # U' * p.P
