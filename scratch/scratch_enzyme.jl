@@ -1,8 +1,10 @@
 # initialize
 begin
-    using Asap, AsapToolkit, AsapOptim
+    using Asap, AsapToolkit, AsapOptim, LinearAlgebra, SparseArrays
     # using kjlMakie; set_theme!(kjl_light)
     using Enzyme, Zygote
+
+    using LinearSolve
 end
 
 # meta parameters
@@ -110,12 +112,12 @@ end;
 
 #Allocation function
 
-x0 = params.values .* rand() .* 5
+x0 = params.values ./ 5 .* (1 .+ rand())
 
 begin
     @time y_alloc = alloc(x0, params)
 
-    @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
+    # @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
 
     @show y_alloc
 end;
@@ -124,22 +126,97 @@ end;
 #implicit non allocating function
 begin
 
-    prob = TrussOptProblem(model)
     prob_collector = shadow(prob)
 
     @time y_nonalloc = nonalloc(x0, prob, params)
 
-    bx1 = zero(x0)
+    # bx1 = zero(x0)
 
-    @time Enzyme.autodiff(
-        Enzyme.Reverse, 
-        nonalloc,
-        Duplicated(x0, bx1), 
-        Duplicated(prob, prob_collector),
-        Enzyme.Const(params)
-    )
+    # @time Enzyme.autodiff(
+    #     Enzyme.Reverse, 
+    #     nonalloc,
+    #     Duplicated(x0, bx1), 
+    #     Duplicated(prob, prob_collector),
+    #     Enzyme.Const(params)
+    # )
 
-    dy_enzyme = deepcopy(bx1)
+    # dy_enzyme = deepcopy(bx1)
 
     @show y_nonalloc
 end;
+
+prob_collector = shadow(prob)
+
+Ktest = deepcopy(prob.K[params.freeids, params.freeids])
+@time obj = AsapOptim.solve_norm3(Ktest, params)
+
+# THIS WORKS
+dK = AsapOptim.explicit_zero(Ktest)
+@time Enzyme.autodiff(
+    Enzyme.Reverse,
+    AsapOptim.solve_norm3,
+    Duplicated(Ktest, dK),
+    Enzyme.Const(params)
+)
+
+
+mutable struct TestStruct
+    K::SparseMatrixCSC{Float64, Int64}
+    Ksubset::SubArray{Float64, 2, SparseArrays.SparseMatrixCSC{Float64, Int64}, Tuple{Vector{Int64}, Vector{Int64}}, false}
+
+    function TestStruct(model::Asap.AbstractModel)
+
+        K = deepcopy(model.S)
+        dK = @view(K[model.freeDOFs, model.freeDOFs])
+
+        new(K, dK)
+    end
+
+    function TestStruct(Kref::SparseMatrixCSC{Float64, Int64}, indices::Vector{Int64})
+
+        K = deepcopy(Kref)
+        dK = @view(K[indices, indices])
+
+        new(K, dK)
+    end
+
+end
+
+import AsapOptim.shadow
+function shadow(ts::TestStruct)
+    K = deepcopy(ts.K)
+    fill!(nonzeros(K), 0.)
+    TestStruct(K, ts.Ksubset.indices[1])
+end
+
+function unorm(ts::TestStruct, params::TrussOptParams)
+
+    lp = LinearProblem(ts.Ksubset, params.P[params.freeids])
+    ls = LinearSolve.solve(lp, LUFactorization())
+
+    norm(ls.u)
+end
+
+function F(x::Vector{Float64}, ts::TestStruct, params::TrussOptParams)
+
+    ts.K.nzval .= x
+    unorm(ts, params)
+
+end
+
+ts = TestStruct(model)
+dts = shadow(ts)
+
+x = deepcopy(ts.K.nzval)
+dx = zero(x)
+
+ts.K.nzval .= x
+
+@time F(x, ts, params)
+
+Enzyme.autodiff(
+    Enzyme.Reverse,
+    unorm,
+    Duplicated(ts, dts),
+    Enzyme.Const(params)
+)

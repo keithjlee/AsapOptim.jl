@@ -11,12 +11,12 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
     Ke::Vector{MMatrix{6,6,Float64,36}} #[6 × 6 × nₑ] of stiffness matrices in GCS
     K::SparseMatrixCSC{Float64, Int64} #[ndof × ndof] global stiffness matrix
     u::Vector{Float64} #[ndof × 1] displacement vector
-    # lincache::LinearSolve.LinearCache
+    lincache::LinearSolve.LinearCache
 
     function TrussOptProblem()
     end
 
-    function TrussOptProblem(model::TrussModel; alg = KLUFactorization())
+    function TrussOptProblem(model::TrussModel; alg = LUFactorization())
 
         XYZ = node_positions(model)
 
@@ -45,11 +45,11 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
 
         end
 
-        K = model.S
-        u = model.u
+        K = copy(model.S)
+        u = copy(model.u)
 
-        # lp = LinearProblem(K[model.freeDOFs, model.freeDOFs], model.P[model.freeDOFs])
-        # ls = init(lp, alg)
+        lp = LinearProblem(copy(K[model.freeDOFs, model.freeDOFs]), copy(model.P[model.freeDOFs]))
+        lc = init(lp, alg)
 
         new(
             XYZ,
@@ -61,8 +61,8 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
             ke,
             Ke,
             K,
-            u
-            # ls
+            u,
+            lc
         )
 
 
@@ -85,6 +85,9 @@ function shadow(problem::TrussOptProblem)
     shadow.Ke = zero.(problem.Ke)
     shadow.K = explicit_zero(problem.K)
     shadow.u = zero(shadow.u)
+    
+    fill!(nonzeros(shadow.lincache.A), 0.)
+    fill!(shadow.lincache.u, 0.)
 
     return shadow
 
@@ -104,7 +107,6 @@ function assemble_K!(prob::TrussOptProblem, params::TrussOptParams)
     fill!(nonzeros(prob.K), 0.)
     for i in eachindex(prob.Ke)
         prob.K.nzval[params.inzs[i]] += prob.Ke[i][:]
-        # prob.K[params.dofids[i], params.dofids[i]] += prob.Ke[i]
     end
 end
 
@@ -126,6 +128,36 @@ function solve_u(prob::TrussOptProblem, params::TrussOptParams)
     copy(ls.u)
 end
 
+function solve_norm(prob::TrussOptProblem, params::TrussOptParams)
+
+    prob.lincache.A = prob.K[params.freeids, params.freeids]
+
+    # prob.lincache.isfresh = false
+    LinearSolve.solve!(prob.lincache)
+
+    norm(prob.lincache.u)
+
+    # prob = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    # sol = LinearSolve.solve(prob, LUFactorization())
+    # norm(sol.u)
+end
+
+function solve_norm2(prob::TrussOptProblem, params::TrussOptParams)
+
+    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    ls = LinearSolve.solve(lp, KLUFactorization())
+
+    norm(ls.u)
+end
+
+function solve_norm3(K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
+
+    lp = LinearProblem(copy(K), params.P[params.freeids])
+    ls = LinearSolve.solve(lp, LUFactorization())
+
+    norm(ls.u)
+end
+
 export nonalloc
 function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::TrussOptParams)
 
@@ -136,12 +168,12 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     params.indexer.activeA && (prob.A[params.indexer.iA] = x[params.indexer.iAg])
 
     #element vectors
-    prob.v = params.C * prob.XYZ
+    prob.v .= params.C * prob.XYZ
 
     #element lengths, normalized vectors
     @simd for i in axes(prob.v, 1)
-        prob.L[i] = norm(prob.v[i, :])
-        prob.n[i, :] = prob.v[i, :] / prob.L[i]
+        @views prob.L[i] = norm(prob.v[i, :])
+        @views prob.n[i, :] = prob.v[i, :] / prob.L[i]
     end
 
     #update element-wise stiffness/transformation information
@@ -153,12 +185,13 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     assemble_K!(prob, params)
 
     # norm(prob.K)
-    # # solve_u!(prob, params)
-    # # solve_u!(prob.u, prob.K, params)
 
-    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
-    ls = LinearSolve.solve(lp, LUFactorization())
-    norm(ls.u)
+    solve_norm(prob, params)
+    # norm(prob.K[params.freeids, params.freeids] \ params.P[params.freeids])
+
+    # lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    # ls = LinearSolve.solve(lp, LUFactorization())
+    # norm(ls.u)
 
     # prob.u[params.freeids] = ls.u
 
