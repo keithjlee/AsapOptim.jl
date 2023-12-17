@@ -41,6 +41,30 @@ function get_inz(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64}, ndofper
 end
 
 """
+    get_inz_reduced(S::SparseMatrix, ids::Vector{Int64})
+    
+Get the indices in S.nzval, S.rowval with respect to a given set of active indices of an element.
+"""
+function get_inz_reduced(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64})
+    inzvals = Vector{Int64}()
+
+    for i in ids
+        # the indices of S.nzval that correspond to non-zero values in column i
+        rowrange = S.colptr[i]:S.colptr[i+1] - 1
+
+        # the row indices of the non-zero values in S with respect to column i
+        rvs = S.rowval[rowrange]
+
+        # the index of the indices in ids in S.nzval/S.rowval
+        idset = [findfirst(rvs .== val) for val in ids] .+ first(rowrange) .- 1
+
+        inzvals = [inzvals; idset]
+    end
+
+    inzvals
+end
+
+"""
     all_inz(model::Model)
 
 For each element in the model, extract the location in the global stiffness matrix CSC structure corresponding to the column-wise values of the elemental stiffness matrix in GCS. IE given the result inz ∈ all_inz(model) that corresponds to element E:

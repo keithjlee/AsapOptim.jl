@@ -98,3 +98,99 @@ struct TrussOptParams <: AbstractOptParams
 
     end
 end
+
+"""
+    TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
+
+Contains all information and fields necessary for optimization.
+"""
+struct TrussOptParamsNonalloc <: AbstractOptParams
+    model::TrussModel #the reference truss model for optimization
+    values::Vector{Float64} #design variables
+    indexer::TrussOptIndexer #pointers to design variables and full variables
+    variables::Vector{TrussVariable} #variables for optimization
+    lb::Vector{Float64} #lower bounds of variables
+    ub::Vector{Float64} #upper bounds of variables
+    E::Vector{Float64} #all element young's modulii |n_element|
+    A::Vector{Float64} #all element areas |n_element|
+    freeids::Vector{Int64} #DOF indices that are active
+    P::Vector{Float64} # External load vector [active DOF only]
+    C::SparseMatrixCSC{Int64, Int64} #connectivity matrix
+    K::SparseMatrixCSC{Float64, Int64} #initial stiffness matrix
+    cp::Vector{Int64} #K.colptr [active DOF only]
+    rv::Vector{Int64} #K.rowval [active DOF only]
+    inzs::Vector{Vector{Int64}} # Indices of elemental Kₑ in global K.nzval [active DOF only]
+    i_k_active::Vector{Vector{Int64}} # Indices of row/columns in elemental Kₑ that are associated with a free DOF
+
+
+    function TrussOptParamsNonalloc(model::TrussModel, variables::Vector{TrussVariable})
+        
+        #model must be pre-proces
+        model.processed || (Asap.process!(model))
+
+        #extract global parameters
+        E = getproperty.(getproperty.(model.elements, :section), :E)
+        A = getproperty.(getproperty.(model.elements, :section), :A)
+
+        #assign global id to variables
+        vals = Vector{Float64}()
+        lowerbounds = Vector{Float64}()
+        upperbounds = Vector{Float64}()
+
+        #assign an index to all unique variables, collect value and bounds
+        i = 1
+        for var in variables
+            if typeof(var) <: IndependentVariable
+                var.iglobal  = i
+                i += 1
+                push!(vals, var.val)
+                push!(lowerbounds, var.lb)
+                push!(upperbounds, var.ub)
+            end
+        end
+
+        #generate indexer between design variables and truss parameters
+        indexer = TrussOptIndexer(variables)
+
+        #topology
+        C = Asap.connectivity(model)
+
+        #activity of DOFs
+        freeids = model.freeDOFs
+
+        #external load
+        P = model.P[freeids]
+
+        #Stiffness matrix
+        K = model.S[freeids, freeids]
+        inzs = all_inz(model)
+        cp = model.S.colptr
+        rv = model.S.rowval
+        nnz = length(model.S.nzval)
+
+        #generate a truss optimization problem
+        new(model, 
+            vals, 
+            indexer, 
+            variables, 
+            X, 
+            Y, 
+            Z, 
+            E, 
+            A, 
+            P,
+            C,
+            lowerbounds, 
+            upperbounds,
+            cp,
+            rv,
+            nnz,
+            inzs,
+            freeids,
+            nodeids,
+            dofids,
+            model.nDOFs
+            )
+
+    end
+end
