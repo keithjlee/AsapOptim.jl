@@ -11,7 +11,7 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
     Ke::Vector{MMatrix{6,6,Float64,36}} #[6 × 6 × nₑ] of stiffness matrices in GCS
     K::SparseMatrixCSC{Float64, Int64} #[ndof × ndof] global stiffness matrix
     u::Vector{Float64} #[ndof × 1] displacement vector
-    lincache::LinearSolve.LinearCache
+    # lincache::LinearSolve.LinearCache
 
     function TrussOptProblem()
     end
@@ -48,8 +48,8 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
         K = copy(model.S)
         u = copy(model.u)
 
-        lp = LinearProblem(copy(K[model.freeDOFs, model.freeDOFs]), copy(model.P[model.freeDOFs]))
-        lc = init(lp, alg)
+        # lp = LinearProblem(copy(K[model.freeDOFs, model.freeDOFs]), copy(model.P[model.freeDOFs]))
+        # lc = init(lp, alg)
 
         new(
             XYZ,
@@ -61,8 +61,8 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
             ke,
             Ke,
             K,
-            u,
-            lc
+            u
+            # lc
         )
 
 
@@ -86,8 +86,8 @@ function shadow(problem::TrussOptProblem)
     shadow.K = explicit_zero(problem.K)
     shadow.u = zero(shadow.u)
     
-    fill!(nonzeros(shadow.lincache.A), 0.)
-    fill!(shadow.lincache.u, 0.)
+    # fill!(nonzeros(shadow.lincache.A), 0.)
+    # fill!(shadow.lincache.u, 0.)
 
     return shadow
 
@@ -144,7 +144,7 @@ end
 
 function solve_norm2(prob::TrussOptProblem, params::TrussOptParams)
 
-    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    @inbounds lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
     ls = LinearSolve.solve(lp, KLUFactorization())
 
     norm(ls.u)
@@ -153,8 +153,16 @@ end
 function solve_norm3(K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
 
     lp = LinearProblem(copy(K), params.P[params.freeids])
-    ls = init(lp, KLUFactorization())
-    sol = LinearSolve.solve!(ls)
+    sol = LinearSolve.solve!(lp, KLUFactorization())
+
+    norm(sol.u)
+end
+
+function solve_norm4(K::SparseMatrixCSC{Float64, Int64}, P::Vector{Float64})
+
+    lp = LinearProblem(copy(K), P)
+    # ls = init(lp, KLUFactorization())
+    sol = LinearSolve.solve(lp, LUFactorization())
 
     norm(sol.u)
 end
@@ -185,7 +193,8 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     #assemble global K
     assemble_K!(prob, params)
 
-    norm(prob.K)
+    # norm(prob.K)
+    solve_norm4(prob.K[params.freeids, params.freeids], params.P[params.freeids])
 
     # prob.lincache.A = prob.K[params.freeids, params.freeids]
     # LinearSolve.solve!(prob.lincache)
@@ -240,11 +249,11 @@ function alloc(x::Vector{Float64}, p::TrussOptParams)
     # # K
     K = assemble_global_K(Kₑ, p)
 
-    norm(K)
+    # norm(K)
     # # norm(K)
     # # K⁻¹P
-    # u = solve_u_direct(K, p)
-    # norm(u)
+    u = solve_u_direct(K, p)
+    norm(u)
 
     # # U
     # U = replace_values(zeros(p.n), p.freeids, u)

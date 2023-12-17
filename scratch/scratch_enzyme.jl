@@ -128,7 +128,7 @@ end;
 #implicit non allocating function
 begin
 
-    prob_collector = shadow(prob)
+    dprob = shadow(prob)
 
     @time y_nonalloc = nonalloc(x0, prob, params)
 
@@ -138,7 +138,7 @@ begin
         Enzyme.Reverse, 
         nonalloc,
         Duplicated(x0, bx1), 
-        Duplicated(prob, prob_collector),
+        Duplicated(prob, dprob),
         Enzyme.Const(params)
     )
 
@@ -199,7 +199,7 @@ using JET
 @report_opt update_element_properties!(prob)
 @report_opt update_element_matrices!(prob, params)
 @report_opt AsapOptim.assemble_K!(prob, params)
-@report_opt @inbounds prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
+@report_opt AsapOptim.solve_norm4(prob.K[params.freeids, params.freeids], params.P[params.freeids])
 
 Ktest = deepcopy(prob.K[params.freeids, params.freeids])
 @time obj = AsapOptim.solve_norm3(Ktest, params)
@@ -213,6 +213,27 @@ Ktest = deepcopy(prob.K[params.freeids, params.freeids])
     Enzyme.Const(params)
 )
 
+K = deepcopy(prob.K)
+dK = AsapOptim.explicit_zero(K)
+
+function sumsubset(K::SparseMatrixCSC{Float64, Int64}, inds::Vector{Int64})
+
+    # norm(K[inds, inds])
+
+    val = 0.
+    for i in inds
+        for j in inds
+            val += K[i,j]
+        end
+    end
+
+    val
+
+end
+
+@time sumsubset(K, params.freeids)
+
+@time Enzyme.autodiff(Enzyme.Reverse, sumsubset, Enzyme.Active, Duplicated(K, dK), Enzyme.Const(params.freeids))
 
 mutable struct TestStruct
     K::SparseMatrixCSC{Float64, Int64}
