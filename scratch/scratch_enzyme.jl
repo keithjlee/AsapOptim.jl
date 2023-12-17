@@ -107,7 +107,9 @@ begin
     params = TrussOptParams(model, vars)
     x0 = params.values
 
-    prob = TrussOptProblem(model)
+    prob = TrussOptProblem(model; alg = KLUFactorization())
+
+    OBJ_alloc = x -> alloc(x, params)
 end;
 
 #Allocation function
@@ -117,7 +119,7 @@ x0 = params.values ./ 5 .* (1 .+ rand())
 begin
     @time y_alloc = alloc(x0, params)
 
-    # @time dy_zygote = Zygote.gradient(x -> alloc(x, params), x0)[1]
+    @time dy_zygote = Zygote.gradient(OBJ_alloc, x0)[1]
 
     @show y_alloc
 end;
@@ -130,28 +132,80 @@ begin
 
     @time y_nonalloc = nonalloc(x0, prob, params)
 
-    # bx1 = zero(x0)
+    bx1 = zero(x0)
 
-    # @time Enzyme.autodiff(
-    #     Enzyme.Reverse, 
-    #     nonalloc,
-    #     Duplicated(x0, bx1), 
-    #     Duplicated(prob, prob_collector),
-    #     Enzyme.Const(params)
-    # )
+    @time Enzyme.autodiff(
+        Enzyme.Reverse, 
+        nonalloc,
+        Duplicated(x0, bx1), 
+        Duplicated(prob, prob_collector),
+        Enzyme.Const(params)
+    )
 
-    # dy_enzyme = deepcopy(bx1)
+    dy_enzyme = deepcopy(bx1)
 
     @show y_nonalloc
 end;
 
+@show norm(dy_zygote - dy_enzyme)
+
+# step by step
+function update_values!(x::Vector{Float64}, prob::TrussOptProblem, params::TrussOptParams)
+
+    #update values
+    params.indexer.activeX && (prob.XYZ[params.indexer.iX, 1] += x[params.indexer.iXg])
+    params.indexer.activeY && (prob.XYZ[params.indexer.iY, 2] += x[params.indexer.iYg])
+    params.indexer.activeZ && (prob.XYZ[params.indexer.iZ, 3] += x[params.indexer.iZg])
+    params.indexer.activeA && (prob.A[params.indexer.iA] = x[params.indexer.iAg])
+
+    nothing
+
+end
+
+function update_element_vectors!(prob::TrussOptProblem, params::TrussOptParams)
+    #element vectors
+    prob.v = params.C * prob.XYZ
+end
+
+function update_element_properties!(prob::TrussOptProblem)
+
+    #element lengths, normalized vectors
+    @simd for i in axes(prob.v, 1)
+        prob.L[i] = norm(prob.v[i, :])
+        prob.n[i, :] = prob.v[i, :] ./ prob.L[i]
+    end
+
+    nothing
+end
+
+function update_element_matrices!(prob::TrussOptProblem, params::TrussOptParams)
+    #get local stiffness matrix, transformation matrix, and global stiffness matrix
+    @simd for i in eachindex(prob.ke)
+        prob.Γ[i][1, 1:3] = prob.n[i,:]
+        prob.Γ[i][2, 4:6] = prob.n[i,:]
+        prob.ke[i] = (params.E[i] * prob.A[i] / prob.L[i] * [1 -1; -1 1])
+        prob.Ke[i] = prob.Γ[i]' * prob.ke[i] * prob.Γ[i]
+    end
+
+    nothing
+end
+
 prob_collector = shadow(prob)
+x0 = params.values ./ 5 .* (1 .+ rand())
+
+using JET
+@report_opt update_values!(x0, prob, params)
+@report_opt update_element_vectors!(prob, params)
+@report_opt update_element_properties!(prob)
+@report_opt update_element_matrices!(prob, params)
+@report_opt AsapOptim.assemble_K!(prob, params)
+@report_opt @inbounds prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
 
 Ktest = deepcopy(prob.K[params.freeids, params.freeids])
 @time obj = AsapOptim.solve_norm3(Ktest, params)
 
 # THIS WORKS
-dK = AsapOptim.explicit_zero(Ktest)
+@time dK = AsapOptim.explicit_zero(Ktest)
 @time Enzyme.autodiff(
     Enzyme.Reverse,
     AsapOptim.solve_norm3,

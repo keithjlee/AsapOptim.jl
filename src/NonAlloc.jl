@@ -130,13 +130,13 @@ end
 
 function solve_norm(prob::TrussOptProblem, params::TrussOptParams)
 
-    prob.lincache.A = prob.K[params.freeids, params.freeids]
+    prob.lincache.A.nzval = prob.K[params.freeids, params.freeids].nzval::Float64
 
-    # prob.lincache.isfresh = false
-    LinearSolve.solve!(prob.lincache)
+    sol = LinearSolve.solve!(prob.lincache)
 
-    norm(prob.lincache.u)
+    norm(copy(sol.u))
 
+    # nothing
     # prob = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
     # sol = LinearSolve.solve(prob, LUFactorization())
     # norm(sol.u)
@@ -153,9 +153,10 @@ end
 function solve_norm3(K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
 
     lp = LinearProblem(copy(K), params.P[params.freeids])
-    ls = LinearSolve.solve(lp, LUFactorization())
+    ls = init(lp, KLUFactorization())
+    sol = LinearSolve.solve!(ls)
 
-    norm(ls.u)
+    norm(sol.u)
 end
 
 export nonalloc
@@ -168,7 +169,7 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     params.indexer.activeA && (prob.A[params.indexer.iA] = x[params.indexer.iAg])
 
     #element vectors
-    prob.v .= params.C * prob.XYZ
+    prob.v = params.C * prob.XYZ
 
     #element lengths, normalized vectors
     @simd for i in axes(prob.v, 1)
@@ -184,9 +185,16 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     #assemble global K
     assemble_K!(prob, params)
 
-    # norm(prob.K)
+    norm(prob.K)
 
-    solve_norm(prob, params)
+    # prob.lincache.A = prob.K[params.freeids, params.freeids]
+    # LinearSolve.solve!(prob.lincache)
+
+    # prob.u[params.freeids] = prob.lincache.u
+    # norm(prob.u)
+
+    # norm(prob.lincache.u)
+    # solve_norm3(prob.K[params.freeids, params.freeids], params)
     # norm(prob.K[params.freeids, params.freeids] \ params.P[params.freeids])
 
     # lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
@@ -232,11 +240,11 @@ function alloc(x::Vector{Float64}, p::TrussOptParams)
     # # K
     K = assemble_global_K(Kₑ, p)
 
-    # norm(K)
+    norm(K)
     # # norm(K)
     # # K⁻¹P
-    u = solve_u_direct(K, p)
-    norm(u)
+    # u = solve_u_direct(K, p)
+    # norm(u)
 
     # # U
     # U = replace_values(zeros(p.n), p.freeids, u)
