@@ -45,13 +45,15 @@ for i = 1:model.nElements
     # DOF of element ends [i_start_x, i_start_y, i_start_z, i_end_x, i_end_y, i_end_z]
     dofids = model.elements[i].globalID
 
-    startindex = dofids[1]
-    endindex = dofids[4]
+    # startindex = dofids[1]
+    # endindex = dofids[4]
 
-    active_local = [
-        in(startindex, inds_fixed) ? [] : 1:3;
-        in(endindex, inds_fixed) ? [] : 4:6
-    ]
+    # active_local = [
+    #     in(startindex, inds_fixed) ? [] : 1:3;
+    #     in(endindex, inds_fixed) ? [] : 4:6
+    # ]
+
+    active_local = [index for index in 1:6 if !in(dofids[index], inds_fixed)]
     
     push!(local_ids, active_local)
 

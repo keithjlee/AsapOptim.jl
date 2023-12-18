@@ -34,6 +34,7 @@ include("Indexers/Indexers.jl")
 # Optimization parameters
 include("Parameters/Parameters.jl")
 export TrussOptParams
+export TrussOptParamsNonalloc
 export NetworkOptParams
 export FrameOptParams
 

@@ -9,14 +9,14 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
     Γ::Vector{MMatrix{2,6,Float64,12}} #[2 × 6 × nₑ] of transformation matrices
     ke::Vector{MMatrix{2,2,Float64,4}} #[2 × 2 × nₑ] of stiffness matrices in LCS
     Ke::Vector{MMatrix{6,6,Float64,36}} #[6 × 6 × nₑ] of stiffness matrices in GCS
-    K::SparseMatrixCSC{Float64, Int64} #[ndof × ndof] global stiffness matrix
+    K::SparseMatrixCSC{Float64, Int64} #[nfreedof × nfreedof] global stiffness matrix
     u::Vector{Float64} #[ndof × 1] displacement vector
     # lincache::LinearSolve.LinearCache
 
     function TrussOptProblem()
     end
 
-    function TrussOptProblem(model::TrussModel; alg = LUFactorization())
+    function TrussOptProblem(model::TrussModel)
 
         XYZ = node_positions(model)
 
@@ -45,7 +45,7 @@ mutable struct TrussOptProblem <: AbstractTrussOptProblem
 
         end
 
-        K = copy(model.S)
+        K = copy(model.S[model.freeDOFs, model.freeDOFs])
         u = copy(model.u)
 
         # lp = LinearProblem(copy(K[model.freeDOFs, model.freeDOFs]), copy(model.P[model.freeDOFs]))
@@ -93,7 +93,7 @@ function shadow(problem::TrussOptProblem)
 
 end
 
-function element_update!(prob::TrussOptProblem, params::TrussOptParams)
+function element_update!(prob::TrussOptProblem, params::TrussOptParamsNonalloc)
     #get local stiffness matrix, transformation matrix, and global stiffness matrix
     for i in eachindex(prob.ke)
         prob.Γ[i][1, 1:3] = prob.n[i,:]
@@ -103,38 +103,37 @@ function element_update!(prob::TrussOptProblem, params::TrussOptParams)
     end
 end
 
-function assemble_K!(prob::TrussOptProblem, params::TrussOptParams)
+function assemble_K!(prob::TrussOptProblem, params::TrussOptParamsNonalloc)
     fill!(nonzeros(prob.K), 0.)
     for i in eachindex(prob.Ke)
-        prob.K.nzval[params.inzs[i]] += prob.Ke[i][:]
+        prob.K.nzval[params.inzs[i]] += prob.Ke[i][params.i_k_active[i], params.i_k_active[i]][:]
     end
 end
 
-function solve_u!(prob::TrussOptProblem, params::TrussOptParams)
-    prob.u[params.freeids] = prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
+function solve_u!(prob::TrussOptProblem, params::TrussOptParamsNonalloc)
+    prob.u[params.freeids] = prob.K \ prob.P
 end
 
-function solve_u!(u::Vector{Float64}, K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
-    u[params.freeids] = K[params.freeids, params.freeids] \ params.P[params.freeids]
+function solve_u!(u::Vector{Float64}, K::SparseMatrixCSC{Float64, Int64}, P::Vector{Float64})
+    u[params.freeids] = K \ P
 end
 
 
-function solve_u(prob::TrussOptProblem, params::TrussOptParams)
+function solve_u(prob::TrussOptProblem)
 
-    lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
+    lp = LinearProblem(prob.K, prob.K)
     ls = init(lp, KLUFactorization())
     LinearSolve.solve!(ls)
 
     copy(ls.u)
 end
 
-function solve_norm(prob::TrussOptProblem, params::TrussOptParams)
+function solve_norm(prob::TrussOptProblem, P::Vector{Float64})
 
-    prob.lincache.A.nzval = prob.K[params.freeids, params.freeids].nzval::Float64
+    LP = LinearProblem(copy(prob.K), P)
+    ls = LinearSolve.solve(LP, LUFactorization())
 
-    sol = LinearSolve.solve!(prob.lincache)
-
-    norm(copy(sol.u))
+    norm(ls.u)
 
     # nothing
     # prob = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
@@ -142,7 +141,7 @@ function solve_norm(prob::TrussOptProblem, params::TrussOptParams)
     # norm(sol.u)
 end
 
-function solve_norm2(prob::TrussOptProblem, params::TrussOptParams)
+function solve_norm2(prob::TrussOptProblem, params::TrussOptParamsNonalloc)
 
     @inbounds lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
     ls = LinearSolve.solve(lp, KLUFactorization())
@@ -150,7 +149,7 @@ function solve_norm2(prob::TrussOptProblem, params::TrussOptParams)
     norm(ls.u)
 end
 
-function solve_norm3(K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParams)
+function solve_norm3(K::SparseMatrixCSC{Float64, Int64}, params::TrussOptParamsNonalloc)
 
     lp = LinearProblem(copy(K), params.P[params.freeids])
     sol = LinearSolve.solve!(lp, KLUFactorization())
@@ -168,7 +167,7 @@ function solve_norm4(K::SparseMatrixCSC{Float64, Int64}, P::Vector{Float64})
 end
 
 export nonalloc
-function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::TrussOptParams)
+function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::TrussOptParamsNonalloc)
 
     #update values
     params.indexer.activeX && (prob.XYZ[params.indexer.iX, 1] += x[params.indexer.iXg])
@@ -194,26 +193,10 @@ function nonalloc(x::Vector{Float64}, prob::AbstractTrussOptProblem, params::Tru
     assemble_K!(prob, params)
 
     # norm(prob.K)
-    solve_norm4(prob.K[params.freeids, params.freeids], params.P[params.freeids])
 
-    # prob.lincache.A = prob.K[params.freeids, params.freeids]
-    # LinearSolve.solve!(prob.lincache)
+    #solve and norm
+    solve_norm4(prob.K, params.P)
 
-    # prob.u[params.freeids] = prob.lincache.u
-    # norm(prob.u)
-
-    # norm(prob.lincache.u)
-    # solve_norm3(prob.K[params.freeids, params.freeids], params)
-    # norm(prob.K[params.freeids, params.freeids] \ params.P[params.freeids])
-
-    # lp = LinearProblem(prob.K[params.freeids, params.freeids], params.P[params.freeids])
-    # ls = LinearSolve.solve(lp, LUFactorization())
-    # norm(ls.u)
-
-    # prob.u[params.freeids] = ls.u
-
-    # # prob.u[params.freeids] .= prob.K[params.freeids, params.freeids] \ params.P[params.freeids]
-    # norm(prob.u)
 end
 
 
@@ -249,7 +232,7 @@ function alloc(x::Vector{Float64}, p::TrussOptParams)
     # # K
     K = assemble_global_K(Kₑ, p)
 
-    # norm(K)
+    # norm(K[p.freeids, p.freeids])
     # # norm(K)
     # # K⁻¹P
     u = solve_u_direct(K, p)

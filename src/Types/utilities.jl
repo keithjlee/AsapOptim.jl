@@ -41,30 +41,6 @@ function get_inz(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64}, ndofper
 end
 
 """
-    get_inz_reduced(S::SparseMatrix, ids::Vector{Int64})
-    
-Get the indices in S.nzval, S.rowval with respect to a given set of active indices of an element.
-"""
-function get_inz_reduced(S::SparseMatrixCSC{Float64, Int64}, ids::Vector{Int64})
-    inzvals = Vector{Int64}()
-
-    for i in ids
-        # the indices of S.nzval that correspond to non-zero values in column i
-        rowrange = S.colptr[i]:S.colptr[i+1] - 1
-
-        # the row indices of the non-zero values in S with respect to column i
-        rvs = S.rowval[rowrange]
-
-        # the index of the indices in ids in S.nzval/S.rowval
-        idset = [findfirst(rvs .== val) for val in ids] .+ first(rowrange) .- 1
-
-        inzvals = [inzvals; idset]
-    end
-
-    inzvals
-end
-
-"""
     all_inz(model::Model)
 
 For each element in the model, extract the location in the global stiffness matrix CSC structure corresponding to the column-wise values of the elemental stiffness matrix in GCS. IE given the result inz ∈ all_inz(model) that corresponds to element E:
@@ -79,3 +55,75 @@ This allows for a highly efficient method of regenerating the global stiffness m
 """
 all_inz(model::TrussModel) = [get_inz(model.S, id, 3) for id in getproperty.(model.elements, :globalID)]
 all_inz(model::Model) = [get_inz(model.S, id, 6) for id in getproperty.(model.elements, :globalID)]
+
+"""
+get_local_global_DOF_activity(model::Asap.AbstractModel)
+"""
+function get_local_global_DOF_activity(model::Asap.AbstractModel)
+
+    #indices of free/fixed DOFs
+    i_free = model.freeDOFs
+    i_fixed = model.fixedDOFs
+
+    #get dictionary between freeDOFs and index in reduced K
+    i_reduced = collect(1:length(i_free))
+    init2reduced = Dict(i_free .=> i_reduced)
+
+    #collectors
+    local_ids = Vector{Vector{Int64}}()
+    global_ids = Vector{Vector{Int64}}()
+
+    for i in eachindex(model.elements)
+
+        #current element
+        element = model.elements[i]
+
+        #element stiffness matrix in GCS
+        k = element.K
+
+        #associated global DOF indices
+        dof_ids = element.globalID
+
+        #which row/columns in k are active?
+        i_active_local = [index for index in axes(k, 1) if !in(dof_ids[index], i_fixed)]
+
+        #store
+        push!(local_ids, i_active_local)
+
+        #which DOFs in the global numbering system are active?
+        i_active_dofs = dof_ids[i_active_local]
+
+        #what indices of the reduced stiffness matrix are these associated with?
+        i_active_dofs_reduced = [init2reduced[index] for index in i_active_dofs]
+
+        #store
+        push!(global_ids, i_active_dofs_reduced)
+
+    end
+
+    return local_ids, global_ids
+end
+
+"""
+    get_inz_reduced(colptr::Vector{Int64}, rowval::Vector{Int64}, ids::Vector{Int64})
+
+Get the indices in S.nzval, S.rowval with respect to a given set of active indices of an element.
+"""
+function get_inz_reduced(colptr::Vector{Int64}, rowval::Vector{Int64}, ids::Vector{Int64})
+    inzvals = Vector{Int64}()
+
+    for i in ids
+        # the indices of K.nzval that correspond to non-zero values in column i
+        rowrange = colptr[i]:colptr[i+1] - 1
+
+        # the row indices of the non-zero values in S with respect to column i
+        rvs = rowval[rowrange]
+
+        # the index of the indices in ids in S.nzval/S.rowval
+        idset = [findfirst(rvs .== val) for val in ids] .+ first(rowrange) .- 1
+
+        inzvals = [inzvals; idset]
+    end
+
+    return inzvals
+end

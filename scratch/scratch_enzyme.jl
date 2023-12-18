@@ -104,12 +104,15 @@ begin
         push!(vars, AreaVariable(element, element.section.A, 10., 20e3))
     end
 
-    params = TrussOptParams(model, vars)
+    params = TrussOptParamsNonalloc(model, vars)
     x0 = params.values
 
-    prob = TrussOptProblem(model; alg = KLUFactorization())
+    params_alloc = TrussOptParams(model, vars)
 
-    OBJ_alloc = x -> alloc(x, params)
+    prob = TrussOptProblem(model)
+
+
+    OBJ_alloc = x -> alloc(x, params_alloc)
 end;
 
 #Allocation function
@@ -117,7 +120,7 @@ end;
 x0 = params.values ./ 5 .* (1 .+ rand())
 
 begin
-    @time y_alloc = alloc(x0, params)
+    @time y_alloc = alloc(x0, params_alloc)
 
     @time dy_zygote = Zygote.gradient(OBJ_alloc, x0)[1]
 
@@ -128,10 +131,9 @@ end;
 #implicit non allocating function
 begin
 
-    dprob = shadow(prob)
-
     @time y_nonalloc = nonalloc(x0, prob, params)
 
+    dprob = shadow(prob)
     bx1 = zero(x0)
 
     @time Enzyme.autodiff(
@@ -147,10 +149,17 @@ begin
     @show y_nonalloc
 end;
 
-@show norm(dy_zygote - dy_enzyme)
+dprob = shadow(prob)
+
+@time Enzyme.autodiff(
+    Enzyme.Reverse,
+    AsapOptim.solve_norm,
+    Duplicated(prob, dprob),
+    Enzyme.Duplicated(params.P, zero(params.P))
+)
 
 # step by step
-function update_values!(x::Vector{Float64}, prob::TrussOptProblem, params::TrussOptParams)
+function update_values!(x::Vector{Float64}, prob::TrussOptProblem, params::AsapOptim.AbstractOptParams)
 
     #update values
     params.indexer.activeX && (prob.XYZ[params.indexer.iX, 1] += x[params.indexer.iXg])
@@ -162,7 +171,7 @@ function update_values!(x::Vector{Float64}, prob::TrussOptProblem, params::Truss
 
 end
 
-function update_element_vectors!(prob::TrussOptProblem, params::TrussOptParams)
+function update_element_vectors!(prob::TrussOptProblem, params::AsapOptim.AbstractOptParams)
     #element vectors
     prob.v = params.C * prob.XYZ
 end
@@ -178,7 +187,7 @@ function update_element_properties!(prob::TrussOptProblem)
     nothing
 end
 
-function update_element_matrices!(prob::TrussOptProblem, params::TrussOptParams)
+function update_element_matrices!(prob::TrussOptProblem, params::AsapOptim.AbstractOptParams)
     #get local stiffness matrix, transformation matrix, and global stiffness matrix
     @simd for i in eachindex(prob.ke)
         prob.Γ[i][1, 1:3] = prob.n[i,:]

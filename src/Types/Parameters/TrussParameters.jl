@@ -100,7 +100,7 @@ struct TrussOptParams <: AbstractOptParams
 end
 
 """
-    TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
+    TrussOptParamsNonalloc(model::TrussModel, variables::Vector{TrussVariable})
 
 Contains all information and fields necessary for optimization.
 """
@@ -120,6 +120,7 @@ struct TrussOptParamsNonalloc <: AbstractOptParams
     cp::Vector{Int64} #K.colptr [active DOF only]
     rv::Vector{Int64} #K.rowval [active DOF only]
     inzs::Vector{Vector{Int64}} # Indices of elemental Kₑ in global K.nzval [active DOF only]
+    i_dof_active::Vector{Vector{Int64}} #indices of elemental DOFs associated with reduced K
     i_k_active::Vector{Vector{Int64}} # Indices of row/columns in elemental Kₑ that are associated with a free DOF
 
 
@@ -163,33 +164,32 @@ struct TrussOptParamsNonalloc <: AbstractOptParams
 
         #Stiffness matrix
         K = model.S[freeids, freeids]
-        inzs = all_inz(model)
-        cp = model.S.colptr
-        rv = model.S.rowval
-        nnz = length(model.S.nzval)
+        cp = K.colptr
+        rv = K.rowval
+
+        i_local, i_global = get_local_global_DOF_activity(model)
+
+        inzs = [get_inz_reduced(cp, rv, id) for id in i_global]
+        
 
         #generate a truss optimization problem
         new(model, 
             vals, 
             indexer, 
             variables, 
-            X, 
-            Y, 
-            Z, 
-            E, 
-            A, 
-            P,
-            C,
             lowerbounds, 
             upperbounds,
+            E, 
+            A, 
+            freeids,
+            P,
+            C,
+            K,
             cp,
             rv,
-            nnz,
             inzs,
-            freeids,
-            nodeids,
-            dofids,
-            model.nDOFs
+            i_global,
+            i_local
             )
 
     end
