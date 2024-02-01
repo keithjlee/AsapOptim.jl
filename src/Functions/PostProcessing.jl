@@ -251,7 +251,7 @@ function updatemodel(p::FrameOptParams, u::Vector{Float64})
     #new model
     nodes = Vector{Node}()
     elements = Vector{Element}()
-    loads = Vector{Asap.Load}()
+    loads = Vector{Asap.AbstractLoad}()
 
     #new nodes
     for (node, x, y, z) in zip(p.model.nodes, X, Y, Z)
