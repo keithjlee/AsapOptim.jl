@@ -5,7 +5,7 @@ Replace the values of `values[indices]` with the values in `newvalues` in a diff
 """
 function replace_values(values::Vector{Float64}, indices::Vector{Int64}, newvalues)
     
-    v2 = copy(values)
+    v2 = zero(values) + values
     v2[indices] .= newvalues
 
     return v2
@@ -43,7 +43,7 @@ Add the values of `increments` to the current values in `values` at `indices`. D
 """
 function add_values(values::Vector{Float64}, indices::Vector{Int64}, increments)
 
-    v2 = copy(values)
+    v2 = zero(values) + values
     v2[indices] .+= increments
 
     return v2
