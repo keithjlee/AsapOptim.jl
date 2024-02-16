@@ -2,7 +2,7 @@
 
 # AsapOptim
 
-This is a very much WIP package for high-performing *general* structural optimization in the [aSAP.jl](https://github.com/keithjlee/Asap) environment. It provides the following:
+This is a very much WIP package for high-performing *general* structural optimization in the [Asap.jl](https://github.com/keithjlee/Asap) environment. It provides the following:
 
 - A set of data structures for controllable, extendable, and composable definitions of design variables and objective functions
 - `CoupledVariable`s that reduce the dimensionality of design problems
