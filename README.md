@@ -1,4 +1,4 @@
-![](figures/cstr_volume_opt.gif)
+![](figures/gradients-axo.png)
 
 # AsapOptim
 
