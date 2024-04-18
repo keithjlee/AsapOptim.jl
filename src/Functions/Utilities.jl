@@ -12,6 +12,16 @@ function replace_values(values::Vector{Float64}, indices::Vector{Int64}, newvalu
 
 end
 
+function replace_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
+
+    buf = Zygote.bufferfrom(values)
+
+    buf[indices] = newvalues
+
+    return copy(buf)
+
+end
+
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement.
 
@@ -47,6 +57,15 @@ function add_values(values::Vector{Float64}, indices::Vector{Int64}, increments)
     v2[indices] .+= increments
 
     return v2
+end
+
+function add_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
+
+    buf = Zygote.bufferfrom(values)
+
+    buf[indices] += increments
+
+    return copy(buf)
 end
 
 """

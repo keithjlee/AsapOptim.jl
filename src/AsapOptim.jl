@@ -10,6 +10,7 @@ using LinearAlgebra
 
 # Optimization
 using ChainRulesCore
+using Zygote
 
 include("Types/Types.jl")
 
