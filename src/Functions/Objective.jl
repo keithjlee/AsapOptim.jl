@@ -101,6 +101,52 @@ function solve_truss_direct(values::Vector{Float64}, p::TrussOptParams)
         U)
 end
 
+function solve_truss_direct_buffer(values::Vector{Float64}, p::TrussOptParams)
+    
+    #populate values
+    X = p.indexer.activeX ? add_values_buffer(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values_buffer(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values_buffer(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    A = p.indexer.activeA ? replace_values_buffer(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
+
+    # vₑ 
+    v = get_element_vectors(X, Y, Z, p)
+
+    # Lₑ
+    l = get_element_lengths(v)
+
+    # vnₑ
+    n = get_normalized_element_vectors(v, l)
+
+    # Γ
+    Γ = r_truss(n)
+
+    # kₑ
+    kₑ = k_truss.(p.E, A, l)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u_direct(K, p)
+
+    # U
+    U = replace_values_buffer(zeros(p.n), p.freeids, u)
+
+    # Store values for continuity in gradients
+    return TrussResults(X,
+        Y,
+        Z,
+        A,
+        l,
+        Kₑ,
+        Γ,
+        U)
+end
+
 """
     compliance(t::TrussResults, p::TrussOptParams)
 
