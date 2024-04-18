@@ -12,16 +12,6 @@ function replace_values(values::Vector{Float64}, indices::Vector{Int64}, newvalu
 
 end
 
-function replace_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
-
-    buf = Zygote.bufferfrom(values)
-
-    buf[indices] = newvalues
-
-    return copy(buf)
-
-end
-
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement.
 
@@ -47,6 +37,21 @@ function ChainRulesCore.rrule(::typeof(replace_values), values::Vector{Float64},
 end
 
 """
+    replace_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
+
+Return a new vector `x` where `x[indices] = newvalues` and `x[.!indices] == values[.!indices]` using Zygote's buffer system such that this function is differentiable with respect to values.
+"""
+function replace_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
+
+    buf = Zygote.bufferfrom(values)
+
+    buf[indices] = newvalues
+
+    return copy(buf)
+
+end
+
+"""
     add_values(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
 
 Add the values of `increments` to the current values in `values` at `indices`. Does NOT perform any bounds checking or vector length consistency. This should be done before calling this function.
@@ -54,19 +59,11 @@ Add the values of `increments` to the current values in `values` at `indices`. D
 function add_values(values::Vector{Float64}, indices::Vector{Int64}, increments)
 
     v2 = zero(values) + values
-    v2[indices] .+= increments
+    @views v2[indices] .+= increments
 
     return v2
 end
 
-function add_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
-
-    buf = Zygote.bufferfrom(values)
-
-    buf[indices] += increments
-
-    return copy(buf)
-end
 
 """
 Pullback of partial array replacement is simply the primal cotangent values *at* the indices of replacement
@@ -82,4 +79,19 @@ function ChainRulesCore.rrule(::typeof(add_values), values::Vector{Float64}, ind
     end
 
     return v, add_values_pullback 
+end
+
+"""
+    add_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, newvalues::Vector{Float64})
+
+Return a new vector `x` where `x[indices] = newvalues + values[indices]` and `x[.!indices] == values[.!indices]` using Zygote's buffer system such that this function is differentiable with respect to values.
+"""
+function add_values_buffer(values::Vector{Float64}, indices::Vector{Int64}, increments::Vector{Float64})
+
+    buf = Zygote.Buffer(values)
+    copyto!(buf, values)
+
+    buf[indices] += increments
+
+    return copy(buf)
 end
