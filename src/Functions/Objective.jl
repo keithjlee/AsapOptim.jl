@@ -3,7 +3,7 @@
 
 Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function solve_truss(values::Vector{Float64}, p::TrussOptParams)
+function solve_truss(values::Vector{Float64}, p::TrussOptParams; linsolve_alg = KLUFactorization())
     
     #populate values
     X = p.indexer.activeX ? add_values(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
@@ -34,7 +34,7 @@ function solve_truss(values::Vector{Float64}, p::TrussOptParams)
     K = assemble_global_K(Kₑ, p)
 
     # K⁻¹P
-    u = solve_u(K, p)
+    u = solve_u(K, p, linsolve_alg)
 
     # U
     U = replace_values(zeros(p.n), p.freeids, u)

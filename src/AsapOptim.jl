@@ -5,7 +5,7 @@ using Asap
 
 # Analysis dependencies
 using SparseArrays
-using IterativeSolvers
+using LinearSolve
 using LinearAlgebra
 
 # Optimization
