@@ -37,7 +37,7 @@ function ChainRulesCore.rrule(::typeof(assemble_global_K), Eks::Vector{Symmetric
     K = assemble_global_K(Eks, p)
 
     function K_pullback(K̄)
-        dEks = [Matrix(K̄[id, id]) for id in p.dofids]
+        dEks = [K̄[id, id] for id in p.dofids]
 
         return NoTangent(), dEks, NoTangent()
     end

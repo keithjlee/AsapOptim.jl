@@ -5,7 +5,7 @@ using Asap
 
 # Analysis dependencies
 using SparseArrays
-using IterativeSolvers
+using LinearSolve
 using LinearAlgebra
 
 # Optimization
@@ -17,6 +17,5 @@ include("Types/Types.jl")
 include("Utilities/Utilities.jl")
 
 include("Functions/Functions.jl")
-
 
 end # module AsapOptim
