@@ -180,7 +180,7 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
     end
 
     model = TrussModel(nodes, elements, loads)
-    solve!(model)
+    Asap.solve!(model)
 
     return model
 
@@ -225,7 +225,7 @@ function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
     end
 
     network = Network(nodes, elements, loads)
-    solve!(network)
+    Asap.solve!(network)
 
     return network
 
@@ -290,7 +290,7 @@ function updatemodel(p::FrameOptParams, u::Vector{Float64})
     end
 
     model = Model(nodes, elements, loads)
-    solve!(model)
+    Asap.solve!(model)
 
     return model
 
