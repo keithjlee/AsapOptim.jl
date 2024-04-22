@@ -18,5 +18,4 @@ include("Utilities/Utilities.jl")
 
 include("Functions/Functions.jl")
 
-
 end # module AsapOptim
