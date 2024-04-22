@@ -4,9 +4,6 @@
 Displacement of free DOFs
 """
 function solve_u(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams, alg::LinearSolve.SciMLLinearSolveAlgorithm)
-    # id = p.freeids
-    # cg(K[id, id], p.P[id])
-
     linearproblem = LinearProblem(K[p.freeids, p.freeids], p.P[p.freeids])
     sol = LinearSolve.solve(linearproblem, alg)
 
