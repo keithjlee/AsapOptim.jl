@@ -153,7 +153,7 @@ end
 Measure of strain energy for truss structures.
 """
 function compliance(t::TrussResults, p::TrussOptParams)
-    t.U' * p.P
+    dot(t.U, p.P)
 end
 
 
