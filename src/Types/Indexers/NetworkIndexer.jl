@@ -1,17 +1,17 @@
 mutable struct NetworkOptIndexer <: AbstractIndexer
     iX::Vector{Int64}
     iXg::Vector{Int64}
-    fX::Vector{<:Real}
+    fX::Vector{Float64}
     iY::Vector{Int64}
     iYg::Vector{Int64}
-    fY::Vector{<:Real}
+    fY::Vector{Float64}
     iZ::Vector{Int64}
     iZg::Vector{Int64}
-    fZ::Vector{<:Real}
+    fZ::Vector{Float64}
     iQ::Vector{Int64}
     iQg::Vector{Int64}
-    fQ::Vector{<:Real}
-    iN::Vector{<:Real}
+    fQ::Vector{Float64}
+    iN::Vector{Float64}
     activeX::Bool
     activeY::Bool
     activeZ::Bool
@@ -45,21 +45,21 @@ end
 
 Generate the index translation layer between network parameters and design variables
 """
-function NetworkOptIndexer(vars::Vector{NetworkVariable})
+function NetworkOptIndexer(vars::Vector{T}) where T<:NetworkVariable
     indexer = NetworkOptIndexer(
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
-        Vector{Real}(),
+        Vector{Float64}(),
+        Vector{Float64}(),
         false,
         false,
         false,

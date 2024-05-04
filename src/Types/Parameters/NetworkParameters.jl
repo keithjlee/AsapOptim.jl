@@ -7,7 +7,7 @@ struct NetworkOptParams <: AbstractOptParams
     network::Network #the reference truss model for optimization
     values::Vector{Float64} #design variables
     indexer::NetworkOptIndexer #pointers to design variables and full variables
-    variables::Vector{NetworkVariable}
+    variables::Vector{AbstractVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
@@ -21,7 +21,7 @@ struct NetworkOptParams <: AbstractOptParams
     N::Vector{Int64}
     F::Vector{Int64}
 
-    function NetworkOptParams(network::Network, variables::Vector{NetworkVariable})
+    function NetworkOptParams(network::Network, variables::Vector{T}) where T <: NetworkVariable
         @assert network.processed "network must be processed"
 
         #extract global parameters

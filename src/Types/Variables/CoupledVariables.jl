@@ -11,7 +11,7 @@ Where `factor` is a scalar factor applied to the value of `reference` before ass
 """
 mutable struct CoupledVariable <: AbstractVariable
     i::Int64
-    referencevariable::AbstractVariable
+    referencevariable::IndependentVariable
     factor::Real
 
     function CoupledVariable(node::TrussNode, ref::SpatialVariable, factor = 1.)
@@ -22,7 +22,7 @@ mutable struct CoupledVariable <: AbstractVariable
         new(node.nodeID, ref, factor)
     end
 
-    function CoupledVariable(element::Union{Element, TrussElement}, ref::AreaVariable, factor = 1.)
+    function CoupledVariable(element::Asap.AbstractElement, ref::AreaVariable, factor = 1.)
         @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
         new(element.elementID, ref, factor)
     end

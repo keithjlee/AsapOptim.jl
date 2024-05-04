@@ -7,7 +7,7 @@ struct TrussOptParams <: AbstractOptParams
     model::TrussModel #the reference truss model for optimization
     values::Vector{Float64} #design variables
     indexer::TrussOptIndexer #pointers to design variables and full variables
-    variables::Vector{TrussVariable}
+    variables::Vector{AbstractVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
@@ -26,7 +26,7 @@ struct TrussOptParams <: AbstractOptParams
     dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     n::Int64 #total number of DOFs
 
-    function TrussOptParams(model::TrussModel, variables::Vector{TrussVariable})
+    function TrussOptParams(model::TrussModel, variables::Vector{T}) where T <: TrussVariable
         
         #model must be pre-proces
         model.processed || (Asap.process!(model))

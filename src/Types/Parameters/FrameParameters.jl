@@ -2,7 +2,7 @@ struct FrameOptParams <: AbstractOptParams
     model::Model #the reference  model for optimization
     values::Vector{Float64} #design variables
     indexer::FrameOptIndexer #pointers to design variables and full variables
-    variables::Vector{FrameVariable}
+    variables::Vector{AbstractVariable}
     X::Vector{Float64} #all X coordinates |n_node|
     Y::Vector{Float64} #all Y coordinates |n_node|
     Z::Vector{Float64} #all Z coordinates |n_node|
@@ -27,7 +27,7 @@ struct FrameOptParams <: AbstractOptParams
     dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     n::Int64 #total number of DOFs
 
-    function FrameOptParams(model::Model, variables::Vector{FrameVariable})
+    function FrameOptParams(model::Model, variables::Vector{T}) where T <: FrameVariable
 
         #assert model is processed
         model.processed || (Asap.process!(model))
@@ -85,12 +85,6 @@ struct FrameOptParams <: AbstractOptParams
         #loads
         P = model.P
         Pf = model.Pf
-
-        #SPARSITY pattern
-        inzs = all_inz(model)
-        cp = model.S.colptr
-        rv = model.S.rowval
-        nnz = length(model.S.nzval)
 
         #sparsity pattern of K
         inzs = all_inz(model)

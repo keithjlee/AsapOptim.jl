@@ -1,26 +1,26 @@
 mutable struct FrameOptIndexer <: AbstractIndexer
     iX::Vector{Int64}
     iXg::Vector{Int64}
-    fX::Vector{<:Real}
+    fX::Vector{Float64}
     iY::Vector{Int64}
     iYg::Vector{Int64}
-    fY::Vector{<:Real}
+    fY::Vector{Float64}
     iZ::Vector{Int64}
     iZg::Vector{Int64}
-    fZ::Vector{<:Real}
+    fZ::Vector{Float64}
     iA::Vector{Int64}
     iAg::Vector{Int64}
-    fA::Vector{<:Real}
+    fA::Vector{Float64}
     iIx::Vector{Int64}
     iIxg::Vector{Int64}
-    fIx::Vector{<:Real}
+    fIx::Vector{Float64}
     iIy::Vector{Int64}
     iIyg::Vector{Int64}
-    fIy::Vector{<:Real}
+    fIy::Vector{Float64}
     iJ::Vector{Int64}
     iJg::Vector{Int64}
-    fJ::Vector{<:Real}
-    iN::Vector{<:Real}
+    fJ::Vector{Float64}
+    iN::Vector{Float64}
     activeX::Bool
     activeY::Bool
     activeZ::Bool
@@ -75,30 +75,30 @@ function populate!(indexer::FrameOptIndexer, var::CoupledVariable)
     end
 end
 
-function FrameOptIndexer(vars::Vector{FrameVariable})
+function FrameOptIndexer(vars::Vector{T}) where T<:FrameVariable
     indexer = FrameOptIndexer(
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
+        Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Real}(),
-        Vector{Real}(),
+        Vector{Float64}(),
+        Vector{Float64}(),
         false,
         false,
         false,
