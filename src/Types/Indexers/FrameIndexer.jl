@@ -20,7 +20,6 @@ mutable struct FrameOptIndexer <: AbstractIndexer
     iJ::Vector{Int64}
     iJg::Vector{Int64}
     fJ::Vector{Float64}
-    iN::Vector{Float64}
     activeX::Bool
     activeY::Bool
     activeZ::Bool
@@ -97,7 +96,6 @@ function FrameOptIndexer(vars::Vector{T}) where T<:FrameVariable
         Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Float64}(),
         Vector{Float64}(),
         false,
         false,

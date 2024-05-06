@@ -11,7 +11,6 @@ mutable struct NetworkOptIndexer <: AbstractIndexer
     iQ::Vector{Int64}
     iQg::Vector{Int64}
     fQ::Vector{Float64}
-    iN::Vector{Float64}
     activeX::Bool
     activeY::Bool
     activeZ::Bool
@@ -58,7 +57,6 @@ function NetworkOptIndexer(vars::Vector{T}) where T<:NetworkVariable
         Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Float64}(),
         Vector{Float64}(),
         false,
         false,
