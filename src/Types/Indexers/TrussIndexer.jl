@@ -16,7 +16,6 @@ mutable struct TrussOptIndexer <: AbstractIndexer
     iA::Vector{Int64} #above  for Area
     iAg::Vector{Int64}
     fA::Vector{Float64}
-    iN::Vector{Int64} #index of numeric variables
     activeX::Bool
     activeY::Bool
     activeZ::Bool
@@ -64,7 +63,6 @@ function TrussOptIndexer(vars::Vector{T}) where T <: TrussVariable
         Vector{Float64}(),
         Vector{Int64}(),
         Vector{Int64}(),
-        Vector{Float64}(),
         Vector{Float64}(),
         false,
         false,
