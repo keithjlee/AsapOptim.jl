@@ -21,7 +21,7 @@ mutable struct SpatialVariable <: IndependentVariable
 
         # @assert in(axis, validaxes)
 
-        new(nodeindex, value, lowerbound, upperbound, axis)
+        new(nodeindex, value, lowerbound, upperbound, axis, 0)
     end
 
     function SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
@@ -30,7 +30,7 @@ mutable struct SpatialVariable <: IndependentVariable
             @assert node.dof == false "FDM spatial variable only apply to anchor (fixed) nodes"
         end
 
-        new(node.nodeID, value, lowerbound, upperbound, axis)
+        new(node.nodeID, value, lowerbound, upperbound, axis, 0)
     end
 
     function SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
@@ -42,7 +42,7 @@ mutable struct SpatialVariable <: IndependentVariable
 
         value = node.position[axis2ind[axis]]
 
-        new(node.nodeID, value, lowerbound, upperbound, axis)
+        new(node.nodeID, value, lowerbound, upperbound, axis, 0)
     end
 end
 
@@ -65,15 +65,15 @@ mutable struct AreaVariable <: IndependentVariable
     iglobal::Int64
 
     function AreaVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(elementindex, value, lowerbound, upperbound)
+        new(elementindex, value, lowerbound, upperbound, 0)
     end
 
     function AreaVariable(element::Asap.AbstractElement, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, value, lowerbound, upperbound)
+        new(element.elementID, value, lowerbound, upperbound, 0)
     end
 
     function AreaVariable(element::Asap.AbstractElement, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, element.section.A, lowerbound, upperbound)
+        new(element.elementID, element.section.A, lowerbound, upperbound, 0)
     end
 end
 
@@ -92,7 +92,7 @@ mutable struct NumericVariable <: IndependentVariable
     ub::Float64
     iglobal::Int64
 
-    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64) = new(value, lowerbound, upperbound)
+    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64) = new(value, lowerbound, upperbound, 0)
 end
 
 include("NetworkVariables.jl")

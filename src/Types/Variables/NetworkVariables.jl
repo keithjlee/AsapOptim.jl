@@ -17,14 +17,14 @@ mutable struct QVariable <: IndependentVariable
     iglobal::Int64
 
     function QVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(elementindex, value, lowerbound, upperbound)
+        new(elementindex, value, lowerbound, upperbound, 0)
     end
 
     function QVariable(element::FDMelement, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, value, lowerbound, upperbound)
+        new(element.elementID, value, lowerbound, upperbound, 0)
     end
 
     function QVariable(element::FDMelement, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, value, lowerbound, upperbound)
+        new(element.elementID, value, lowerbound, upperbound, 0)
     end
 end

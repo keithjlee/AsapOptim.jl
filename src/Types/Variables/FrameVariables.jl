@@ -22,13 +22,13 @@ mutable struct SectionVariable <: IndependentVariable
     function SectionVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
         @assert in(property, valid_properties) "Valid property symbols: :A, :Ix, :Iy, :J"
 
-        new(elementindex, property, value, lowerbound, upperbound)
+        new(elementindex, property, value, lowerbound, upperbound, 0)
     end
 
     function SectionVariable(element::Element, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
         @assert in(property, valid_properties) "Valid property symbols: :A, :Ix, :Iy, :J"
 
-        new(element.elementID, property, value, lowerbound, upperbound)
+        new(element.elementID, property, value, lowerbound, upperbound, 0)
     end
 
     function SectionVariable(element::Element, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
@@ -37,6 +37,6 @@ mutable struct SectionVariable <: IndependentVariable
         value = getproperty(element.section, property)
         @assert lowerbound ≤ value ≤ upperbound "Element property value not inside defined bounds"
 
-        new(element.elementID, property, value, lowerbound, upperbound)
+        new(element.elementID, property, value, lowerbound, upperbound, 0)
     end
 end
