@@ -1,3 +1,8 @@
+abstract type SpatialVarDirections end
+struct SpatialX <: SpatialVarDirections end
+struct SpatialY <: SpatialVarDirections end
+struct SpatialZ <: SpatialVarDirections end
+
 """
     SpatialVariable <: IndependentVariable
 
@@ -9,42 +14,39 @@ SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, value::Float64, lo
 SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 ```
 """
-mutable struct SpatialVariable <: IndependentVariable
+mutable struct SpatialVariable{T<:SpatialVarDirections} <: IndependentVariable
     i::Int64 #index of node, e.g. X[i] is the spatial variable
     val::Float64 #value
     lb::Float64 #lower bound of variable
     ub::Float64 #upper bound of variable
-    axis::Symbol #which spatial coordinate?
     iglobal::Int64 # position in the vector of active design variables
-
-    function SpatialVariable(nodeindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-
-        # @assert in(axis, validaxes)
-
-        new(nodeindex, value, lowerbound, upperbound, axis, 0)
-    end
-
-    function SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-
-        if typeof(node) == FDMnode
-            @assert node.dof == false "FDM spatial variable only apply to anchor (fixed) nodes"
-        end
-
-        new(node.nodeID, value, lowerbound, upperbound, axis, 0)
-    end
-
-    function SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-
-        # @assert in(axis, validaxes)
-        if typeof(node) == FDMnode
-            @assert node.dof == false "FDM spatial variable only apply to anchor (fixed) nodes"
-        end
-
-        value = node.position[axis2ind[axis]]
-
-        new(node.nodeID, value, lowerbound, upperbound, axis, 0)
-    end
 end
+
+const axis_to_spatial_type = Dict(
+    :x => SpatialX,
+    :X => SpatialX,
+    :y => SpatialY,
+    :Y => SpatialY,
+    :z => SpatialZ,
+    :Z => spatialZ
+)
+
+function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
+    #convert axis to relevant type
+    T = axis_to_spatial_type[axis]
+    return SpatialVariable{T}(node.nodeID, value, lowerbound, upperbound, 0)
+end
+
+function SpatialVariable(node::Asap.FDMnode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
+
+    @assert node.dof == false "FDM spatial variables only apply to anchor (fixed) nodes"
+
+    #convert axis to relevant type
+    T = axis_to_spatial_type[axis]
+    return SpatialVariable{T}(node.nodeID, value, lowerbound, upperbound, 0)
+end
+
+SpatialVariable(node::Union{Asap.Node, Asap.TrussNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z) = SpatialVariable(node, 0.0, lowerbound, upperbound, axis)
 
 """
     AreaVariable <: IndependentVariable
@@ -77,28 +79,11 @@ mutable struct AreaVariable <: IndependentVariable
     end
 end
 
-"""
-    NumericVariable <: IndependentVariable
-
-A variable that holds a numeric value.
-
-```julia
-    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64)
-```
-"""
-mutable struct NumericVariable <: IndependentVariable
-    val::Float64
-    lb::Float64
-    ub::Float64
-    iglobal::Int64
-
-    NumericVariable(value::Float64, lowerbound::Float64, upperbound::Float64) = new(value, lowerbound, upperbound, 0)
-end
 
 include("NetworkVariables.jl")
 include("FrameVariables.jl")
 include("CoupledVariables.jl")
 
-const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable, NumericVariable}
-const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable, NumericVariable}
-const FrameVariable = Union{SpatialVariable, AreaVariable, SectionVariable, CoupledVariable, NumericVariable}
+const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
+const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable}
+const FrameVariable = Union{SpatialVariable, AreaVariable, SectionVariable, CoupledVariable}

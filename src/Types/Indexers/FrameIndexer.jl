@@ -30,9 +30,9 @@ mutable struct FrameOptIndexer <: AbstractIndexer
 end
 
 function populate!(indexer::FrameOptIndexer, var::AreaVariable)
-    push!(getfield(indexer, :iA), var.i)
-    push!(getfield(indexer, :iAg), var.iglobal)
-    push!(getfield(indexer, :fA), 1.)
+    push!(indexer.iA, var.i)
+    push!(indexer.iAg, var.iglobal)
+    push!(indexer.fA, 1.0)
 
     indexer.activeA = true
 end
@@ -105,6 +105,35 @@ function FrameOptIndexer(vars::Vector{T}) where T<:FrameVariable
         false,
         false
         )
+
+    # iX = Vector{Int64}()
+    # iXg = Vector{Int64}()
+    # fX = Vector{Float64}()
+    # iY = Vector{Int64}()
+    # iYg = Vector{Int64}()
+    # fY = Vector{Float64}()
+    # iZ = Vector{Int64}()
+    # iZg = Vector{Int64}()
+    # fZ = Vector{Float64}()
+    # iA = Vector{Int64}()
+    # iAg = Vector{Int64}()
+    # fA = Vector{Float64}()
+    # iIx = Vector{Int64}()
+    # iIxg = Vector{Int64}()
+    # fIx = Vector{Float64}()
+    # iIy = Vector{Int64}()
+    # iIyg = Vector{Int64}()
+    # fIy = Vector{Float64}()
+    # iJ = Vector{Int64}()
+    # iJg = Vector{Int64}()
+    # fJ = Vector{Float64}()
+    # activeX = false
+    # activeY = false
+    # activeZ = false
+    # activeA = false
+    # activeIx = false
+    # activeIy = false
+    # activeJ = false
 
     for var in vars
         populate!(indexer, var)

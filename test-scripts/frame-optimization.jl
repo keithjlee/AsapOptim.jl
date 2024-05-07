@@ -20,8 +20,8 @@ end;
 begin
     Lx = 25.
     Ly = 15.
-    nx = 10
-    ny = 10
+    nx = 24
+    ny = 24
 
     # loads
     load = [0., 0., -20]
@@ -91,53 +91,6 @@ begin
         push!(vars, CoupledVariable(model.nodes[i2], ref))
         push!(vars, CoupledVariable(model.nodes[i3], ref))
     end
-
-    # explicitly run FrameOptParams2
-    xyz = node_positions(model)
-    X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
-    Ψ = getproperty.(model.elements, :Ψ)
-
-    #Material properties
-    sections = getproperty.(model.elements, :section)
-
-    E = getproperty.(sections, :E)
-    G = getproperty.(sections, :G)
-
-    #Geometric properties
-    A = getproperty.(sections, :A)
-    Ix = getproperty.(sections, :Ix)
-    Iy = getproperty.(sections, :Iy)
-    J = getproperty.(sections, :J)
-
-    #collectors
-    vals = Vector{Float64}()
-    lowerbounds = Vector{Float64}()
-    upperbounds = Vector{Float64}()
-
-    #index generation
-    i = 1
-    for var in vars
-
-        if typeof(var) <: AsapOptim.IndependentVariable
-            var.iglobal = i
-            i += 1
-
-            push!(vals, var.val)
-            push!(lowerbounds, var.lb)
-            push!(upperbounds, var.ub)
-        end
-
-    end
-
-    #topology
-    nodeids = getproperty.(model.elements, :nodeIDs)
-    dofids = getproperty.(model.elements, :globalID)
-    Conn = Asap.connectivity(model)
-    freeids = model.freeDOFs
-
-    #loads
-    P = model.P
-    Pf = model.Pf
 end
 
 # iactive = findall(model.nodes, :free)
