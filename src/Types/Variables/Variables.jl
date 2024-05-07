@@ -1,85 +1,5 @@
-abstract type SpatialVarDirections end
-struct SpatialX <: SpatialVarDirections end
-struct SpatialY <: SpatialVarDirections end
-struct SpatialZ <: SpatialVarDirections end
-
-"""
-    SpatialVariable <: IndependentVariable
-
-A variable tied to the spatial position of a node in a single axis.
-
-```julia
-SpatialVariable(nodeindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-```
-"""
-mutable struct SpatialVariable{T<:SpatialVarDirections} <: IndependentVariable
-    i::Int64 #index of node, e.g. X[i] is the spatial variable
-    val::Float64 #value
-    lb::Float64 #lower bound of variable
-    ub::Float64 #upper bound of variable
-    iglobal::Int64 # position in the vector of active design variables
-end
-
-const axis_to_spatial_type = Dict(
-    :x => SpatialX,
-    :X => SpatialX,
-    :y => SpatialY,
-    :Y => SpatialY,
-    :z => SpatialZ,
-    :Z => spatialZ
-)
-
-function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-    #convert axis to relevant type
-    T = axis_to_spatial_type[axis]
-    return SpatialVariable{T}(node.nodeID, value, lowerbound, upperbound, 0)
-end
-
-function SpatialVariable(node::Asap.FDMnode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-
-    @assert node.dof == false "FDM spatial variables only apply to anchor (fixed) nodes"
-
-    #convert axis to relevant type
-    T = axis_to_spatial_type[axis]
-    return SpatialVariable{T}(node.nodeID, value, lowerbound, upperbound, 0)
-end
-
-SpatialVariable(node::Union{Asap.Node, Asap.TrussNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z) = SpatialVariable(node, 0.0, lowerbound, upperbound, axis)
-
-"""
-    AreaVariable <: IndependentVariable
-
-A variable tied to the area of an element
-
-```julia
-AreaVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64)
-AreaVariable(element::Asap.AbstractElement, value::Float64, lowerbound::Float64, upperbound::Float64)
-AreaVariable(element::Asap.AbstractElement, lowerbound::Float64, upperbound::Float64)
-```
-"""
-mutable struct AreaVariable <: IndependentVariable
-    i::Int64 #index of element, e.g. A[i] is the area variable
-    val::Float64
-    lb::Float64
-    ub::Float64
-    iglobal::Int64
-
-    function AreaVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(elementindex, value, lowerbound, upperbound, 0)
-    end
-
-    function AreaVariable(element::Asap.AbstractElement, value::Float64, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, value, lowerbound, upperbound, 0)
-    end
-
-    function AreaVariable(element::Asap.AbstractElement, lowerbound::Float64, upperbound::Float64)
-        new(element.elementID, element.section.A, lowerbound, upperbound, 0)
-    end
-end
-
-
+include("SpatialVariables.jl")
+include("AreaVariables.jl")
 include("NetworkVariables.jl")
 include("FrameVariables.jl")
 include("CoupledVariables.jl")
@@ -87,3 +7,41 @@ include("CoupledVariables.jl")
 const TrussVariable = Union{SpatialVariable, AreaVariable, CoupledVariable}
 const NetworkVariable = Union{SpatialVariable, QVariable, CoupledVariable}
 const FrameVariable = Union{SpatialVariable, AreaVariable, SectionVariable, CoupledVariable}
+
+function process_variables!(vars::Vector{T}) where {T<:AbstractVariable}
+
+    # get the variable type indices
+    i_independent = findall(typeof.(vars) .<: IndependentVariable)
+    i_coupled = findall(typeof.(vars) .<: CoupledVariable)
+
+    # number of independent variables
+    n_independent = length(i_independent)
+
+    # collectors
+    uid_to_globalid = Dict{UInt64, Int64}()
+    vals = Vector{Float64}(undef, n_independent)
+    lb = Vector{Float64}(undef, n_independent)
+    ub = Vector{Float64}(undef, n_independent)
+
+    # populate independent variable data
+    i_global = 1
+    for (i, var) in enumerate(vars[i_independent])
+    
+        var.iglobal = i_global
+        uid_to_globalid[objectid(var)] = i_global
+        vals[i] = var.val
+        lb[i] = var.lb
+        ub[i] = var.ub
+        i_global += 1
+        
+    end
+
+    #populate coupled variables
+    if length(i_coupled) > 0
+        for var in vars[i_coupled]
+            var.iglobal = uid_to_globalid[var.target]
+        end
+    end
+
+    return vals, lb, ub
+end

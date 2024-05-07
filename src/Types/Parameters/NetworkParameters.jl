@@ -29,24 +29,10 @@ struct NetworkOptParams <: AbstractOptParams
         X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
         q = network.q
 
-        #assign global id to variables
-        vals = Vector{Float64}()
-        lowerbounds = Vector{Float64}()
-        upperbounds = Vector{Float64}()
+        #Variable processing
+        vals, lowerbounds, upperbounds = process_variables!(variables)
 
-        #assign an index to all unique variables, collect value and bounds
-        i = 1
-        for var in variables
-            if typeof(var) <: Union{SpatialVariable, QVariable}
-                var.iglobal  = i
-                i += 1
-                push!(vals, var.val)
-                push!(lowerbounds, var.lb)
-                push!(upperbounds, var.ub)
-            end
-        end
-
-        #generate indexer between design variables and truss parameters
+        #Indexer
         indexer = NetworkOptIndexer(variables)
 
         #generate a truss optimization problem

@@ -52,28 +52,9 @@ struct FrameOptParams <: AbstractOptParams
         J = getproperty.(sections, :J)
 
         #Variable processing
+        vals, lowerbounds, upperbounds = process_variables!(variables)
 
-        #collectors
-        vals = Vector{Float64}()
-        lowerbounds = Vector{Float64}()
-        upperbounds = Vector{Float64}()
-
-        #index generation
-        i = 1
-        for var in variables
-
-            if typeof(var) <: IndependentVariable
-                var.iglobal = i
-                i += 1
-
-                push!(vals, var.val)
-                push!(lowerbounds, var.lb)
-                push!(upperbounds, var.ub)
-            end
-
-        end
-
-        #GENERATE INDEXER
+        #Indexer
         indexer = FrameOptIndexer(variables)
 
         #topology

@@ -69,27 +69,27 @@ begin
 
         # x
         push!(vars, SpatialVariable(model.nodes[i0], 0., -x, x, :X))
-        ref = last(vars)
+        itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], ref, factors1[1]))
-        push!(vars, CoupledVariable(model.nodes[i2], ref, factors2[1]))
-        push!(vars, CoupledVariable(model.nodes[i3], ref, factors3[1]))
+        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[1]))
+        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[1]))
+        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[1]))
 
         # y
         push!(vars, SpatialVariable(model.nodes[i0], 0., -y, y, :Y))
-        ref = last(vars)
+        itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], ref, factors1[2]))
-        push!(vars, CoupledVariable(model.nodes[i2], ref, factors2[2]))
-        push!(vars, CoupledVariable(model.nodes[i3], ref, factors3[2]))
+        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[2]))
+        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[2]))
+        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[2]))
 
         # z
         push!(vars, SpatialVariable(model.nodes[i0], 0.25, 0., z, :Z))
-        ref = last(vars)
+        itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], ref))
-        push!(vars, CoupledVariable(model.nodes[i2], ref))
-        push!(vars, CoupledVariable(model.nodes[i3], ref))
+        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget]))
+        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget]))
+        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget]))
     end
 end
 

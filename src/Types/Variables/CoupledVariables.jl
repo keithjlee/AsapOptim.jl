@@ -9,31 +9,39 @@ var = CoupledVariable(variable::Union{TrussNode, TrussElement, FDMelement}, refe
 
 Where `factor` is a scalar factor applied to the value of `reference` before assigning to `variable`. IE to enforce a mirrored value, use `factor = -1.0`.
 """
-mutable struct CoupledVariable <: AbstractVariable
+mutable struct CoupledVariable{T<:IndependentVariable} <: AbstractVariable
     i::Int64
-    referencevariable::IndependentVariable
+    target::UInt64
     factor::Real
+    iglobal::Int64
+end
 
-    function CoupledVariable(node::TrussNode, ref::SpatialVariable, factor = 1.)
-        new(node.nodeID, ref, factor)
-    end
+function CoupledVariable(node::Asap.AbstractNode, ref::SpatialVariable, factor::Float64 = 1.0)
 
-    function CoupledVariable(node::Node, ref::SpatialVariable, factor = 1.)
-        new(node.nodeID, ref, factor)
-    end
+    T = typeof(ref)
+    return CoupledVariable{T}(node.nodeID, objectid(ref), factor, 0)
+end
 
-    function CoupledVariable(element::Asap.AbstractElement, ref::AreaVariable, factor = 1.)
-        @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
-        new(element.elementID, ref, factor)
-    end
+function CoupledVariable(element::Asap.AbstractElement, ref::AreaVariable, factor::Float64 = 1.0)
 
-    function CoupledVariable(element::Element, ref::SectionVariable, factor = 1.)
-        @assert factor > 0 "Coupling factor must be greater than 0 when referring to area variables"
-        new(element.elementID, ref, factor)
-    end
+    @assert factor > 0
 
-    function CoupledVariable(element::FDMelement, ref::QVariable, factor = 1.)
-        @assert factor > 0 "Coupling factor must be greater than 0 when referring to force density variables"
-        new(element.elementID, ref, factor)
-    end
+    T = typeof(ref)
+    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+end
+
+function CoupledVariable(element::Asap.Element, ref::SectionVariable, factor::Float64 = 1.0)
+
+    @assert factor > 0
+
+    T = typeof(ref)
+    return CoupledVariable{T}(element.elementID, objectid(rf), factor, 0)
+end
+
+function CoupledVariable(element::Asap.FDMelement, ref::QVariable, factor::Float64 = 1.0)
+
+    @assert factor > 0
+
+    T = typeof(ref)
+    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end

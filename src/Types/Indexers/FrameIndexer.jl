@@ -29,7 +29,7 @@ mutable struct FrameOptIndexer <: AbstractIndexer
     activeJ::Bool
 end
 
-function populate!(indexer::FrameOptIndexer, var::AreaVariable)
+function populate!(indexer::FrameOptIndexer, var::SectionVariable{SectionA})
     push!(indexer.iA, var.i)
     push!(indexer.iAg, var.iglobal)
     push!(indexer.fA, 1.0)
@@ -37,42 +37,30 @@ function populate!(indexer::FrameOptIndexer, var::AreaVariable)
     indexer.activeA = true
 end
 
-function populate!(indexer::FrameOptIndexer, var::SectionVariable)
-    field_local, field_global, field_factor = property2field[var.property]
+function populate!(indexer::FrameOptIndexer, var::SectionVariable{SectionIx})
+    push!(indexer.iIx, var.i)
+    push!(indexer.iIxg, var.iglobal)
+    push!(indexer.fIx, 1.0)
 
-    push!(getfield(indexer, field_local), var.i)
-    push!(getfield(indexer, field_global), var.iglobal)
-    push!(getfield(indexer, field_factor), 1.)
-
-    setfield!(indexer, property2active[var.property], true)
+    indexer.activeIx = true
 end
 
-function populate!(indexer::FrameOptIndexer, var::CoupledVariable)
+function populate!(indexer::FrameOptIndexer, var::SectionVariable{SectionIy})
+    push!(indexer.iIy, var.i)
+    push!(indexer.iIyg, var.iglobal)
+    push!(indexer.fIy, 1.0)
 
-    #for spatial variables, find proper axis of reference
-    if typeof(var.referencevariable) == SpatialVariable
-
-        field_local, field_global, field_factor = axis2field[var.referencevariable.axis]
-
-        push!(getfield(indexer, field_local), var.i)
-        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
-        push!(getfield(indexer, field_factor), var.factor)
-
-    elseif typeof(var.referencevariable) == SectionVariable
-
-        field_local, field_global, field_factor = property2field[var.referencevariable.property]
-
-        push!(getfield(indexer, field_local), var.i)
-        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
-        push!(getfield(indexer, field_factor), var.factor)
-
-    else
-
-        push!(getfield(indexer, :iA), var.i)
-        push!(getfield(indexer, :iAg), var.referencevariable.iglobal)
-        push!(getfield(indexer, :fA), var.factor)
-    end
+    indexer.activeIy = true
 end
+
+function populate!(indexer::FrameOptIndexer, var::SectionVariable{SectionJ})
+    push!(indexer.iJ, var.i)
+    push!(indexer.iJg, var.iglobal)
+    push!(indexer.fJ, 1.0)
+
+    indexer.activeJ = true
+end
+
 
 function FrameOptIndexer(vars::Vector{T}) where T<:FrameVariable
     indexer = FrameOptIndexer(
