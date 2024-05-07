@@ -12,7 +12,7 @@ Where `factor` is a scalar factor applied to the value of `reference` before ass
 mutable struct CoupledVariable{T<:IndependentVariable} <: AbstractVariable
     i::Int64
     target::UInt64
-    factor::Real
+    factor::Float64
     iglobal::Int64
 end
 
@@ -35,7 +35,7 @@ function CoupledVariable(element::Asap.Element, ref::SectionVariable, factor::Fl
     @assert factor > 0
 
     T = typeof(ref)
-    return CoupledVariable{T}(element.elementID, objectid(rf), factor, 0)
+    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
 
 function CoupledVariable(element::Asap.FDMelement, ref::QVariable, factor::Float64 = 1.0)

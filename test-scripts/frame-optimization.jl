@@ -20,8 +20,8 @@ end;
 begin
     Lx = 25.
     Ly = 15.
-    nx = 24
-    ny = 24
+    nx = 22
+    ny = 22
 
     # loads
     load = [0., 0., -20]
@@ -51,7 +51,8 @@ begin
     factors3 = [-1., -1.]
 
     # make variables
-    vars = Vector{FrameVariable}()
+    vars = FrameVariable[]
+    coupledvars = FrameVariable[]
 
     fac = .9
     x = gridframe.dx * fac / 2
@@ -71,26 +72,28 @@ begin
         push!(vars, SpatialVariable(model.nodes[i0], 0., -x, x, :X))
         itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[1]))
-        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[1]))
-        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[1]))
+        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[1]))
+        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[1]))
+        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[1]))
 
         # y
         push!(vars, SpatialVariable(model.nodes[i0], 0., -y, y, :Y))
         itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[2]))
-        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[2]))
-        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[2]))
+        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[2]))
+        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[2]))
+        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[2]))
 
         # z
         push!(vars, SpatialVariable(model.nodes[i0], 0.25, 0., z, :Z))
         itarget = length(vars)
 
-        push!(vars, CoupledVariable(model.nodes[i1], vars[itarget]))
-        push!(vars, CoupledVariable(model.nodes[i2], vars[itarget]))
-        push!(vars, CoupledVariable(model.nodes[i3], vars[itarget]))
+        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget]))
+        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget]))
+        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget]))
     end
+
+    append!(vars, coupledvars)
 end
 
 # iactive = findall(model.nodes, :free)
