@@ -30,7 +30,6 @@ end
 
 # design variables
 begin
-
     @assert n % 2 == 0
 
     imidx = Int(n / 2)
@@ -46,7 +45,9 @@ begin
 
     ichild3 = reverse(gridframe.igrid[imidx+1:end-1, imidy+1:end-1])
     factors3 = [-1., -1.]
+end
 
+begin
     # make variables
     vars = FrameVariable[]
     coupledvars = FrameVariable[]
@@ -92,14 +93,14 @@ begin
     append!(vars, coupledvars)
 end
 
-# iactive = findall(model.nodes, :free)
-# vars = [
-#     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
-#     ]
+iactive = findall(model.nodes, :free)
+vars = [
+    [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
+    [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
+    [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
+    ]
 
-params = FrameOptParams(model, vars);
+params = FrameOptParams2(model, vars);
 
 #objective function
 function objective_function(x::Vector{Float64}, p::FrameOptParams)
