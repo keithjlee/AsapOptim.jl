@@ -4,29 +4,26 @@ using LinearSolve, LinearAlgebra
 
 # frame Optimization
 begin
-    w_section = W("W460X158")
-    @show w_section.name
-
     section = Section(
-        Steel_kNm,
-        w_section.A / 1e6,
-        w_section.Ix / 1e12,
-        w_section.Iy / 1e12,
-        w_section.J / 1e12
+        20e-3,
+        2e8,
+        8e7,
+        7.95e-4,
+        9.2e-5,
+        3.11e-6
     )
-end;
+end
 
 # generate
 begin
     Lx = 25.
     Ly = 15.
-    nx = 22
-    ny = 22
+    n = 22
 
     # loads
     load = [0., 0., -20]
 
-    gridframe = GridFrame(Lx, nx, Ly, ny, section; load = load, support = :xy)
+    gridframe = GridFrame(Lx, n, Ly, n, section; load = load, support = :xy)
     model = gridframe.model
     geo = Geo(model)
 end
@@ -34,10 +31,10 @@ end
 # design variables
 begin
 
-    @assert nx % 2 == 0 && ny % 2 == 0
+    @assert n % 2 == 0
 
-    imidx = Int(nx / 2)
-    imidy = Int(ny / 2)
+    imidx = Int(n / 2)
+    imidy = Int(n / 2)
 
     iparent = gridframe.igrid[2:imidx, 2:imidy]
 
@@ -66,7 +63,6 @@ begin
         i1 = ichild1[i]
         i2 = ichild2[i]
         i3 = ichild3[i]
-
 
         # x
         push!(vars, SpatialVariable(model.nodes[i0], 0., -x, x, :X))
