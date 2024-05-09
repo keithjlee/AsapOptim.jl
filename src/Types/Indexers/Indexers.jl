@@ -33,7 +33,7 @@ function populate!(indexer::Union{TrussOptIndexer, FrameOptIndexer}, var::AreaVa
 
     push!(indexer.iA, var.i)
     push!(indexer.iAg, var.iglobal)
-    push!(indexer.fA, var.factor)
+    push!(indexer.fA, 1.0)
 
     indexer.activeA = true
 

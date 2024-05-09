@@ -18,7 +18,7 @@ end
 begin
     Lx = 25.
     Ly = 15.
-    n = 22
+    n = 26
 
     # loads
     load = [0., 0., -20]
@@ -93,12 +93,12 @@ begin
     append!(vars, coupledvars)
 end
 
-iactive = findall(model.nodes, :free)
-vars = [
-    [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-    [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-    [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
-    ]
+# iactive = findall(model.nodes, :free)
+# vars = [
+#     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
+#     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
+#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
+#     ]
 
 params = FrameOptParams2(model, vars);
 

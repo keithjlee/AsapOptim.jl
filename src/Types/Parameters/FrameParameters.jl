@@ -139,7 +139,7 @@ struct FrameOptParams2 <: AbstractOptParams
     # dofids::Vector{Vector{Int64}} # [[dofStartNode..., dofEndNode...] for element in elements]
     # n::Int64 #total number of DOFs
 
-    function FrameOptParams2(model::Model, variables::Vector{T}) where T <: FrameVariable
+    function FrameOptParams2(model::Model, variables)
 
         #assert model is processed
         model.processed || (Asap.process!(model))
