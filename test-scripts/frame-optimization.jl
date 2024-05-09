@@ -18,7 +18,7 @@ end
 begin
     Lx = 25.
     Ly = 15.
-    n = 26
+    n = 40
 
     # loads
     load = [0., 0., -20]
@@ -29,6 +29,7 @@ begin
 end
 
 # design variables
+
 begin
     @assert n % 2 == 0
 
@@ -90,17 +91,21 @@ begin
         push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget]))
     end
 
-    append!(vars, coupledvars)
+    # append!(vars, coupledvars)
+    vars = [vars; coupledvars]
 end
 
 # iactive = findall(model.nodes, :free)
-# vars = [
+# vars = FrameVariable[
 #     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
 #     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
+#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]];
+#     [AreaVariable(element, 1e-5, .025) for element in model.elements];
+#     [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements]
 #     ]
 
-params = FrameOptParams2(model, vars);
+# params = FrameOptParams2(model, vars);
+params = FrameOptParams(model, vars)
 
 #objective function
 function objective_function(x::Vector{Float64}, p::FrameOptParams)
@@ -111,10 +116,9 @@ function objective_function(x::Vector{Float64}, p::FrameOptParams)
 end
 
 OBJ = x -> objective_function(x, params)
-@time g = gradient(OBJ, params.values)[1]
+@time g = gradient(OBJ, params.values)[1];
 
 using Nonconvex, NonconvexNLopt
-Nonconvex.@load Ipopt
 
 F = TraceFunction(OBJ)
 

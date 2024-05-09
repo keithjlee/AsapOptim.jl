@@ -18,26 +18,26 @@ end
 
 function CoupledVariable(node::Asap.AbstractNode, ref::T, factor::Float64 = 1.0) where {T<:SpatialVariable}
 
-    return CoupledVariable{T}(node.nodeID, objectid(ref), factor, 0)
+    CoupledVariable{T}(node.nodeID, objectid(ref), factor, 0)
 end
 
 function CoupledVariable(element::Asap.AbstractElement, ref::T, factor::Float64 = 1.0) where {T<:AreaVariable}
 
     @assert factor > 0
 
-    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+    CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
 
 function CoupledVariable(element::Asap.Element, ref::T, factor::Float64 = 1.0) where {T<:SectionVariable}
 
     @assert factor > 0
 
-    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+    CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
 
 function CoupledVariable(element::Asap.FDMelement, ref::T, factor::Float64 = 1.0) where {T<:QVariable}
 
     @assert factor > 0
 
-    return CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+    CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
