@@ -1,6 +1,7 @@
 using AsapOptim, Asap, AsapToolkit
 using Zygote
 using LinearSolve, LinearAlgebra
+using Profile
 
 # frame Optimization
 begin
@@ -18,7 +19,7 @@ end
 begin
     Lx = 25.
     Ly = 15.
-    n = 40
+    n = 28
 
     # loads
     load = [0., 0., -20]
@@ -51,7 +52,6 @@ end
 begin
     # make variables
     vars = FrameVariable[]
-    coupledvars = FrameVariable[]
 
     fac = .9
     x = gridframe.dx * fac / 2
@@ -68,41 +68,38 @@ begin
 
         # x
         push!(vars, SpatialVariable(model.nodes[i0], 0., -x, x, :X))
-        itarget = length(vars)
+        target = last(vars)
 
-        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[1]))
-        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[1]))
-        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[1]))
+        push!(vars, CoupledVariable(model.nodes[i1], target, factors1[1]))
+        push!(vars, CoupledVariable(model.nodes[i2], target, factors2[1]))
+        push!(vars, CoupledVariable(model.nodes[i3], target, factors3[1]))
 
         # y
         push!(vars, SpatialVariable(model.nodes[i0], 0., -y, y, :Y))
-        itarget = length(vars)
+        target = last(vars)
 
-        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget], factors1[2]))
-        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget], factors2[2]))
-        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget], factors3[2]))
+        push!(vars, CoupledVariable(model.nodes[i1], target, factors1[2]))
+        push!(vars, CoupledVariable(model.nodes[i2], target, factors2[2]))
+        push!(vars, CoupledVariable(model.nodes[i3], target, factors3[2]))
 
         # z
-        push!(vars, SpatialVariable(model.nodes[i0], 0.25, 0., z, :Z))
-        itarget = length(vars)
+        # push!(vars, SpatialVariable(model.nodes[i0], 0., -z, z, :Z))
+        # target = last(vars)
 
-        push!(coupledvars, CoupledVariable(model.nodes[i1], vars[itarget]))
-        push!(coupledvars, CoupledVariable(model.nodes[i2], vars[itarget]))
-        push!(coupledvars, CoupledVariable(model.nodes[i3], vars[itarget]))
+        # push!(vars, CoupledVariable(model.nodes[i1], target))
+        # push!(vars, CoupledVariable(model.nodes[i2], target))
+        # push!(vars, CoupledVariable(model.nodes[i3], target))
     end
-
-    # append!(vars, coupledvars)
-    vars = [vars; coupledvars]
 end
 
-# iactive = findall(model.nodes, :free)
-# vars = FrameVariable[
-#     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]];
-#     [AreaVariable(element, 1e-5, .025) for element in model.elements];
-#     [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements]
-#     ]
+iactive = findall(model.nodes, :free)
+vars = FrameVariable[
+    # [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
+    # [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
+    [SpatialVariable(node, 2., 0., 10., :Z) for node in model.nodes[iactive]];
+    # [AreaVariable(element, 1e-5, .025) for element in model.elements];
+    # [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements];
+    ]
 
 # params = FrameOptParams2(model, vars);
 params = FrameOptParams(model, vars)
@@ -116,7 +113,7 @@ function objective_function(x::Vector{Float64}, p::FrameOptParams)
 end
 
 OBJ = x -> objective_function(x, params)
-@time g = gradient(OBJ, params.values)[1];
+@time g = gradient(OBJ, params.values)[1]
 
 using Nonconvex, NonconvexNLopt
 
@@ -129,21 +126,16 @@ addvar!(
     params.ub
 )
 
-alg = NLoptAlg(:LD_MMA)
+alg = NLoptAlg(:LD_LBFGS)
 opts = NLoptOptions(
     maxeval = 500,
-    maxtime = 120,
+    maxtime = 360,
     ftol_rel = 1e-8,
+    ftol_abs = 1e-12,
     xtol_rel = 1e-8,
     xtol_abs = 1e-8
 )
 
-
-alg = IpoptAlg()
-opts = IpoptOptions(
-    first_order = true,
-    tol = 1e-6
-)
 
 @time res = optimize(
     omodel,
@@ -188,7 +180,8 @@ begin
 
     linesegments!(
         els2,
-        # color = abs.(geo2.Mz),
+        # linewidth = geo2.Ix ./ maximum(geo2.Ix) .* 2
+        color = geo2.Ix,
         # colormap = white2blue
     )
 
@@ -212,4 +205,4 @@ begin
     end
 
     fig
-end 
+end
