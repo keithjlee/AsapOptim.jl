@@ -19,7 +19,7 @@ end
 begin
     Lx = 25.
     Ly = 15.
-    n = 28
+    n = 30
 
     # loads
     load = [0., 0., -20]
@@ -92,17 +92,17 @@ begin
     end
 end
 
-iactive = findall(model.nodes, :free)
-vars = FrameVariable[
-    # [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-    # [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-    [SpatialVariable(node, 2., 0., 10., :Z) for node in model.nodes[iactive]];
-    # [AreaVariable(element, 1e-5, .025) for element in model.elements];
-    # [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements];
-    ]
+# iactive = findall(model.nodes, :free)
+# vars = FrameVariable[
+#     # [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
+#     # [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
+#     [SpatialVariable(node, 2., 0., 10., :Z) for node in model.nodes[iactive]];
+#     # [AreaVariable(element, 1e-5, .025) for element in model.elements];
+#     # [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements];
+#     ]
 
-# params = FrameOptParams2(model, vars);
-params = FrameOptParams(model, vars)
+params = FrameOptParams2(model, vars);
+# params = FrameOptParams(model, vars)
 
 #objective function
 function objective_function(x::Vector{Float64}, p::FrameOptParams)
