@@ -37,6 +37,12 @@ function SpatialVariable(node::Asap.AbstractNode, value::Float64, lowerbound::Fl
     return SpatialVariable{T}(node.nodeID, value, lowerbound, upperbound, 0)
 end
 
+function SpatialVariable(index::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
+    #convert axis to relevant type
+    T = axis_to_spatial_type[axis]
+    return SpatialVariable{T}(index, value, lowerbound, upperbound, 0)
+end
+
 function SpatialVariable(node::Asap.FDMnode, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
 
     @assert node.dof == false "FDM spatial variables only apply to anchor (fixed) nodes"

@@ -21,6 +21,12 @@ function CoupledVariable(node::Asap.AbstractNode, ref::T, factor::Float64 = 1.0)
     CoupledVariable{T}(node.nodeID, objectid(ref), factor, 0)
 end
 
+function CoupledVariable(index::Int64, ref::T, factor::Float64 = 1.0) where {T<:SpatialVariable}
+
+    CoupledVariable{T}(index, objectid(ref), factor, 0)
+end
+
+
 function CoupledVariable(element::Asap.AbstractElement, ref::T, factor::Float64 = 1.0) where {T<:AreaVariable}
 
     @assert factor > 0
