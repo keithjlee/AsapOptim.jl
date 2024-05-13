@@ -2,7 +2,6 @@ using AsapOptim, Asap, AsapToolkit
 using Zygote
 using LinearSolve, LinearAlgebra
 
-
 # frame Optimization
 begin
     section = Section(
@@ -15,9 +14,15 @@ begin
     )
 end
 
-Lx = 25.
-Ly = 15.
-n = 60
+begin
+    Lx = 25.
+    Ly = 15.
+    x = 1.25
+    y = 1.45
+    z = 2.5
+end
+
+n = 24
 
 # generate
 begin
@@ -124,6 +129,7 @@ end
 begin
     # make variables
     vars = FrameVariable[]
+    coupled_vars = FrameVariable[]
 
     fac = .9
     x = dx * fac / 2
@@ -142,17 +148,17 @@ begin
         push!(vars, SpatialVariable(i0, 0., -x, x, :X))
         target = last(vars)
 
-        push!(vars, CoupledVariable(i1, target, factors1[1]))
-        push!(vars, CoupledVariable(i2, target, factors2[1]))
-        push!(vars, CoupledVariable(i3, target, factors3[1]))
+        push!(coupled_vars, CoupledVariable(i1, target, factors1[1]))
+        push!(coupled_vars, CoupledVariable(i2, target, factors2[1]))
+        push!(coupled_vars, CoupledVariable(i3, target, factors3[1]))
 
         # y
         push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
         target = last(vars)
 
-        push!(vars, CoupledVariable(i1, target, factors1[2]))
-        push!(vars, CoupledVariable(i2, target, factors2[2]))
-        push!(vars, CoupledVariable(i3, target, factors3[2]))
+        push!(coupled_vars, CoupledVariable(i1, target, factors1[2]))
+        push!(coupled_vars, CoupledVariable(i2, target, factors2[2]))
+        push!(coupled_vars, CoupledVariable(i3, target, factors3[2]))
 
         # z
         # push!(vars, SpatialVariable(model.nodes[i0], 0., -z, z, :Z))
@@ -163,15 +169,26 @@ begin
         # push!(vars, CoupledVariable(model.nodes[i3], target))
     end
 
+    append!(vars, coupled_vars)
     # x, l, u  = AsapOptim.process_variables!(vars)
 end
 
 
 # iactive = findall(model.nodes, :free)
+
+# begin
+#     vars = FrameVariable[]
+#     for node in model.nodes[iactive]
+#         push!(vars, SpatialVariable(node.nodeID, 0., -x, x, :X))
+#         push!(vars, SpatialVariable(node.nodeID, 0., -y, y, :Y))
+#         push!(vars, SpatialVariable(node.nodeID, 0., -z, z, :Z))
+#     end
+# end
+
 # vars = FrameVariable[
-#     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 2., 0., 10., :Z) for node in model.nodes[iactive]];
+#     [SpatialVariable(node.nodeID, 0., -x, x, :X) for node in model.nodes[iactive]];
+#     [SpatialVariable(node.nodeID, 0., -y, y, :Y) for node in model.nodes[iactive]];
+#     [SpatialVariable(node.nodeID, 2., 0., z, :Z) for node in model.nodes[iactive]];
 #     # [AreaVariable(element, 1e-5, .025) for element in model.elements];
 #     # [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements];
 #     ]
