@@ -22,7 +22,7 @@ begin
     z = 2.5
 end
 
-n = 24
+n = 40
 
 # generate
 begin
@@ -112,6 +112,8 @@ begin
     # n = 30
     @assert n % 2 == 0
 
+    # igrid = reshape(1:n^2, n, n)
+
     imid = Int(n / 2)
 
     iparent = igrid[2:imid, 2:imid]
@@ -128,8 +130,8 @@ end
 
 begin
     # make variables
-    vars = FrameVariable[]
-    coupled_vars = FrameVariable[]
+    vars = Vector{FrameVariable}()
+    # coupled_vars = FrameVariable[]
 
     fac = .9
     x = dx * fac / 2
@@ -144,21 +146,31 @@ begin
         i2 = ichild2[i]
         i3 = ichild3[i]
 
-        # x
         push!(vars, SpatialVariable(i0, 0., -x, x, :X))
-        target = last(vars)
+        push!(vars, SpatialVariable(i1, 0., -x, x, :X))
+        push!(vars, SpatialVariable(i2, 0., -x, x, :X))
+        push!(vars, SpatialVariable(i3, 0., -x, x, :X))
 
-        push!(coupled_vars, CoupledVariable(i1, target, factors1[1]))
-        push!(coupled_vars, CoupledVariable(i2, target, factors2[1]))
-        push!(coupled_vars, CoupledVariable(i3, target, factors3[1]))
-
-        # y
         push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
-        target = last(vars)
+        push!(vars, SpatialVariable(i1, 0., -y, y, :Y))
+        push!(vars, SpatialVariable(i2, 0., -y, y, :Y))
+        push!(vars, SpatialVariable(i3, 0., -y, y, :Y))
 
-        push!(coupled_vars, CoupledVariable(i1, target, factors1[2]))
-        push!(coupled_vars, CoupledVariable(i2, target, factors2[2]))
-        push!(coupled_vars, CoupledVariable(i3, target, factors3[2]))
+        # # x
+        # push!(vars, SpatialVariable(i0, 0., -x, x, :X))
+        # target = last(vars)
+
+        # push!(coupled_vars, CoupledVariable(i1, target, factors1[1]))
+        # push!(coupled_vars, CoupledVariable(i2, target, factors2[1]))
+        # push!(coupled_vars, CoupledVariable(i3, target, factors3[1]))
+
+        # # y
+        # push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
+        # target = last(vars)
+
+        # push!(coupled_vars, CoupledVariable(i1, target, factors1[2]))
+        # push!(coupled_vars, CoupledVariable(i2, target, factors2[2]))
+        # push!(coupled_vars, CoupledVariable(i3, target, factors3[2]))
 
         # z
         # push!(vars, SpatialVariable(model.nodes[i0], 0., -z, z, :Z))
@@ -169,7 +181,8 @@ begin
         # push!(vars, CoupledVariable(model.nodes[i3], target))
     end
 
-    append!(vars, coupled_vars)
+    # append!(vars, coupled_vars)
+
     # x, l, u  = AsapOptim.process_variables!(vars)
 end
 
