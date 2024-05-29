@@ -22,30 +22,6 @@ mutable struct TrussOptIndexer <: AbstractIndexer
     activeA::Bool
 end
 
-
-function populate!(indexer::TrussOptIndexer, var::AreaVariable)
-    push!(getfield(indexer, :iA), var.i)
-    push!(getfield(indexer, :iAg), var.iglobal)
-    push!(getfield(indexer, :fA), 1.)
-
-    indexer.activeA = true
-end
-
-function populate!(indexer::TrussOptIndexer, var::CoupledVariable)
-    if typeof(var.referencevariable) == SpatialVariable
-        field_local, field_global, field_factor = axis2field[var.referencevariable.axis]
-
-        push!(getfield(indexer, field_local), var.i)
-        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
-        push!(getfield(indexer, field_factor), var.factor)
-    else
-        push!(getfield(indexer, :iA), var.i)
-        push!(getfield(indexer, :iAg), var.referencevariable.iglobal)
-        push!(getfield(indexer, :fA), var.factor)
-    end
-end
-
-
 """
     TrussOptIndexer(vars::Vector{TrussVariable})
 

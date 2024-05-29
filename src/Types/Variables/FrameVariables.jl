@@ -1,4 +1,8 @@
-const valid_properties = [:A, :Ix, :Iy, :J]
+abstract type SectionVariableProperty end
+struct SectionA <: SectionVariableProperty end
+struct SectionIx <: SectionVariableProperty end
+struct SectionIy <: SectionVariableProperty end
+struct SectionJ <: SectionVariableProperty end
 
 """
     SectionVariable <: IndependentVariable
@@ -11,32 +15,36 @@ SectionVariable(element::Element, value::Float64, lowerbound::Float64, upperboun
 SectionVariable(element::Element, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
 ```
 """
-mutable struct SectionVariable <: IndependentVariable
+mutable struct SectionVariable{T<:SectionVariableProperty} <: IndependentVariable
     i::Int64
-    property::Symbol
     val::Float64
     lb::Float64
     ub::Float64
     iglobal::Float64
+end
 
-    function SectionVariable(elementindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
-        @assert in(property, valid_properties) "Valid property symbols: :A, :Ix, :Iy, :J"
+const property_to_property_type = Dict(
+    :A => SectionA,
+    :Ix => SectionIx,
+    :Iy => SectionIy,
+    :J => SectionJ
+)
 
-        new(elementindex, property, value, lowerbound, upperbound, 0)
-    end
+function SectionVariable(element::Asap.Element, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
 
-    function SectionVariable(element::Element, value::Float64, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
-        @assert in(property, valid_properties) "Valid property symbols: :A, :Ix, :Iy, :J"
+    T = property_to_property_type[property]
+    
+    return SectionVariable{T}(element.elementID, value, lowerbound, upperbound, 0)
 
-        new(element.elementID, property, value, lowerbound, upperbound, 0)
-    end
+end
 
-    function SectionVariable(element::Element, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
-        @assert in(property, valid_properties) "Valid property symbols: :A, :Ix, :Iy, :J"
+function SectionVariable(element::Asap.Element, lowerbound::Float64, upperbound::Float64, property::Symbol = :A)
 
-        value = getproperty(element.section, property)
-        @assert lowerbound ≤ value ≤ upperbound "Element property value not inside defined bounds"
+    T = property_to_property_type[property]
+    
+    value = getproperty(element.section, property)
+    @assert lowerbound ≤ value ≤ upperbound
 
-        new(element.elementID, property, value, lowerbound, upperbound, 0)
-    end
+    return SectionVariable{T}(element.elementID, value, lowerbound, upperbound, 0)
+
 end
