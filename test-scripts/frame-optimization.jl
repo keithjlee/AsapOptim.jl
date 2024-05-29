@@ -22,7 +22,7 @@ begin
     z = 2.5
 end
 
-n = 40
+n = 26
 
 # generate
 begin
@@ -104,7 +104,7 @@ begin
     #assemble
     model = Model(nodes, elements, loads)
     Asap.solve!(model)
-    # geo = Geo(model)
+    geo = Geo(model)
 end;
 
 # design variables
@@ -112,7 +112,7 @@ begin
     # n = 30
     @assert n % 2 == 0
 
-    # igrid = reshape(1:n^2, n, n)
+    igrid = reshape(1:n^2, n, n)
 
     imid = Int(n / 2)
 
