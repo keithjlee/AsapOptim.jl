@@ -1,4 +1,5 @@
-# activate environment and load dependencies
+# load dependencies
+using Pkg; Pkg.activate(".")
 using AsapOptim
 import AsapOptim: Asap
 
