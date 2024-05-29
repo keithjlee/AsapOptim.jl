@@ -1,4 +1,4 @@
-using AsapOptim, Asap, AsapToolkit
+using AsapOptim, Asap
 using Zygote
 using LinearSolve, LinearAlgebra
 
@@ -22,7 +22,7 @@ begin
     z = 2.5
 end
 
-n = 26
+n = 20
 
 # generate
 begin
@@ -104,7 +104,6 @@ begin
     #assemble
     model = Model(nodes, elements, loads)
     Asap.solve!(model)
-    geo = Geo(model)
 end;
 
 # design variables
@@ -131,7 +130,6 @@ end
 begin
     # make variables
     vars = Vector{FrameVariable}()
-    # coupled_vars = FrameVariable[]
 
     fac = .9
     x = dx * fac / 2
@@ -155,159 +153,7 @@ begin
         push!(vars, SpatialVariable(i1, 0., -y, y, :Y))
         push!(vars, SpatialVariable(i2, 0., -y, y, :Y))
         push!(vars, SpatialVariable(i3, 0., -y, y, :Y))
-
-        # # x
-        # push!(vars, SpatialVariable(i0, 0., -x, x, :X))
-        # target = last(vars)
-
-        # push!(coupled_vars, CoupledVariable(i1, target, factors1[1]))
-        # push!(coupled_vars, CoupledVariable(i2, target, factors2[1]))
-        # push!(coupled_vars, CoupledVariable(i3, target, factors3[1]))
-
-        # # y
-        # push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
-        # target = last(vars)
-
-        # push!(coupled_vars, CoupledVariable(i1, target, factors1[2]))
-        # push!(coupled_vars, CoupledVariable(i2, target, factors2[2]))
-        # push!(coupled_vars, CoupledVariable(i3, target, factors3[2]))
-
-        # z
-        # push!(vars, SpatialVariable(model.nodes[i0], 0., -z, z, :Z))
-        # target = last(vars)
-
-        # push!(vars, CoupledVariable(model.nodes[i1], target))
-        # push!(vars, CoupledVariable(model.nodes[i2], target))
-        # push!(vars, CoupledVariable(model.nodes[i3], target))
     end
-
-    # append!(vars, coupled_vars)
-
-    # x, l, u  = AsapOptim.process_variables!(vars)
 end
 
-
-# iactive = findall(model.nodes, :free)
-
-# begin
-#     vars = FrameVariable[]
-#     for node in model.nodes[iactive]
-#         push!(vars, SpatialVariable(node.nodeID, 0., -x, x, :X))
-#         push!(vars, SpatialVariable(node.nodeID, 0., -y, y, :Y))
-#         push!(vars, SpatialVariable(node.nodeID, 0., -z, z, :Z))
-#     end
-# end
-
-# vars = FrameVariable[
-#     [SpatialVariable(node.nodeID, 0., -x, x, :X) for node in model.nodes[iactive]];
-#     [SpatialVariable(node.nodeID, 0., -y, y, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node.nodeID, 2., 0., z, :Z) for node in model.nodes[iactive]];
-#     # [AreaVariable(element, 1e-5, .025) for element in model.elements];
-#     # [SectionVariable(element, 1e-6, 1e-3, :Ix) for element in model.elements];
-#     ]
-# AsapOptim.process_variables!(vars)
-# params = FrameOptParams2(model, vars);
 params = FrameOptParams(model, vars)
-
-#objective function
-function objective_function(x::Vector{Float64}, p::FrameOptParams)
-
-    res = solve_frame(x, p)
-
-    dot(res.U, p.P)
-end
-
-OBJ = x -> objective_function(x, params)
-@time g = gradient(OBJ, params.values)[1]
-
-using Nonconvex, NonconvexNLopt
-
-F = TraceFunction(OBJ)
-
-omodel = Nonconvex.Model(F)
-addvar!(
-    omodel,
-    params.lb,
-    params.ub
-)
-
-alg = NLoptAlg(:LD_LBFGS)
-opts = NLoptOptions(
-    maxeval = 500,
-    maxtime = 360,
-    ftol_rel = 1e-8,
-    ftol_abs = 1e-12,
-    xtol_rel = 1e-8,
-    xtol_abs = 1e-8
-)
-
-
-@time res = optimize(
-    omodel,
-    alg,
-    params.values,
-    options = opts
-)
-
-@show length(F.trace)
-
-using kjlMakie; set_theme!(kjl_light_mono)
-model2 = updatemodel(params, res.minimizer)
-geo2 = Geo(model2)
-
-begin
-    dfac = Observable(0.)
-
-    pts = @lift(Point3.(geo.nodes .+ $dfac .* geo.disp))
-    els = @lift($pts[$geo.indices_flat])
-
-    pts2 = @lift(Point3.(geo2.nodes .+ $dfac .* geo2.disp))
-    els2 = @lift($pts2[geo2.indices_flat])
-end
-
-#visualize
-begin
-    fig = Figure(
-        backgroundcolor = :white
-    )
-
-    ax = Axis3(
-        fig[1,1],
-        aspect = :data
-    )
-
-    asapstyle!(ax; ground = true)
-
-    linesegments!(
-        els,
-        color = (:black, .25)
-    )
-
-    linesegments!(
-        els2,
-        # linewidth = geo2.Ix ./ maximum(geo2.Ix) .* 2
-        color = geo2.Ix,
-        # colormap = white2blue
-    )
-
-    # text!(
-    #     pts,
-    #     text = nvals
-    # )
-
-    sl = Slider(
-        fig[2,1],
-        startvalue = 0,
-        range = range(0, 100, 250)
-    )
-
-    on(sl.value) do val
-        dfac[] = val
-    end
-
-    on(dfac) do _
-        autolimits!(ax)
-    end
-
-    fig
-end
