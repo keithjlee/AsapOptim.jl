@@ -1,6 +1,4 @@
-using AsapOptim, Asap
-using Zygote
-using LinearSolve, LinearAlgebra
+using Asap, AsapOptim
 
 # frame Optimization
 begin
@@ -22,7 +20,7 @@ begin
     z = 2.5
 end
 
-n = 20
+n = 30
 
 # generate
 begin
@@ -130,6 +128,7 @@ end
 begin
     # make variables
     vars = Vector{FrameVariable}()
+    # vars = []
 
     fac = .9
     x = dx * fac / 2

@@ -22,7 +22,7 @@ mutable struct SpatialVariable{T<:SpatialVarDirections} <: IndependentVariable
     iglobal::Int64 # position in the vector of active design variables
 end
 
-const axis_to_spatial_type = Dict(
+axis_to_spatial_type = Dict(
     :x => SpatialX,
     :X => SpatialX,
     :y => SpatialY,
