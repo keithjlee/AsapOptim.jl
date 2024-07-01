@@ -19,31 +19,28 @@ Notes:
 
 
 # select some even integer value for n (number of nodes in the square grid)
-n = 17
-
-# [Asap] make a cross section 
-section = Asap.Section(
-    20e-3, # A [m²]
-    2e8, # E [kN/m²]
-    8e7, # G [kN/m²]
-    7.95e-4, # Ix [m⁴]
-    9.2e-5, # Iy [m⁴]
-    3.11e-6 # J [m⁴]
-)
-
-# hyper parameters for grid
+# hyperparameters
 begin
-    Lx = 15.
-    Ly = 15.
+    # structural cross section assigned to all elements
+    section = Asap.Section(
+        20e-3, # A [m²]
+        2e8, # E [kN/m²]
+        8e7, # G [kN/m²]
+        7.95e-4, # Ix [m⁴]
+        9.2e-5, # Iy [m⁴]
+        3.11e-6 # J [m⁴]
+    )
+
+    # grid dimensions
+    Lx = 20 #m
+    Ly = 20 #m
 end
 
+#=
+=#
 
-# generate a square grid structural model
+n = 25
 begin
-
-    # applied load vector
-    load = [0., 0., -20] #kN
-
     # nodal positions
     x_positions = range(0, Lx, n)
     y_positions = range(0, Ly, n)
@@ -52,7 +49,7 @@ begin
     dx = Lx / (n-1)
     dy = Ly / (n-1)
 
-    # collectors
+    # node positions
     xyz = Vector{Vector{Float64}}()
     Xmatrix = zeros(Float64, n, n)
     Ymatrix = zeros(Float64, n, n)
@@ -78,7 +75,7 @@ begin
     # extract corner node indices to fix
     support_indices = [igrid[1, 1], igrid[n, 1], igrid[1, n], igrid[n, n]]
 
-    # [Asap] make nodes
+    # [Asap] fix the corner indices as supports
     nodes = [Asap.Node(pos, :free, :free) for pos in xyz]
 
     # [Asap] make support nodes
@@ -90,7 +87,7 @@ begin
     # [Asap] element collector
     elements = Vector{Asap.Element}()
 
-    #horizontal elements
+    # [Asap] horizontal elements
     for i = 1:n
         for j = 1:n-1
             index = [igrid[i,j], igrid[i,j+1]]
@@ -98,7 +95,7 @@ begin
         end
     end
 
-    #vertical elements
+    # [Asap] vertical elements
     for j = 1:n
         for i = 1:n-1
             index = [igrid[i,j], igrid[i+1,j]]
@@ -107,6 +104,8 @@ begin
     end
 
     # [Asap] loads
+    # applied load vector
+    load = [0., 0., -20] #kN
     loads = [Asap.NodeForce(node, load) for node in nodes[:free]]
 
     # [Asap] assemble model and solve
@@ -114,69 +113,20 @@ begin
     Asap.solve!(model)
 end;
 
-#=
-design variable indices
-
-This does not make much sense in this MWE, but is useful when using CoupledVariables to enforce symmetry of nodal positions
-=#
 begin
-    @assert n % 2 == 0
-
-    igrid = reshape(1:n^2, n, n)
-
-    imid = Int(n / 2)
-
-    iparent = igrid[2:imid, 2:imid]
-
-    ichild1 = reverse(igrid[2:imid, imid+1:end-1], dims = 2)
-    factors1 = [-1., 1.]
-
-    ichild2 = reverse(igrid[imid+1:end-1, 2:imid], dims = 1)
-    factors2 = [1., -1.]
-
-    ichild3 = reverse(igrid[imid+1:end-1, imid+1:end-1])
-    factors3 = [-1., -1.]
-end
-
-# [AsapOptim] make design variables
-begin
+    # make variables
     vars = Vector{FrameVariable}()
 
-    fac = .9
-    x = dx * fac / 2
-    y = dy * fac / 2
-    z = 1.5
-
-
-    for i in eachindex(iparent)
-
-        i0 = iparent[i]
-        i1 = ichild1[i]
-        i2 = ichild2[i]
-        i3 = ichild3[i]
-
-        push!(vars, SpatialVariable(i0, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i1, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i2, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i3, 0., -x, x, :X))
-
-        push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i1, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i2, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i3, 0., -y, y, :Y))
-
+    for i in igrid[2:end-1, 2:end-1]
+        push!(vars, SpatialVariable(i, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i, 0., -dy, dy, :Z))
+        # push!(vars, CoupledVariable(i, last(vars)))
     end
 
-    # vars = [
-    #     [SpatialVariable(i, 0., -x, x, :X) for i in iparent[:]];
-    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild1[:]];
-    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild2[:]];
-    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild3[:]];
-    #     [SpatialVariable(i, 0., -y, y, :Y) for i in iparent[:]];
-    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild1[:]];
-    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild2[:]];
-    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild3[:]]
-    # ]
+
+    # vals, l, u  = process_variables!(vars)
+
 end
 
 # [AsapOptim] make optimization parameters
