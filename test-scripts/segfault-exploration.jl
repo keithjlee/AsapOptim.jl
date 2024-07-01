@@ -19,7 +19,7 @@ Notes:
 
 
 # select some even integer value for n (number of nodes in the square grid)
-n = 40
+n = 17
 
 # [Asap] make a cross section 
 section = Asap.Section(
@@ -33,7 +33,7 @@ section = Asap.Section(
 
 # hyper parameters for grid
 begin
-    Lx = 25.
+    Lx = 15.
     Ly = 15.
 end
 
@@ -164,11 +164,23 @@ begin
         push!(vars, SpatialVariable(i1, 0., -y, y, :Y))
         push!(vars, SpatialVariable(i2, 0., -y, y, :Y))
         push!(vars, SpatialVariable(i3, 0., -y, y, :Y))
+
     end
+
+    # vars = [
+    #     [SpatialVariable(i, 0., -x, x, :X) for i in iparent[:]];
+    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild1[:]];
+    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild2[:]];
+    #     [SpatialVariable(i, 0., -x, x, :X) for i in ichild3[:]];
+    #     [SpatialVariable(i, 0., -y, y, :Y) for i in iparent[:]];
+    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild1[:]];
+    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild2[:]];
+    #     [SpatialVariable(i, 0., -y, y, :Y) for i in ichild3[:]]
+    # ]
 end
 
 # [AsapOptim] make optimization parameters
-FrameOptParams(model, vars)
+FrameOptParams2(model, vars)
 
 #=
 If you've come this far without a segfault, congrats! Trying changing the value of `n` above or changing some hyperparameters (Lx, x, y, ....) and rerunning.
