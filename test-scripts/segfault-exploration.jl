@@ -39,7 +39,7 @@ end
 #=
 =#
 
-n = 25
+n = 16
 begin
     # nodal positions
     x_positions = range(0, Lx, n)
@@ -114,23 +114,64 @@ begin
 end;
 
 begin
-    # make variables
-    vars = Vector{FrameVariable}()
+    igrid = reshape(1:n^2, n, n)
 
-    for i in igrid[2:end-1, 2:end-1]
-        push!(vars, SpatialVariable(i, 0., -dx, dx, :X))
-        push!(vars, SpatialVariable(i, 0., -dy, dy, :Y))
-        push!(vars, SpatialVariable(i, 0., -dy, dy, :Z))
-        # push!(vars, CoupledVariable(i, last(vars)))
-    end
+    imid = Int(floor(n / 2))
 
+    iparent = igrid[2:imid, 2:imid]
 
-    # vals, l, u  = process_variables!(vars)
+    ichild1 = reverse(igrid[2:imid, imid+1:2imid-1], dims = 2)
+    factors1 = [-1., 1.]
 
+    ichild2 = reverse(igrid[imid+1:2imid-1, 2:imid], dims = 1)
+    factors2 = [1., -1.]
+
+    ichild3 = reverse(igrid[imid+1:2imid-1, imid+1:2imid-1])
+    factors3 = [-1., -1.]
 end
 
+# [AsapOptim] make design variables
+begin
+    vars = Vector{FrameVariable}()
+
+    for i in eachindex(iparent)
+
+        i0 = iparent[i]
+        i1 = ichild1[i]
+        i2 = ichild2[i]
+        i3 = ichild3[i]
+
+        push!(vars, SpatialVariable(i0, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i1, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i2, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i3, 0., -dx, dx, :X))
+
+        push!(vars, SpatialVariable(i0, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i1, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i2, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i3, 0., -dy, dy, :Y))
+    end
+
+    AsapOptim.process_variables!(vars)
+end
+
+# begin
+#     # make variables
+#     vars = Vector{FrameVariable}()
+
+#     for i in igrid[2:end-1, 2:end-1]
+#         push!(vars, SpatialVariable(i, 0., -dx, dx, :X))
+#         push!(vars, SpatialVariable(i, 0., -dy, dy, :Y))
+#         push!(vars, SpatialVariable(i, 0., -dy, dy, :Z))
+#     end
+
+
+#     vals, l, u  = AsapOptim.process_variables!(vars)
+
+# end
+
 # [AsapOptim] make optimization parameters
-FrameOptParams2(model, vars)
+# FrameOptParams2(model, vars)
 
 #=
 If you've come this far without a segfault, congrats! Trying changing the value of `n` above or changing some hyperparameters (Lx, x, y, ....) and rerunning.

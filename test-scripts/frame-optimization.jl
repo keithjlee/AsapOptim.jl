@@ -20,7 +20,7 @@ begin
     z = 2.5
 end
 
-n = 30
+n = 18
 
 # generate
 begin
@@ -84,7 +84,7 @@ begin
     for i = 1:n
         for j = 1:n-1
             index = [igrid[i,j], igrid[i,j+1]]
-            push!(elements, Element(nodes, index, section))
+            push!(elements, Element(nodes[index]..., section))
         end
     end
 
@@ -92,7 +92,7 @@ begin
     for j = 1:n
         for i = 1:n-1
             index = [igrid[i,j], igrid[i+1,j]]
-            push!(elements, Element(nodes, index, section)) 
+            push!(elements, Element(nodes[index]..., section)) 
         end
     end
 
@@ -130,10 +130,10 @@ begin
     vars = Vector{FrameVariable}()
     # vars = []
 
-    fac = .9
-    x = dx * fac / 2
-    y = dy * fac / 2
-    z = 1.5
+    # fac = .9
+    # x = dx * fac / 2
+    # y = dy * fac / 2
+    # z = 1.5
 
 
     for i in eachindex(iparent)
@@ -143,16 +143,20 @@ begin
         i2 = ichild2[i]
         i3 = ichild3[i]
 
-        push!(vars, SpatialVariable(i0, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i1, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i2, 0., -x, x, :X))
-        push!(vars, SpatialVariable(i3, 0., -x, x, :X))
+        push!(vars, SpatialVariable(i0, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i1, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i2, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i3, 0., -dx, dx, :X))
 
-        push!(vars, SpatialVariable(i0, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i1, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i2, 0., -y, y, :Y))
-        push!(vars, SpatialVariable(i3, 0., -y, y, :Y))
+        push!(vars, SpatialVariable(i0, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i1, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i2, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i3, 0., -dy, dy, :Y))
     end
 end
 
 params = FrameOptParams(model, vars)
+
+x0 = deepcopy(params.values)
+
+@time res = solve_frame(x0, params);

@@ -62,7 +62,7 @@ struct FrameOptParams <: AbstractOptParams
             Iy[i] = element.section.Iy
             J[i] = element.section.J
 
-            nodeids[i] = element.nodeIDs
+            nodeids[i] = Asap.nodeids(element)
             dofids[i] = element.globalID
         end
 
@@ -186,7 +186,7 @@ struct FrameOptParams2 <: AbstractOptParams
             Iy[i] = element.section.Iy
             J[i] = element.section.J
 
-            nodeids[i] = element.nodeIDs
+            nodeids[i] = Asap.nodeids(element)
             dofids[i] = element.globalID
         end
 
