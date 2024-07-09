@@ -1,62 +1,139 @@
-using AsapOptim, Asap, AsapToolkit
-using Zygote
-using LinearSolve, LinearAlgebra
+using Asap, AsapOptim
 
 # frame Optimization
 begin
-    w_section = W("W460X158")
-    @show w_section.name
-
     section = Section(
-        Steel_kNm,
-        w_section.A / 1e6,
-        w_section.Ix / 1e12,
-        w_section.Iy / 1e12,
-        w_section.J / 1e12
+        20e-3,
+        2e8,
+        8e7,
+        7.95e-4,
+        9.2e-5,
+        3.11e-6
     )
-end;
+end
 
-# generate
 begin
     Lx = 25.
     Ly = 15.
-    nx = 10
-    ny = 10
+    x = 1.25
+    y = 1.45
+    z = 2.5
+end
+
+n = 18
+
+# generate
+begin
+    support = :corner
+    support_type = :pinned
 
     # loads
     load = [0., 0., -20]
 
-    gridframe = GridFrame(Lx, nx, Ly, ny, section; load = load, support = :xy)
-    model = gridframe.model
-    geo = Geo(model)
-end
+    x_positions = range(0, Lx, n)
+    y_positions = range(0, Ly, n)
+
+    dx = Lx / (n-1)
+    dy = Ly / (n-1)
+
+    xyz = Vector{Vector{Float64}}()
+    Xmatrix = zeros(Float64, n, n)
+    Ymatrix = zeros(Float64, n, n)
+    igrid = zeros(Int64, n, n)
+
+    index = 1
+    for iy = 1:n
+        for ix = 1:n
+
+            x = x_positions[iy]
+            y = y_positions[ix]
+
+            igrid[ix, iy] = index
+            index += 1
+
+            push!(xyz, [x, y, 0.])
+            Xmatrix[ix, iy] = x
+            Ymatrix[ix, iy] = y
+
+        end
+    end
+
+    if support == :corner
+        support_indices = [igrid[1, 1], igrid[n, 1], igrid[1, n], igrid[n, n]]
+    elseif support == :x
+        support_indices = igrid[[1, n], :]
+    elseif support == :y
+        support_indices = igrid[:, [1, n]]
+    else
+        support_indices = [igrid[[1, n], :][:]; igrid[2:n-1, [1, n]][:]]
+    end
+
+    #make nodes
+    nodes = [Node(pos, :free, :free) for pos in xyz]
+
+    #make support nodes
+    for node in nodes[support_indices]
+        fixnode!(node, support_type)
+        node.id = :support
+    end
+
+    #make elements
+    elements = Vector{Element}()
+
+    #horizontal elements
+    for i = 1:n
+        for j = 1:n-1
+            index = [igrid[i,j], igrid[i,j+1]]
+            push!(elements, Element(nodes[index]..., section))
+        end
+    end
+
+    #vertical elements
+    for j = 1:n
+        for i = 1:n-1
+            index = [igrid[i,j], igrid[i+1,j]]
+            push!(elements, Element(nodes[index]..., section)) 
+        end
+    end
+
+    #loads
+    loads = [NodeForce(node, load) for node in nodes[:free]]
+
+    #assemble
+    model = Model(nodes, elements, loads)
+    Asap.solve!(model)
+end;
 
 # design variables
 begin
+    # n = 30
+    @assert n % 2 == 0
 
-    @assert nx % 2 == 0 && ny % 2 == 0
+    igrid = reshape(1:n^2, n, n)
 
-    imidx = Int(nx / 2)
-    imidy = Int(ny / 2)
+    imid = Int(n / 2)
 
-    iparent = gridframe.igrid[2:imidx, 2:imidy]
+    iparent = igrid[2:imid, 2:imid]
 
-    ichild1 = reverse(gridframe.igrid[2:imidx, imidy+1:end-1], dims = 2)
+    ichild1 = reverse(igrid[2:imid, imid+1:end-1], dims = 2)
     factors1 = [-1., 1.]
 
-    ichild2 = reverse(gridframe.igrid[imidx+1:end-1, 2:imidy], dims = 1)
+    ichild2 = reverse(igrid[imid+1:end-1, 2:imid], dims = 1)
     factors2 = [1., -1.]
 
-    ichild3 = reverse(gridframe.igrid[imidx+1:end-1, imidy+1:end-1])
+    ichild3 = reverse(igrid[imid+1:end-1, imid+1:end-1])
     factors3 = [-1., -1.]
+end
 
+begin
     # make variables
     vars = Vector{FrameVariable}()
+    # vars = []
 
-    fac = .9
-    x = gridframe.dx * fac / 2
-    y = gridframe.dy * fac / 2
-    z = 1.5
+    # fac = .9
+    # x = dx * fac / 2
+    # y = dy * fac / 2
+    # z = 1.5
 
 
     for i in eachindex(iparent)
@@ -66,193 +143,20 @@ begin
         i2 = ichild2[i]
         i3 = ichild3[i]
 
+        push!(vars, SpatialVariable(i0, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i1, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i2, 0., -dx, dx, :X))
+        push!(vars, SpatialVariable(i3, 0., -dx, dx, :X))
 
-        # x
-        push!(vars, SpatialVariable(model.nodes[i0], 0., -x, x, :X))
-        ref = last(vars)
-
-        push!(vars, CoupledVariable(model.nodes[i1], ref, factors1[1]))
-        push!(vars, CoupledVariable(model.nodes[i2], ref, factors2[1]))
-        push!(vars, CoupledVariable(model.nodes[i3], ref, factors3[1]))
-
-        # y
-        push!(vars, SpatialVariable(model.nodes[i0], 0., -y, y, :Y))
-        ref = last(vars)
-
-        push!(vars, CoupledVariable(model.nodes[i1], ref, factors1[2]))
-        push!(vars, CoupledVariable(model.nodes[i2], ref, factors2[2]))
-        push!(vars, CoupledVariable(model.nodes[i3], ref, factors3[2]))
-
-        # z
-        push!(vars, SpatialVariable(model.nodes[i0], 0.25, 0., z, :Z))
-        ref = last(vars)
-
-        push!(vars, CoupledVariable(model.nodes[i1], ref))
-        push!(vars, CoupledVariable(model.nodes[i2], ref))
-        push!(vars, CoupledVariable(model.nodes[i3], ref))
+        push!(vars, SpatialVariable(i0, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i1, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i2, 0., -dy, dy, :Y))
+        push!(vars, SpatialVariable(i3, 0., -dy, dy, :Y))
     end
-
-    # explicitly run FrameOptParams2
-    xyz = node_positions(model)
-    X = xyz[:, 1]; Y = xyz[:, 2]; Z = xyz[:, 3]
-    Ψ = getproperty.(model.elements, :Ψ)
-
-    #Material properties
-    sections = getproperty.(model.elements, :section)
-
-    E = getproperty.(sections, :E)
-    G = getproperty.(sections, :G)
-
-    #Geometric properties
-    A = getproperty.(sections, :A)
-    Ix = getproperty.(sections, :Ix)
-    Iy = getproperty.(sections, :Iy)
-    J = getproperty.(sections, :J)
-
-    #collectors
-    vals = Vector{Float64}()
-    lowerbounds = Vector{Float64}()
-    upperbounds = Vector{Float64}()
-
-    #index generation
-    i = 1
-    for var in vars
-
-        if typeof(var) <: AsapOptim.IndependentVariable
-            var.iglobal = i
-            i += 1
-
-            push!(vals, var.val)
-            push!(lowerbounds, var.lb)
-            push!(upperbounds, var.ub)
-        end
-
-    end
-
-    #topology
-    nodeids = getproperty.(model.elements, :nodeIDs)
-    dofids = getproperty.(model.elements, :globalID)
-    Conn = Asap.connectivity(model)
-    freeids = model.freeDOFs
-
-    #loads
-    P = model.P
-    Pf = model.Pf
 end
 
-# iactive = findall(model.nodes, :free)
-# vars = [
-#     [SpatialVariable(node, 0., -1.25, 1.25, :X) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0., -1.25, 1.25, :Y) for node in model.nodes[iactive]];
-#     [SpatialVariable(node, 0.5, 0., 1., :Z) for node in model.nodes[iactive]]
-#     ]
+params = FrameOptParams(model, vars)
 
-params = FrameOptParams(model, vars);
+x0 = deepcopy(params.values)
 
-#objective function
-function objective_function(x::Vector{Float64}, p::FrameOptParams)
-
-    res = solve_frame(x, p)
-
-    dot(res.U, p.P)
-end
-
-OBJ = x -> objective_function(x, params)
-@time g = gradient(OBJ, params.values)[1]
-
-using Nonconvex, NonconvexNLopt
-Nonconvex.@load Ipopt
-
-F = TraceFunction(OBJ)
-
-omodel = Nonconvex.Model(F)
-addvar!(
-    omodel,
-    params.lb,
-    params.ub
-)
-
-alg = NLoptAlg(:LD_MMA)
-opts = NLoptOptions(
-    maxeval = 500,
-    maxtime = 120,
-    ftol_rel = 1e-8,
-    xtol_rel = 1e-8,
-    xtol_abs = 1e-8
-)
-
-
-alg = IpoptAlg()
-opts = IpoptOptions(
-    first_order = true,
-    tol = 1e-6
-)
-
-@time res = optimize(
-    omodel,
-    alg,
-    params.values,
-    options = opts
-)
-
-@show length(F.trace)
-
-using kjlMakie; set_theme!(kjl_light_mono)
-model2 = updatemodel(params, res.minimizer)
-geo2 = Geo(model2)
-
-begin
-    dfac = Observable(0.)
-
-    pts = @lift(Point3.(geo.nodes .+ $dfac .* geo.disp))
-    els = @lift($pts[$geo.indices_flat])
-
-    pts2 = @lift(Point3.(geo2.nodes .+ $dfac .* geo2.disp))
-    els2 = @lift($pts2[geo2.indices_flat])
-end
-
-#visualize
-begin
-    fig = Figure(
-        backgroundcolor = :white
-    )
-
-    ax = Axis3(
-        fig[1,1],
-        aspect = :data
-    )
-
-    asapstyle!(ax; ground = true)
-
-    linesegments!(
-        els,
-        color = (:black, .25)
-    )
-
-    linesegments!(
-        els2,
-        # color = abs.(geo2.Mz),
-        # colormap = white2blue
-    )
-
-    # text!(
-    #     pts,
-    #     text = nvals
-    # )
-
-    sl = Slider(
-        fig[2,1],
-        startvalue = 0,
-        range = range(0, 100, 250)
-    )
-
-    on(sl.value) do val
-        dfac[] = val
-    end
-
-    on(dfac) do _
-        autolimits!(ax)
-    end
-
-    fig
-end 
+@time res = solve_frame(x0, params);
