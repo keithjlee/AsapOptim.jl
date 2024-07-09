@@ -167,7 +167,7 @@ function updatemodel(p::TrussOptParams, u::Vector{Float64})
 
     #new elements
     for (id, e, a, el) in zip(p.nodeids, p.E, A, p.model.elements)
-        newelement = TrussElement(nodes, id, TrussSection(a, e))
+        newelement = TrussElement(nodes[id]..., TrussSection(a, e))
         newelement.id = el.id
         push!(elements, newelement)
     end
@@ -264,7 +264,7 @@ function updatemodel(p::FrameOptParams, u::Vector{Float64})
         section = deepcopy(el.section)
 
         newsection = Section(a, section.E, section.G, ix, iy, j)
-        newelement = Element(nodes, id, newsection)
+        newelement = Element(nodes[id]..., newsection)
         newelement.id = el.id
         push!(elements, newelement)
     end
