@@ -44,7 +44,7 @@ struct TrussOptParams <: AbstractOptParams
         indexer = TrussOptIndexer(variables)
 
         #topology
-        nodeids = getproperty.(model.elements, :nodeIDs)
+        nodeids = Asap.nodeids.(model.elements)
         dofids = getproperty.(model.elements, :globalID)
         C = Asap.connectivity(model)
         freeids = model.freeDOFs
