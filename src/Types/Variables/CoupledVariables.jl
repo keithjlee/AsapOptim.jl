@@ -41,9 +41,9 @@ function CoupledVariable(element::Asap.Element, ref::T, factor::Float64 = 1.0) w
     CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
 
-function CoupledVariable(element::Asap.FDMelement, ref::T, factor::Float64 = 1.0) where {T<:QVariable}
+function CoupledVariable(element::Asap.FDMelement, ref::QVariable, factor::Float64 = 1.0)
 
     @assert factor > 0
 
-    CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+    CoupledVariable{QVariable}(element.elementID, objectid(ref), factor, 0)
 end

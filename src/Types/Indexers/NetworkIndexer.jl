@@ -25,18 +25,10 @@ function populate!(indexer::NetworkOptIndexer, var::QVariable)
     indexer.activeQ = true
 end
 
-function populate!(indexer::NetworkOptIndexer, var::CoupledVariable)
-    if typeof(var.referencevariable) == SpatialVariable
-        field_local, field_global, field_factor = axis2field[var.referencevariable.axis]
-
-        push!(getfield(indexer, field_local), var.i)
-        push!(getfield(indexer, field_global), var.referencevariable.iglobal)
-        push!(getfield(indexer, field_factor), var.factor)
-    else
-        push!(getfield(indexer, :iQ), var.i)
-        push!(getfield(indexer, :iQg), var.referencevariable.iglobal)
-        push!(getfield(indexer, :fQ), var.factor)
-    end
+function populate!(indexer::NetworkOptIndexer, var::CoupledVariable{QVariable})
+    push!(indexer.iQ, var.i)
+    push!(indexer.iQg, var.iglobal)
+    push!(indexer.fQ, var.factor)
 end
 
 """
