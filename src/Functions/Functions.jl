@@ -12,21 +12,20 @@ include("Kframe.jl")
 
 include("K.jl")
 
+include("LinearSolve.jl")
+
+include("Constraints.jl")
+export disp_stress_cstr
+
 include("Solve.jl")
-
-include("Objective.jl")
 export solve_truss
-export solve_truss_direct
-export compliance
-
 export solve_network
-export target
-
 export solve_frame
-export solve_frame_direct
 
 include("PostProcessing.jl")
+export element_forces
 export axial_force
 export axial_stress
+
 export updatemodel
 export updatenetwork

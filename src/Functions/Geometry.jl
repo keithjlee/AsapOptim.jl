@@ -7,7 +7,7 @@ function get_element_vectors(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{F
     p.C * [X Y Z]
 end
 
-function get_element_vectors_notangent(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
+function get_element_vectors_noadjoint(X::Vector{Float64}, Y::Vector{Float64}, Z::Vector{Float64}, p::AbstractOptParams)
     p.C * [X Y Z]
 end
 
@@ -53,7 +53,7 @@ function get_element_lengths(XYZ::Matrix{Float64})
     norm.(eachrow(XYZ))
 end
 
-function get_element_lengths_notangent(XYZ::Matrix{Float64})
+function get_element_lengths_noadjoint(XYZ::Matrix{Float64})
     norm.(eachrow(XYZ))
 end
 
@@ -86,7 +86,7 @@ function get_normalized_element_vectors(XYZ::Matrix{Float64}, Ls::Vector{Float64
     XYZ ./ Ls
 end
 
-function get_normalized_element_vectors_notangent(XYZ::Matrix{Float64}, Ls::Vector{Float64})
+function get_normalized_element_vectors_noadjoint(XYZ::Matrix{Float64}, Ls::Vector{Float64})
     XYZ ./ Ls
 end
 

@@ -1,66 +1,143 @@
 """
-    solve_u(K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
+    solve_truss(values::Vector{Float64}, p::TrussOptParams; linsolve_alg = UMFPACKFactorization())
 
-Displacement of free DOFs
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function solve_u(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams, alg::LinearSolve.SciMLLinearSolveAlgorithm)
-    linearproblem = LinearProblem(K[p.freeids, p.freeids], p.P[p.freeids])
-    sol = LinearSolve.solve(linearproblem, alg)
+function solve_truss(values::Vector{Float64}, p::TrussOptParams; linsolve_alg = UMFPACKFactorization())
+    
+    #populate values
+    X = p.indexer.activeX ? add_values_buffer(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values_buffer(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values_buffer(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    A = p.indexer.activeA ? replace_values_buffer(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
 
-    return sol.u
+
+    # vₑ: 
+    v = get_element_vectors(X, Y, Z, p)
+
+    # Lₑ
+    l = get_element_lengths(v)
+
+    # vnₑ
+    n = get_normalized_element_vectors(v, l)
+
+    # Γ
+    Γ = r_truss(n)
+
+    # kₑ
+    kₑ = k_truss.(p.E, A, l)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u(K, p, linsolve_alg)
+
+    # U
+    U = replace_values_buffer(zeros(p.n), p.freeids, u)
+
+    # Store values for continuity in gradients
+    return TrussResults(X,
+        Y,
+        Z,
+        A,
+        l,
+        Kₑ,
+        Γ,
+        U)
 end
 
-function ChainRulesCore.rrule(::typeof(solve_u), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams, alg::LinearSolve.SciMLLinearSolveAlgorithm)
-    linearproblem = LinearProblem(K[p.freeids, p.freeids], p.P[p.freeids])
-    linsolve = LinearSolve.init(linearproblem, alg)
-    sol1 = LinearSolve.solve!(linsolve)
-    u = sol1.u
+"""
+    solve_network(values::Vector{Float64}, p::NetworkOptParams)
 
-    function solve_u_pullback(ū)
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
+"""
+function solve_network(values::Vector{Float64}, p::NetworkOptParams)
+    
+    #populate values
+    X = p.indexer.activeX ? add_values_buffer(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values_buffer(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values_buffer(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
+    q = p.indexer.activeQ ? replace_values_buffer(p.q, p.indexer.iQ, values[p.indexer.iQg] .* p.indexer.fQ) : p.q
 
-        #initialize
-        dudK = zeros(p.n, p.n)
+    # fixed nodal positions
+    xyz_f = [X[p.F] Y[p.F] Z[p.F]]
 
-        #sensitivities w/r/t active DOFs
-        # dKΔ = cg(K[p.freeids, p.freeids], ū)
-        linsolve.b = ū
-        sol2 = LinearSolve.solve!(linsolve)
+    # diagonal q matrix
+    Q = diagm(q)
 
-        #assign to proper indices
-        @views dudK[p.freeids, p.freeids] = kron(u', sol2.u)
+    #solve for free positions
+    xyz_n = (p.Cn' * Q * p.Cn) \ (p.Pn - p.Cn' * Q * p.Cf * xyz_f)
 
-        return NoTangent(), -dudK, NoTangent(), NoTangent()
-    end
+    X2 = replace_values_buffer(X, p.N, xyz_n[:, 1])
+    Y2 = replace_values_buffer(Y, p.N, xyz_n[:, 2])
+    Z2 = replace_values_buffer(Z, p.N, xyz_n[:, 3])
 
-    return u, solve_u_pullback
+    # Store values for continuity in gradients
+    return NetworkResults(X2,
+        Y2,
+        Z2,
+        q)
 end
 
 """
-    solve_u_direct(K::SparseMatrixCSC{Float64, Int64}, p::TrussOptParams)
+    solve_frame(values::Vector{Float64}, p::FrameOptParams; linsolve_alg = UMFPACKFactorization())
 
-Displacement of free DOFs using direct solve
+Solve and store all relevant intermediate variables after an analysis step. This function is the basis of ALL subsequent structural analysis
 """
-function solve_u_direct(K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
-    id = p.freeids
-    K[id, id] \ p.P[id]
-end
+function solve_frame(values::Vector{Float64}, p::FrameOptParams; linsolve_alg = UMFPACKFactorization())
 
-function ChainRulesCore.rrule(::typeof(solve_u_direct), K::SparseMatrixCSC{Float64, Int64}, p::AbstractOptParams)
-    u = solve_u_direct(K, p)
+    #populate values
+    X = p.indexer.activeX ? add_values_buffer(p.X, p.indexer.iX, values[p.indexer.iXg] .* p.indexer.fX) : p.X
+    Y = p.indexer.activeY ? add_values_buffer(p.Y, p.indexer.iY, values[p.indexer.iYg] .* p.indexer.fY) : p.Y
+    Z = p.indexer.activeZ ? add_values_buffer(p.Z, p.indexer.iZ, values[p.indexer.iZg] .* p.indexer.fZ) : p.Z
 
-    function solve_u_direct_pullback(ū)
+    A = p.indexer.activeA ? replace_values_buffer(p.A, p.indexer.iA, values[p.indexer.iAg] .* p.indexer.fA) : p.A
+    Ix = p.indexer.activeIx ? replace_values_buffer(p.Ix, p.indexer.iIx, values[p.indexer.iIxg] .* p.indexer.fIx) : p.Ix
+    Iy = p.indexer.activeIy ? replace_values_buffer(p.Iy, p.indexer.iIy, values[p.indexer.iIyg] .* p.indexer.fIy) : p.Iy
+    J = p.indexer.activeJ ? replace_values_buffer(p.J, p.indexer.iJ, values[p.indexer.iJg] .* p.indexer.fJ) : p.J
 
-        #initialize
-        dudK = zeros(p.n, p.n)
+    # vₑ: 
+    v = get_element_vectors(X, Y, Z, p)
 
-        #sensitivities w/r/t active DOFs
-        dKΔ = K[p.freeids, p.freeids] \ ū
+    # Lₑ
+    L = get_element_lengths(v)
 
-        #assign to proper indices
-        dudK[p.freeids, p.freeids] .= kron(u', dKΔ)
+    # vnₑ
+    n = get_normalized_element_vectors(v, L)
 
-        return NoTangent(), -dudK, NoTangent()
-    end
+    # Γ
+    Γ = r_frame(n, p.Ψ)
 
-    return u, solve_u_direct_pullback
+    # kₑ
+    kₑ = k.(p.releases, p.E, p.G, A, L, Ix, Iy, J)
+
+    # Kₑ = ΓᵀkₑΓ
+    Kₑ = get_global_ks(Γ, kₑ)
+
+    # K
+    K = assemble_global_K(Kₑ, p)
+
+    # K⁻¹P
+    u = solve_u(K, p, linsolve_alg)
+
+    # U
+    U = replace_values_buffer(zeros(p.n), p.freeids, u)
+
+    return FrameResults(
+        X,
+        Y,
+        Z,
+        A,
+        Ix,
+        Iy,
+        J,
+        L,
+        Kₑ,
+        Γ,
+        U
+    )
 end
