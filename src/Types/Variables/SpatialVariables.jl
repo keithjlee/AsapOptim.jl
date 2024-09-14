@@ -56,7 +56,7 @@ Where: `lowerbound` ≤ `value` ≤ `upperbound`
 And `value` is set to 0.
 """
 function SpatialVariable(node::T, vector::Vector{Float64}, lowerbound::Float64, upperbound::Float64) where {T<:Asap.AbstractNode}
-    return SpatialVariable(node, normalize(vector), 0.0, lowerbound, upperbound)
+    return SpatialVariable(node.nodeID, 0.0, normalize(vector), lowerbound, upperbound, 0)
 end
 
 """
@@ -68,7 +68,7 @@ function SpatialVariable(node::T, value::Float64, lowerbound::Float64, upperboun
     !in(axis, keys(axis_to_vector)) && error("Axis value not recognized, choose from (:X, :Y, :Z) or define an explict vector in R³")
 
     vector = axis_to_vector[axis]
-    return SpatialVariable(node, vector, value, lowerbound, upperbound)
+    return SpatialVariable(node.nodeID, value, vector, lowerbound, upperbound, 0)
 end
 
 """
@@ -77,6 +77,16 @@ end
 Define a `SpatialVariable` for a given node, in a given Cartesian direction, `axis` ∈ [:X, :Y, :Z] and default value is set to 0.
 """
 function SpatialVariable(node::T, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z) where {T<:Asap.AbstractNode}
+    vector = axis_to_vector[axis]
+    return SpatialVariable(node.nodeID, 0.0, vector, lowerbound, upperbound, 0)
+end
 
-    return SpatialVariable(node, 0.0, lowerbound, upperbound, axis)
+"""
+    SpatialVariable(node::Asap.FDMnode, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z) where {T<:Asap.AbstractNode}
+
+Define a `SpatialVariable` for an FDM node, along the normalized value `vector` 
+"""
+function SpatialVariable(node::Asap.FDMnode, vector::Vector{Float64}, value::Float64, lowerbound::Float64, upperbound::Float64)
+    node.dof && error("Spatial variable can only be applied to an anchor node.")
+    return SpatialVariable(node.nodeID, value, vector, lowerbound, upperbound, 0)
 end

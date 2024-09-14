@@ -1,13 +1,7 @@
 """
     CoupledVariable <: AbstractVariable
 
-A variable whose value points to an existing variable.
-
-```julia
-var = CoupledVariable(variable::Union{TrussNode, TrussElement, FDMelement}, reference::Union{SpatialVariable, AreaVariable, QVaraible}, factor = 1.0)
-```
-
-Where `factor` is a scalar factor applied to the value of `reference` before assigning to `variable`. IE to enforce a mirrored value, use `factor = -1.0`.
+A variable assigned to an element or node whose value is dependent on the values of another variable.
 """
 mutable struct CoupledVariable{T<:IndependentVariable} <: AbstractVariable
     i::Int64
@@ -16,24 +10,54 @@ mutable struct CoupledVariable{T<:IndependentVariable} <: AbstractVariable
     iglobal::Int64
 end
 
-function CoupledVariable(node::Asap.AbstractNode, ref::T, factor::Float64 = 1.0) where {T<:SpatialVariable}
+"""
+    CoupledVariable(node::T, ref::SpatialVariable, vec::Vector{Float64}) where {T<:Asa.AbstractNode}
 
-    CoupledVariable{T}(node.nodeID, objectid(ref), factor, 0)
+Make a `SpatialVariable` for `node` that is coupled to `ref.value` but with along a different vector `vector`
+"""
+function CoupledVariable(node::T, ref::SpatialVariable, vector::Vector{Float64}) where {T<:Asap.AbstractNode}
+
+    @assert length(vec) == 3
+
+    CoupledVariable{SpatialVariable}(node.nodeID, objectid(ref), vector, 0)
+
 end
 
-function CoupledVariable(index::Int64, ref::T, factor::Float64 = 1.0) where {T<:SpatialVariable}
+"""
+    CoupledVariable(node::Asap.AbstractNode, ref::SpatialVariable, factor::Union{Float64, Vector{Float64}} = 1.0)
 
-    CoupledVariable{T}(index, objectid(ref), factor, 0)
+Make a `SpatialVariable` for `node` that is coupled to `ref.value` along the direction `factor` * `ref.vec`.
+
+`factor` is either a scalar or a vector in R³.
+"""
+function CoupledVariable(node::Asap.AbstractNode, ref::SpatialVariable, factor::Union{Float64, Vector{Float64}} = 1.0)
+
+    @assert length(factor) == 3 || length(factor) == 1
+
+    CoupledVariable{SpatialVariable}(node.nodeID, objectid(ref), ref.vec .* factor, 0)
 end
 
+"""
+    CoupledVariable(element::Asap.AbstractElement, ref::AreaVariable, factor::Float64 = 1.0)
 
-function CoupledVariable(element::Asap.AbstractElement, ref::T, factor::Float64 = 1.0) where {T<:AreaVariable}
+Make an `AreaVariable` for `element` that is coupled to `factor * ref.value`
+
+`factor` must be > 0.
+"""
+function CoupledVariable(element::Asap.AbstractElement, ref::AreaVariable, factor::Float64 = 1.0)
 
     @assert factor > 0
 
-    CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
+    CoupledVariable{AreaVariable}(element.elementID, objectid(ref), factor, 0)
 end
 
+"""
+    CoupledVariable(element::Asap.Element, ref::T, factor::Float64 = 1.0) where {T<:SectionVariable}
+
+Make an `SectionVariable` for `element` that is coupled to `factor * ref.value`
+
+`factor` must be > 0.
+"""
 function CoupledVariable(element::Asap.Element, ref::T, factor::Float64 = 1.0) where {T<:SectionVariable}
 
     @assert factor > 0
@@ -41,6 +65,14 @@ function CoupledVariable(element::Asap.Element, ref::T, factor::Float64 = 1.0) w
     CoupledVariable{T}(element.elementID, objectid(ref), factor, 0)
 end
 
+
+"""
+    CoupledVariable(element::Asap.FDMelement, ref::QVariable, factor::Float64 = 1.0)
+
+Make an `Qvariable` for `element` that is coupled to `factor * ref.value`
+
+`factor` must be > 0.
+"""
 function CoupledVariable(element::Asap.FDMelement, ref::QVariable, factor::Float64 = 1.0)
 
     @assert factor > 0
