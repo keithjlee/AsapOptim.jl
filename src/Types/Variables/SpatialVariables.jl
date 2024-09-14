@@ -88,5 +88,5 @@ Define a `SpatialVariable` for an FDM node, along the normalized value `vector`
 """
 function SpatialVariable(node::Asap.FDMnode, vector::Vector{Float64}, value::Float64, lowerbound::Float64, upperbound::Float64)
     node.dof && error("Spatial variable can only be applied to an anchor node.")
-    return SpatialVariable(node.nodeID, value, vector, lowerbound, upperbound, 0)
+    return SpatialVariable(node.nodeID, value, normalize(vector), lowerbound, upperbound, 0)
 end

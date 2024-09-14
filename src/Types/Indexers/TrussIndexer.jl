@@ -52,5 +52,3 @@ function TrussOptIndexer(vars::Vector{T}) where T <: TrussVariable
     
     indexer
 end
-
-

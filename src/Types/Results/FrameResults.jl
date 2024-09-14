@@ -13,50 +13,6 @@ Fields:
 - R: Elemental transformation matrices
 - U: Displacement vector of all nodes
 """
-struct TrussResults
-    X::Vector{Float64}
-    Y::Vector{Float64}
-    Z::Vector{Float64}
-    A::Vector{Float64}
-    L::Vector{Float64}
-    K::Vector{Matrix{Float64}}
-    R::Vector{Matrix{Float64}}
-    U::Vector{Float64}
-end
-
-"""
-    NetworkResults
-
-Results of a differentiable FDM analysis of a network.
-
-Fields:
-- X: x-position of all nodes
-- Y: y-position of all nodes
-- Z: z-position of all nodes
-- Q: force densities of all elements
-"""
-struct NetworkResults
-    X::Vector{Float64}
-    Y::Vector{Float64}
-    Z::Vector{Float64}
-    Q::Vector{Float64}
-end
-
-"""
-    TrussResults
-
-Results of a differentiable structural analysis of a truss model.
-
-Fields:
-- X: x-position of all nodes
-- Y: y-position of all nodes
-- Z: z-position of all nodes
-- A: Area of all elements
-- L: Length of all elements
-- K: Elemental stiffness matrices in GCS
-- R: Elemental transformation matrices
-- U: Displacement vector of all nodes
-"""
 struct FrameResults
     X::Vector{Float64}
     Y::Vector{Float64}
@@ -93,7 +49,7 @@ struct GeometricProperties
     A::Vector{Float64}
     L::Vector{Float64}
 
-    function GeometricProperties(design_variables::Vector{Float64}, opt_params::TrussOptParams)
+    function GeometricProperties(design_variables::Vector{Float64}, opt_params::T) where {T<:Union{TrussOptParams, FrameOptParams}}
 
         #populate values
         X = opt_params.indexer.activeX ? add_values(opt_params.X, opt_params.indexer.iX, design_variables[opt_params.indexer.iXg] .* opt_params.indexer.fX) : opt_params.X

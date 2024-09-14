@@ -6,7 +6,7 @@ A variable assigned to an element or node whose value is dependent on the values
 mutable struct CoupledVariable{T<:IndependentVariable} <: AbstractVariable
     i::Int64
     target::UInt64
-    factor::Float64
+    factor::Union{Float64, Vector{Float64}}
     iglobal::Int64
 end
 

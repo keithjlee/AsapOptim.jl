@@ -4,13 +4,10 @@ abstract type IndependentVariable <: AbstractVariable end
 abstract type AbstractIndexer end
 abstract type AbstractOptParams end
 
-include("utilities.jl")
+include("Utilities.jl")
 
 # Variables
 include("Variables/Variables.jl")
-
-# Independent numeric variables
-export NumericVariable
 
 # Independent structural variables
 export SpatialVariable
@@ -38,7 +35,7 @@ export NetworkOptParams
 export FrameOptParams
 
 # results
-include("Results.jl")
+include("Results/Results.jl")
 export TrussResults
 export NetworkResults
 export GeometricProperties
