@@ -105,11 +105,10 @@ OBJ = x -> obj(x, params)
 o0, ∇o0 = withgradient(OBJ, x0)
 
 # constraint function
-i_bottom_nodes = findall(model.nodes, :bottom)
 function cstr(x, p, dmax, smax)
     res = solve_truss(x, p)
     
-    vertical_displacements = res.U[2:3:end][i_bottom_nodes]
+    vertical_displacements = res.U[2:3:end]
     stresses = AsapOptim.axial_force(res, p) ./ res.A
 
     return [
@@ -124,8 +123,7 @@ c0, ∇c0 = withjacobian(CSTR, x0)
 #=
 Optimization
 =#
-F = TraceFunction(OBJ)
-optmodel = Nonconvex.Model(F)
+optmodel = Nonconvex.Model(OBJ)
 addvar!(optmodel, params.lb, params.ub)
 add_ineq_constraint!(optmodel, CSTR)
 
@@ -135,17 +133,12 @@ opts = NLoptOptions(
     maxtime = 60
 )
 
-begin
-    t0 = time()
-    res = optimize(
-        optmodel,
-        alg,
-        x0,
-        options = opts
-    )
-
-    restime = time() - t0
-end
+res = optimize(
+    optmodel,
+    alg,
+    x0,
+    options = opts
+)
 
 # make new model from solution
 model2 = updatemodel(params, res.minimizer)

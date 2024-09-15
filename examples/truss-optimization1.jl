@@ -111,8 +111,7 @@ OBJ = x -> obj(x, params)
 o0, ∇o0 = withgradient(OBJ, x0)
 
 # make optimization model
-F = TraceFunction(OBJ)
-optmodel = Nonconvex.Model(F)
+optmodel = Nonconvex.Model(OBJ)
 
 # add variable bounds
 addvar!(optmodel, params.lb, params.ub)
@@ -125,8 +124,6 @@ opts = NLoptOptions(
 )
 
 # solve
-begin
-t0 = time()
 res = optimize(
     optmodel,
     alg,
@@ -134,8 +131,6 @@ res = optimize(
     options = opts
 )
 
-restime = time() - t0
-end
 # make new model from solution
 model2 = updatemodel(params, res.minimizer)
 
@@ -157,29 +152,3 @@ begin
 
     fig
 end
-
-save("compliance_solution.pdf", fig)
-
-loss_history = getproperty.(F.trace, :output)
-
-dt = range(0, restime, length(loss_history))
-
-begin
-    fig = Figure()
-    ax = Axis(
-        fig[1,1], 
-        aspect = 3,
-        xlabel = "TIME [s]",
-        ylabel = "COMPLIANCE [kNm]",
-        backgroundcolor = kjl_gray
-    )
-
-    graystyle!(ax)
-
-    lines!(dt, loss_history)
-
-
-    fig
-end
-
-save("compliance_trace.pdf", fig)
