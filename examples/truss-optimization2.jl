@@ -124,8 +124,8 @@ c0, ∇c0 = withjacobian(CSTR, x0)
 #=
 Optimization
 =#
-
-optmodel = Nonconvex.Model(OBJ)
+F = TraceFunction(OBJ)
+optmodel = Nonconvex.Model(F)
 addvar!(optmodel, params.lb, params.ub)
 add_ineq_constraint!(optmodel, CSTR)
 
@@ -135,12 +135,17 @@ opts = NLoptOptions(
     maxtime = 60
 )
 
-@time res = optimize(
-    optmodel,
-    alg,
-    x0,
-    options = opts
-)
+begin
+    t0 = time()
+    res = optimize(
+        optmodel,
+        alg,
+        x0,
+        options = opts
+    )
+
+    restime = time() - t0
+end
 
 # make new model from solution
 model2 = updatemodel(params, res.minimizer)
@@ -160,9 +165,35 @@ begin
     hidespines!(ax)
     hidedecorations!(ax)
 
-    linesegments!(e, color = (:black, .1), linestyle = :dash)
+    # linesegments!(e, color = (:black, .1), linestyle = :dash)
     linesegments!(e2, color = :black, linewidth = lw)
     scatter!(p2, color = :white, strokecolor = :black, strokewidth = 1)
 
     fig
 end
+
+save("volume_solution.pdf", fig)
+
+loss_history = getproperty.(F.trace, :output)
+
+dt = range(0, restime, length(loss_history))
+
+begin
+    fig = Figure()
+    ax = Axis(
+        fig[1,1], 
+        aspect = 3,
+        xlabel = "TIME [s]",
+        ylabel = "VOLUME [m³]",
+        backgroundcolor = kjl_gray
+    )
+
+    graystyle!(ax)
+
+    lines!(dt, loss_history)
+
+
+    fig
+end
+
+save("volume_trace.pdf", fig)

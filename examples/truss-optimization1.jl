@@ -1,7 +1,9 @@
 using AsapOptim, LinearAlgebra
 
 # You will need to also add the following packages for this example
-using Asap, GLMakie, Nonconvex, NonconvexNLopt, Zygote
+using Asap, kjlMakie, Nonconvex, NonconvexNLopt, Zygote
+set_theme!(kjl_light_mono)
+using CairoMakie; CairoMakie.activate!()
 
 # initial section
 begin
@@ -109,7 +111,8 @@ OBJ = x -> obj(x, params)
 o0, ∇o0 = withgradient(OBJ, x0)
 
 # make optimization model
-optmodel = Nonconvex.Model(OBJ)
+F = TraceFunction(OBJ)
+optmodel = Nonconvex.Model(F)
 
 # add variable bounds
 addvar!(optmodel, params.lb, params.ub)
@@ -122,6 +125,8 @@ opts = NLoptOptions(
 )
 
 # solve
+begin
+t0 = time()
 res = optimize(
     optmodel,
     alg,
@@ -129,6 +134,8 @@ res = optimize(
     options = opts
 )
 
+restime = time() - t0
+end
 # make new model from solution
 model2 = updatemodel(params, res.minimizer)
 
@@ -144,9 +151,35 @@ begin
     hidespines!(ax)
     hidedecorations!(ax)
 
-    linesegments!(e, color = (:black, .25))
+    # linesegments!(e, color = (:black, .25))
     linesegments!(e2, color = :black)
     scatter!(p2, color = :white, strokecolor = :black, strokewidth = 1)
 
     fig
 end
+
+save("compliance_solution.pdf", fig)
+
+loss_history = getproperty.(F.trace, :output)
+
+dt = range(0, restime, length(loss_history))
+
+begin
+    fig = Figure()
+    ax = Axis(
+        fig[1,1], 
+        aspect = 3,
+        xlabel = "TIME [s]",
+        ylabel = "COMPLIANCE [kNm]",
+        backgroundcolor = kjl_gray
+    )
+
+    graystyle!(ax)
+
+    lines!(dt, loss_history)
+
+
+    fig
+end
+
+save("compliance_trace.pdf", fig)

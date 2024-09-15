@@ -11,13 +11,7 @@ const axis_to_vector = Dict(
 """
     SpatialVariable <: IndependentVariable
 
-A variable tied to the spatial position of a node in a single axis.
-
-```julia
-SpatialVariable(nodeindex::Int64, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, value::Float64, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-SpatialVariable(node::Union{Asap.AbstractNode, Asap.FDMnode}, lowerbound::Float64, upperbound::Float64, axis::Symbol = :Z)
-```
+A variable tied to the spatial position of a node along a defined axis.
 """
 mutable struct SpatialVariable <: IndependentVariable
     i::Int64 #index of node, e.g. X[i] is the spatial variable
