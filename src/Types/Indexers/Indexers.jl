@@ -2,31 +2,34 @@ include("TrussIndexer.jl")
 include("NetworkIndexer.jl")
 include("FrameIndexer.jl")
 
-function populate!(indexer::AbstractIndexer, var::SpatialVariable{SpatialX})
+function populate!(indexer::AbstractIndexer, var::SpatialVariable)
 
-    push!(indexer.iX, var.i)
-    push!(indexer.iXg, var.iglobal)
-    push!(indexer.fX, 1.0)
+    x, y, z = var.vec
 
-    indexer.activeX = true
-end
+    if x != 0.0
+        push!(indexer.iX, var.i)
+        push!(indexer.iXg, var.iglobal)
+        push!(indexer.fX, x)
 
-function populate!(indexer::AbstractIndexer, var::SpatialVariable{SpatialY})
+        indexer.activeX = true
+    end
 
-    push!(indexer.iY, var.i)
-    push!(indexer.iYg, var.iglobal)
-    push!(indexer.fY, 1.0)
+    if y != 0.0
+        push!(indexer.iY, var.i)
+        push!(indexer.iYg, var.iglobal)
+        push!(indexer.fY, y)
 
-    indexer.activeY = true
-end
+        indexer.activeY = true
+    end
 
-function populate!(indexer::AbstractIndexer, var::SpatialVariable{SpatialZ})
+    if z != 0.0
+        push!(indexer.iZ, var.i)
+        push!(indexer.iZg, var.iglobal)
+        push!(indexer.fZ, z)
 
-    push!(indexer.iZ, var.i)
-    push!(indexer.iZg, var.iglobal)
-    push!(indexer.fZ, 1.0)
+        indexer.activeZ = true
+    end
 
-    indexer.activeZ = true
 end
 
 function populate!(indexer::Union{TrussOptIndexer, FrameOptIndexer}, var::AreaVariable)
@@ -39,28 +42,33 @@ function populate!(indexer::Union{TrussOptIndexer, FrameOptIndexer}, var::AreaVa
 
 end
 
-function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariable{SpatialX}})
+function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariable})
 
-    push!(indexer.iX, var.i)
-    push!(indexer.iXg, var.iglobal)
-    push!(indexer.fX, var.factor)
+    fx, fy, fz = var.factor
 
-end
+    if x != 0.0
+        push!(indexer.iX, var.i)
+        push!(indexer.iXg, var.iglobal)
+        push!(indexer.fX, fx)
 
-function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariable{SpatialY}})
+        indexer.activeX = true
+    end
 
-    push!(indexer.iY, var.i)
-    push!(indexer.iYg, var.iglobal)
-    push!(indexer.fY, var.factor)
+    if y != 0.0
+        push!(indexer.iY, var.i)
+        push!(indexer.iYg, var.iglobal)
+        push!(indexer.fY, fy)
 
-end
+        indexer.activeY = true
+    end
 
-function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariable{SpatialZ}})
+    if z != 0.0
+        push!(indexer.iZ, var.i)
+        push!(indexer.iZg, var.iglobal)
+        push!(indexer.fZ, fz)
 
-    push!(indexer.iZ, var.i)
-    push!(indexer.iZg, var.iglobal)
-    push!(indexer.fZ, var.factor)
-    
+        indexer.activeZ = true
+    end
 end
 
 function populate!(indexer::Union{TrussOptIndexer, FrameOptIndexer}, var::CoupledVariable{AreaVariable})

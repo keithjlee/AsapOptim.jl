@@ -23,15 +23,13 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
 
         for i in eachindex(ids)
             # F̄ ⋅ dF/dR
-            ΔR = kron(Eks[i] * u[ids[i]], I(2)) * F̄[i]
-            dR[i] = reshape(ΔR, 2, 6)
+            dR[i] = F̄[i] * (Eks[i] * u[ids[i]])'
 
             #F̄ ⋅ dF/du
-            du[ids[i]] += (Rs[i] * Eks[i])' * F̄[i]
+            du[ids[i]] .+= (Rs[i] * Eks[i])' * F̄[i]
 
             #F̄ ⋅ dF/dK
-            ΔK = kron(u[ids[i]]', Rs[i])' * F̄[i]
-            dK[i] = reshape(ΔK, 6, 6)
+            dK[i] = (Rs[i]' * F̄[i]) * u[ids[i]]'
         end
 
         return (NoTangent(), du, dK, dR, NoTangent())
@@ -41,34 +39,17 @@ function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{
     return F, Flocal_pullback
 end
 
-function ChainRulesCore.rrule(::typeof(Flocal), u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::FrameOptParams)
+function Flocal_noadjoint(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::AbstractOptParams)
 
-    F = Flocal(u, Eks, Rs, p)
+    #Displacements w/r/t each element
+    uEs = [u[id] for id in p.dofids]
 
-    function Flocal_pullback(F̄)
-        du = zero(u)
-        dK = zero.(Eks)
-        dR = zero.(Rs)
-        ids = p.dofids
+    #End forces
+    Rs .* Eks .* uEs
+end
 
-        for i in eachindex(ids)
-            # F̄ ⋅ dF/dR
-            ΔR = kron(Eks[i] * u[ids[i]], I(2)) * F̄[i]
-            dR[i] = reshape(ΔR, 12, 12)
-
-            #F̄ ⋅ dF/du
-            du[ids[i]] += (Rs[i] * Eks[i])' * F̄[i]
-
-            #F̄ ⋅ dF/dK
-            ΔK = kron(u[ids[i]]', Rs[i])' * F̄[i]
-            dK[i] = reshape(ΔK, 12, 12)
-        end
-
-        return (NoTangent(), du, dK, dR, NoTangent())
-
-    end
-
-    return F, Flocal_pullback
+function element_forces(res::FrameResults, p::FrameOptParams)
+    return Flocal(res.U, res.K, res.R, p)
 end
 
 """
@@ -80,24 +61,23 @@ function axial_force(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vecto
     getindex.(fvecs, 2)
 end
 
+function axial_force_noadjoint(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+    fvecs = Flocal_noadjoint(u, Eks, Rs, p)
+    getindex.(fvecs, 2)
+end
+
+function axial_force(u::Vector{Float64}, Eks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::FrameOptParams)
+    fvecs = Flocal(u, Eks, Rs, p)
+    getindex.(fvecs, 7)
+end
+
 """
     σaxial(F::Vector{Float64}, A::Vector{Float64})
 
 Get the absolute value of the axial stress experienced under force F and area A
 """
 function σaxial(F::Vector{Float64}, A::Vector{Float64})
-    stress = zero(F)
-
-    for i in eachindex(F)
-        if F[i] < 0
-            stress[i] = -F[i] / A[i]
-        else
-            stress[i] = F[i] / A[i]
-        end
-    end
-    
-
-    return stress
+    return abs.(F) ./ A
 end
 
 """
@@ -109,7 +89,7 @@ function ChainRulesCore.rrule(::typeof(σaxial), F::Vector{Float64}, A::Vector{F
 
     function σaxial_pullback(σ̄)
         s = sign.(F)
-        return (NoTangent(), σ̄ .* s ./ A, -σ̄ .* F ./ A.^2)
+        return (NoTangent(), σ̄ .* s ./ A, -σ̄ .* s .* F ./ A.^2)
     end
 
     return stress, σaxial_pullback
@@ -140,6 +120,50 @@ function axial_force(t::NetworkResults, p::NetworkOptParams)
     norm.(eachrow(p.C * [t.X t.Y t.Z])) .* t.Q
 end
 
+export f_axial_new
+function f_axial_new(U::Vector{Float64}, Ks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+
+    # initialize
+    forces = Vector{Float64}(undef, length(Ks))
+
+    for i in eachindex(forces)
+        edof = p.dofids[i]
+        edisp = U[edof]
+
+        forces[i] = dot(Rs[i][2,:], Ks[i] * edisp)
+    end
+
+    return forces
+
+end
+
+function ChainRulesCore.rrule(::typeof(f_axial_new), U::Vector{Float64}, Ks::Vector{Matrix{Float64}}, Rs::Vector{Matrix{Float64}}, p::TrussOptParams)
+
+    F = f_axial_new(U, Ks, Rs, p)
+
+    function f_axial_new_pullback(F̄)
+
+        dU = zero(U)
+        dKs = zero.(Ks)
+        dRs = zero.(Rs)
+
+        for i in eachindex(Ks)
+
+            r = Rs[i][2, :]
+            k = Ks[i]
+            u = U[p.dofids[i]]
+
+            dU[p.dofids[i]] .+= F̄[i] .* k * r
+            dKs[i] = F̄[i] .* r * u'
+            dRs[i][2, :] = F̄[i] .* u'* k
+
+            return (NoTangent(), dU, dKs, dRs, NoTangent())
+        end
+
+    end
+
+    return F, f_axial_new_pullback
+end
 """
     updatemodel(p::TrussOptParams, u::Vector{Float64})
 
@@ -231,6 +255,11 @@ function updatenetwork(p::NetworkOptParams, u::Vector{Float64})
 
 end
 
+release_type_to_symbol(::Type{Asap.FixedFixed}) = :fixedfixed
+release_type_to_symbol(::Type{Asap.FixedFree}) = :fixedfree
+release_type_to_symbol(::Type{Asap.FreeFixed}) = :freefixed
+release_type_to_symbol(::Type{Asap.Joist}) = :joist
+
 """
     updatemodel(p::TrussOptParams, u::Vector{Float64})
 
@@ -260,11 +289,11 @@ function updatemodel(p::FrameOptParams, u::Vector{Float64})
     end
 
     #new elements
-    for (id, el, a, ix, iy, j) in zip(p.nodeids, p.model.elements, A, Ix, Iy, J)
+    for (id, el, a, ix, iy, j, r) in zip(p.nodeids, p.model.elements, A, Ix, Iy, J, p.releases)
         section = deepcopy(el.section)
 
         newsection = Section(a, section.E, section.G, ix, iy, j)
-        newelement = Element(nodes[id]..., newsection)
+        newelement = Element(nodes[id]..., newsection; release = release_type_to_symbol(r))
         newelement.id = el.id
         push!(elements, newelement)
     end
@@ -296,3 +325,56 @@ function updatemodel(p::FrameOptParams, u::Vector{Float64})
 
 end
 
+export FL2
+function FL2(F, L)
+
+    loss = 0.0
+    for (f, l) in zip(F, L)
+        if f ≥ 0
+            loss += f * l
+        else
+            loss -= f * l^2
+        end
+    end
+
+    return loss
+end
+
+function ChainRulesCore.rrule(::typeof(FL2), F, L)
+
+    loss = FL2(F, L)
+
+    function FL2_pullback(Ō)
+
+        F̄ = zero(F)
+        L̄ = zero(L)
+
+        i_tens = findall(F .≥ 0)
+        i_comp = findall(F .< 0)
+
+        F̄[i_tens] .+= L̄[i_tens] .* Ō
+        F̄[i_comp] .-=  (L̄[i_comp]).^2 .* Ō
+
+        L̄[i_tens] .+= F̄[i_tens] .* Ō
+        L̄[i_comp] .-= 2F̄[i_comp] .* L̄[i_comp] .* Ō
+
+        return NoTangent(), F̄, L̄
+    end
+
+    return loss, FL2_pullback
+end
+
+export FL2_noadjoint
+function FL2_noadjoint(F, L)
+
+    loss = 0.0
+    for (f, l) in zip(F, L)
+        if f ≥ 0
+            loss += f * l
+        else
+            loss -= f * l^2
+        end
+    end
+
+    return loss
+end

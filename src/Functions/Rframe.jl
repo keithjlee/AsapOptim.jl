@@ -1,4 +1,4 @@
-function r_frame(Cxyz::AbstractArray, Ψ::Float64; tol = 1e-6)
+function r_frame(Cxyz::AbstractArray, Ψ::Float64; tol = 1e-4)
 
     #local x vector cosines
     Cx, Cy, Cz = Cxyz
