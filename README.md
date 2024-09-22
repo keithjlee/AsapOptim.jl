@@ -4,6 +4,12 @@
 
 High performance *general* structural optimization in the [Asap.jl](https://github.com/keithjlee/Asap) environment.
 
+# Installation
+In package mode, add `AsapOptim` via:
+```julia-repl
+pkg> add AsapOptim
+```
+
 # Usage
 The files used to make these examples are in `examples/`
 
