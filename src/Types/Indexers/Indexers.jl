@@ -46,7 +46,7 @@ function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariabl
 
     fx, fy, fz = var.factor
 
-    if x != 0.0
+    if fx != 0.0
         push!(indexer.iX, var.i)
         push!(indexer.iXg, var.iglobal)
         push!(indexer.fX, fx)
@@ -54,7 +54,7 @@ function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariabl
         indexer.activeX = true
     end
 
-    if y != 0.0
+    if fy != 0.0
         push!(indexer.iY, var.i)
         push!(indexer.iYg, var.iglobal)
         push!(indexer.fY, fy)
@@ -62,7 +62,7 @@ function populate!(indexer::AbstractIndexer, var::CoupledVariable{SpatialVariabl
         indexer.activeY = true
     end
 
-    if z != 0.0
+    if fz != 0.0
         push!(indexer.iZ, var.i)
         push!(indexer.iZg, var.iglobal)
         push!(indexer.fZ, fz)

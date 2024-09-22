@@ -1,7 +1,7 @@
 name = "AsapOptim"
 uuid = "d81720e7-9d76-4c66-a69e-8f07ca321cc4"
 authors = ["kjl_macbook <keithjl@mit.edu>"]
-version = "0.1.0"
+version = "0.1.1"
 
 [deps]
 Asap = "763a8c06-ba23-41fc-b385-b3b57b52403a"
