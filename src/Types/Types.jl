@@ -36,6 +36,5 @@ export FrameOptParams
 
 # results
 include("Results/Results.jl")
-export TrussResults
 export NetworkResults
 export GeometricProperties
