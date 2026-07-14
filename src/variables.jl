@@ -90,7 +90,7 @@ julia> CoupledVariable(right_node, parent, -1.0)   # mirror across the axis
 ```
 """
 struct CoupledVariable <: AbstractVariable
-    target::Union{Node,FrameElement,TrussElement}
+    target::Union{Node,FrameElement,TrussElement,Asap.FDMelement}
     parent::AbstractVariable
     factor::Float64
 

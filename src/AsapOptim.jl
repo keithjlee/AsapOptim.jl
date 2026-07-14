@@ -24,8 +24,9 @@ back:
 Bring your own AD engine and optimizer: loading Zygote (or anything using
 ChainRulesCore) activates Asap's rule extension automatically.
 
-NOTE: the force-density Network optimization path of v0.1.x is not yet
-ported (`legacy_v0/` preserves the old implementation for reference).
+The force-density Network optimization path ([`QVariable`](@ref) →
+[`NetworkOptParams`](@ref) → [`solve_network`](@ref)) rides the same pure
+machinery.
 """
 module AsapOptim
 
@@ -48,6 +49,9 @@ export GeometricProperties
 
 include("update.jl")
 export updatemodel
+
+include("network.jl")
+export QVariable, NetworkOptParams, NetworkResults, solve_network, member_forces
 
 include("ShowMethods.jl")
 

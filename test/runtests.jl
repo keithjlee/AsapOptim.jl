@@ -151,3 +151,43 @@ end
         @test g[1] < 0                                  # thicker tie helps
     end
 end
+
+@testset "Network (FDM) optimization path" begin
+    # a small hanging net: 3×3 grid, corners fixed
+    ns = [Asap.FDMnode([Float64(i), Float64(j), 0.0], !(i in (0, 2) && j in (0, 2)))
+          for j in 0:2 for i in 0:2]
+    idx(i, j) = 3j + i + 1
+    els = Asap.FDMelement[]
+    for j in 0:2, i in 0:1
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i + 1, j), 1.0))
+    end
+    for j in 0:1, i in 0:2
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i, j + 1), 1.0))
+    end
+    loads = [Asap.FDMload(n, [0.0, 0.0, -1.0]) for n in ns if n.dof]
+    network = Asap.Network(ns, els, loads)
+
+    qv = QVariable(els[1], 1.5, 0.1, 10.0)
+    vars = AbstractVariable[qv,
+        CoupledVariable(els[2], qv),
+        QVariable(els[7], 2.0, 0.1, 10.0)]
+    np = NetworkOptParams(network, vars)
+    @test length(np.values) == 2
+
+    # forward parity with Asap's own FDM solver at the evaluated q
+    x = [1.5, 2.0]
+    res = solve_network(x, np)
+    Asap.update_q!(network, collect(res.Q))
+    Asap.solve!(network; reprocess = true)
+    @test [res.X res.Y res.Z] ≈ network.xyz rtol = 1e-10
+    @test all(isfinite, member_forces(res))
+
+    # gradient of a smooth force-length objective
+    obj(x) = begin
+        r = solve_network(x, np)
+        sum(abs2, r.Q .* r.L) / 100
+    end
+    g = Zygote.gradient(obj, x)[1]
+    gfd = FiniteDifferences.grad(FDM, obj, x)[1]
+    @test g ≈ gfd rtol = 1e-6
+end

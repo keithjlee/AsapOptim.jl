@@ -14,8 +14,9 @@ julia --project=. -e 'using Pkg; Pkg.test()'   # incl. Zygote-vs-FiniteDifferenc
 
 ## Known gaps (deliberate, documented)
 
-- The force-density **Network optimization path** (`NetworkOptParams`, `QVariable`, `solve_network`) is not yet ported — see `legacy_v0/`. Needed by DemandTransport2's spaceframe_to_vault example (Phase 5d).
 - `SectionVariable` (full section parameterization) not yet ported; `RigiditySection`-based parameterization is the intended v1.0 idiom.
+
+The force-density Network path IS ported: `QVariable` → `NetworkOptParams` → `solve_network` (forward parity with Asap's FDM solver verified at 1e-10; gradients via Asap's multi-RHS solve_free adjoint).
 
 ## Downstream consumers
 
