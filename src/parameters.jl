@@ -25,6 +25,9 @@ is unified, so one parameter type serves both.)
   with a variable, `A(x) = Sa·x` REPLACES the area (absolute semantics)
 - `F::Vector{Float64}`: the free-DOF load vector (loads are constant data
   in the differentiable path)
+- `i1`, `i2::Vector{Int}`: per-element node indices; `base_sections`: the
+  reference sections — plain-data mirrors so the differentiable path never
+  reads mutable structs (a Zygote tangent-accumulation catastrophe at scale)
 
 # Design-evaluation contract
 `x` is the vector an optimizer manipulates; [`solve_structure`](@ref)`(x, p)`
@@ -42,6 +45,10 @@ struct OptParams
     Sa::SparseMatrixCSC{Float64,Int}
     amask::Vector{Bool}
     F::Vector{Float64}
+    i1::Vector{Int}
+    i2::Vector{Int}
+    base_sections::Vector{Any}
+    Evec::Vector{Float64}            # per-element Young's moduli (constant)
 end
 
 const TrussOptParams = OptParams
@@ -121,8 +128,13 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
     A0 = [el.section isa Section ? el.section.A : 0.0 for el in model.elements]
 
     F = cache.P .- cache.Pf
+    i1 = [el.nodeStart.index for el in model.elements]
+    i2 = [el.nodeEnd.index for el in model.elements]
+    base_sections = Any[el.section for el in model.elements]
+    Evec = [s isa Section ? s.material.E : 0.0 for s in base_sections]
 
     return OptParams(model, values, lb, ub, X0,
         sparse(sxI, sxJ, sxV, 3 * nnodes, nx),
-        A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F)
+        A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F,
+        i1, i2, base_sections, Evec)
 end

@@ -10,7 +10,7 @@ ready for post-processing, force recovery, visualization, or export.
 this is a numeric re-assembly plus one factorization.)
 """
 function updatemodel(p::OptParams, x::AbstractVector)
-    X, _, sections = _design_state(x, p)
+    X, _, sections, _ = _design_state(x, p)
     for (i, node) in enumerate(p.model.nodes)
         node.position = SVector{3,Float64}(X[1, i], X[2, i], X[3, i])
     end

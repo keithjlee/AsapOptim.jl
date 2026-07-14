@@ -13,13 +13,16 @@ so gradients of any scalar of these fields flow back to the design vector.
 - `L::Vector`: evaluated element lengths
 - `sections::AbstractVector`: the evaluated per-element sections (feed to
   further pure computations if needed)
+- `EA::AbstractVector`: evaluated axial rigidities (plain vector — cheap
+  under reverse AD)
 """
-struct OptResults{TU,TX,TA,TL,TS}
+struct OptResults{TU,TX,TA,TL,TS,TE}
     U::TU
     X::TX
     A::TA
     L::TL
     sections::TS
+    EA::TE
 end
 
 # design vector → (positions, areas, sections, state); the shared pure core
@@ -27,17 +30,17 @@ function _design_state(x::AbstractVector, p::OptParams)
     X = p.X0 + reshape(p.Sx * x, 3, :)
     Avar = p.Sa * x
     A = [p.amask[i] ? Avar[i] : p.A0[i] for i in eachindex(p.amask)]
-    sections = map(eachindex(p.model.elements)) do i
-        el = p.model.elements[i]
-        s = el.section
+    sections = map(eachindex(p.amask)) do i
+        s = p.base_sections[i]::Section{Float64}
         p.amask[i] ? Section(s.material, A[i], s.Ix, s.Iy, s.J) : s
     end
-    return X, A, sections
+    EAvec = p.Evec .* A
+    return X, A, sections, EAvec
 end
 
 _element_lengths(X, p::OptParams) =
-    map(p.model.elements) do el
-        i, j = el.nodeStart.index, el.nodeEnd.index
+    map(eachindex(p.i1)) do k
+        i, j = p.i1[k], p.i2[k]
         sqrt((X[1, j] - X[1, i])^2 + (X[2, j] - X[2, i])^2 + (X[3, j] - X[3, i])^2)
     end
 
@@ -53,10 +56,10 @@ needs nothing else.
 distinction).
 """
 function solve_structure(x::AbstractVector, p::OptParams)
-    X, A, sections = _design_state(x, p)
-    state = ModelState{Float64}(X, sections)
+    X, A, sections, EAvec = _design_state(x, p)
+    state = ModelState{Float64}(X, sections, EAvec)
     U = Asap.solve(p.model, state)
-    return OptResults(U, X, A, _element_lengths(X, p), sections)
+    return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
 end
 
 const solve_truss = solve_structure
@@ -71,9 +74,8 @@ differentiable; exact for truss elements and for the axial action of frame
 elements with rigid axial connections.
 """
 function axial_force(res::OptResults, p::OptParams)
-    map(eachindex(p.model.elements)) do i
-        el = p.model.elements[i]
-        ni, nj = el.nodeStart.index, el.nodeEnd.index
+    map(eachindex(p.i1)) do i
+        ni, nj = p.i1[i], p.i2[i]
         L = res.L[i]
         nx = (res.X[1, nj] - res.X[1, ni]) / L
         ny = (res.X[2, nj] - res.X[2, ni]) / L
@@ -81,7 +83,7 @@ function axial_force(res::OptResults, p::OptParams)
         du1 = res.U[6*(nj-1)+1] - res.U[6*(ni-1)+1]
         du2 = res.U[6*(nj-1)+2] - res.U[6*(ni-1)+2]
         du3 = res.U[6*(nj-1)+3] - res.U[6*(ni-1)+3]
-        EA(res.sections[i]) / L * (nx * du1 + ny * du2 + nz * du3)
+        res.EA[i] / L * (nx * du1 + ny * du2 + nz * du3)
     end
 end
 
@@ -117,6 +119,10 @@ struct GeometricProperties{TX,TL,TA}
 end
 
 function GeometricProperties(x::AbstractVector, p::OptParams)
-    X, A, _ = _design_state(x, p)
+    # geometry-only: skip section-struct construction entirely (its
+    # constructor pullbacks would dominate this otherwise trivial path)
+    X = p.X0 + reshape(p.Sx * x, 3, :)
+    Avar = p.Sa * x
+    A = [p.amask[i] ? Avar[i] : p.A0[i] for i in eachindex(p.amask)]
     return GeometricProperties(X, _element_lengths(X, p), A)
 end
