@@ -10,13 +10,19 @@ ready for post-processing, force recovery, visualization, or export.
 this is a numeric re-assembly plus one factorization.)
 """
 function updatemodel(p::OptParams, x::AbstractVector)
-    X, _, sections, _ = _design_state(x, p)
+    X, _, sections, _, ends = _design_state(x, p)
     for (i, node) in enumerate(p.model.nodes)
         node.position = SVector{3,Float64}(X[1, i], X[2, i], X[3, i])
     end
     for (i, el) in enumerate(p.model.elements)
         p.amask[i] && (el.section = sections[i])
+        if ends !== nothing && el isa FrameElement &&
+           (p.jslot1[i] != 0 || p.jslot2[i] != 0)
+            el.ends = ends[i]
+        end
     end
-    solve!(p.model)
+    # changed end conditions live in the frozen analysis cache (and can alter
+    # DOF activity), so joint-variable designs need a re-process
+    solve!(p.model; reprocess = ends !== nothing)
     return p.model
 end

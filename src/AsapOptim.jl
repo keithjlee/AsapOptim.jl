@@ -37,7 +37,7 @@ using SparseArrays
 using StaticArrays
 
 include("variables.jl")
-export AbstractVariable, SpatialVariable, AreaVariable, CoupledVariable
+export AbstractVariable, SpatialVariable, AreaVariable, JointVariable, CoupledVariable
 
 include("parameters.jl")
 export OptParams, TrussOptParams, FrameOptParams

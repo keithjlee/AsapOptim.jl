@@ -35,7 +35,25 @@ function _design_state(x::AbstractVector, p::OptParams)
         p.amask[i] ? Section(s.material, A[i], s.Ix, s.Iy, s.J) : s
     end
     EAvec = p.Evec .* A
-    return X, A, sections, EAvec
+    ends = _design_ends(x, p)
+    return X, A, sections, EAvec, ends
+end
+
+# per-element EndConditions with joint-variable rotational stiffnesses
+# substituted; `nothing` when no joint variables exist (frame kernels then
+# use the cached ends — zero overhead)
+function _design_ends(x::AbstractVector, p::OptParams)
+    all(iszero, p.jslot1) && all(iszero, p.jslot2) && return nothing
+    return map(eachindex(p.base_ends)) do i
+        s1, s2 = p.jslot1[i], p.jslot2[i]
+        s1 == 0 && s2 == 0 && return p.base_ends[i]
+        base = p.base_ends[i]::EndConditions{Float64}
+        e1 = s1 == 0 ? base.e1 :
+             EndSprings(base.e1.kx, base.e1.kt, p.jfac1[i] * x[s1], p.jfac1[i] * x[s1])
+        e2 = s2 == 0 ? base.e2 :
+             EndSprings(base.e2.kx, base.e2.kt, p.jfac2[i] * x[s2], p.jfac2[i] * x[s2])
+        EndConditions(e1, e2)
+    end
 end
 
 _element_lengths(X, p::OptParams) =
@@ -56,8 +74,8 @@ needs nothing else.
 distinction).
 """
 function solve_structure(x::AbstractVector, p::OptParams)
-    X, A, sections, EAvec = _design_state(x, p)
-    state = ModelState{Float64}(X, sections, EAvec)
+    X, A, sections, EAvec, ends = _design_state(x, p)
+    state = ModelState{Float64}(X, sections, EAvec, ends)
     U = Asap.solve(p.model, state)
     return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
 end

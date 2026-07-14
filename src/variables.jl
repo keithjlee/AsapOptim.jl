@@ -90,12 +90,50 @@ julia> CoupledVariable(right_node, parent, -1.0)   # mirror across the axis
 ```
 """
 struct CoupledVariable <: AbstractVariable
-    target::Union{Node,FrameElement,TrussElement,Asap.FDMelement}
+    target::Union{Node,FrameElement,TrussElement,Asap.FDMelement,
+        Tuple{FrameElement,Symbol}}    # (element, :start/:end/:both) for joint parents
     parent::AbstractVariable
     factor::Float64
 
     function CoupledVariable(target, parent::AbstractVariable, factor::Real=1.0)
         @assert !(parent isa CoupledVariable) "chain couplings to the INDEPENDENT parent variable"
         return new(target, parent, Float64(factor))
+    end
+end
+
+"""
+    JointVariable <: AbstractVariable
+
+A semi-rigid connection stiffness variable: the design entry REPLACES the
+rotational end-spring stiffness (`ky` = `kz`, both bending planes) of a
+frame element's connection at one or both ends [force·length/rad].
+
+Stiffer joints cost more to fabricate (welding, bolts, embedments) — this
+variable is what lets an optimizer trade connection cost against structural
+performance. Axial and torsional connection stiffnesses keep the element's
+existing values.
+
+# Fields
+- `element::FrameElement`: the element whose connection is controlled
+- `position::Symbol`: `:start`, `:end`, or `:both`
+- `value`, `lb`, `ub`: starting stiffness and bounds [force·length/rad]
+
+# Example
+```julia-repl
+julia> JointVariable(beam, :both, 1e5, 1e3, 1e8)
+```
+"""
+struct JointVariable <: AbstractVariable
+    element::FrameElement
+    position::Symbol
+    value::Float64
+    lb::Float64
+    ub::Float64
+
+    function JointVariable(element::FrameElement, position::Symbol,
+        value::Real, lb::Real, ub::Real)
+        @assert position in (:start, :end, :both) "position must be :start, :end, or :both"
+        @assert 0 < lb <= value <= ub "need 0 < lb ≤ value ≤ ub"
+        return new(element, position, value, lb, ub)
     end
 end

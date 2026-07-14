@@ -191,3 +191,50 @@ end
     gfd = FiniteDifferences.grad(FDM, obj, x)[1]
     @test g ≈ gfd rtol = 1e-6
 end
+
+@testset "JointVariable (semi-rigid connection design)" begin
+    mat = Material(200.0, 77.0, 1.0, 0.3)
+    sec = Section(mat, 1e4, 8e7, 3e7, 5e6)
+    n1 = Node([0.0, 0.0, 0.0], :fixed)
+    n2 = Node([3000.0, 0.0, 0.0], :free)
+    n3 = Node([6000.0, 0.0, 0.0], :pinned)
+    b1 = FrameElement(n1, n2, sec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; Ψ=0.0)
+    b2 = FrameElement(n2, n3, sec, EndConditions(rigid_end(), EndSprings(Inf, Inf, 1e8, 1e8)), :b2; Ψ=0.0)
+    model = Asap.Model([n1, n2, n3], AbstractElement{Float64}[b1, b2],
+        AbstractLoad{Float64}[NodeForce(n2, [0.0, -100.0, 0.0])])
+
+    jv = JointVariable(b1, :start, 1e8, 1e5, 1e12)
+    vars = AbstractVariable[jv, CoupledVariable((b2, :end), jv)]   # mirrored pair
+    p = OptParams(model, vars)
+    x0 = copy(p.values)
+
+    # evaluation matches a directly-built model at perturbed stiffness
+    x = [3e8]
+    res = solve_structure(x, p)
+    m2 = updatemodel(p, x)
+    @test res.U ≈ m2.results.u rtol = 1e-10
+    @test m2.elements[1].ends.e1.kz ≈ 3e8
+    @test m2.elements[2].ends.e2.kz ≈ 3e8    # coupled partner
+
+    # physics: stiffer joints -> lower compliance
+    c_soft = compliance(solve_structure([1e6], p), p)
+    c_stiff = compliance(solve_structure([1e10], p), p)
+    @test c_stiff < c_soft
+
+    # gradient vs finite differences
+    obj(x) = compliance(solve_structure(x, p), p)
+    g = Zygote.gradient(obj, x0)[1]
+    gfd = FiniteDifferences.grad(FDM, obj, x0)[1]
+    # rtol reflects finite-difference truncation at the 1e8 stiffness scale
+    @test g ≈ gfd rtol = 1e-4
+    @test g[1] < 0                            # stiffer joint reduces compliance
+
+    # the FEF-consistency guard fires for element loads on jointed members
+    bn1 = Node([0.0, 0.0, 0.0], :fixed)
+    bn2 = Node([3000.0, 0.0, 0.0], :pinned)
+    bel = FrameElement(bn1, bn2, sec, :bad; Ψ=0.0)
+    badmodel = Asap.Model([bn1, bn2], AbstractElement{Float64}[bel],
+        AbstractLoad{Float64}[LineLoad(bel, [0.0, -1.0, 0.0])])
+    @test_throws ErrorException OptParams(badmodel,
+        AbstractVariable[JointVariable(bel, :start, 1e8, 1e5, 1e12)])
+end

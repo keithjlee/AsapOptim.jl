@@ -49,6 +49,13 @@ struct OptParams
     i2::Vector{Int}
     base_sections::Vector{Any}
     Evec::Vector{Float64}            # per-element Young's moduli (constant)
+    # joint-stiffness variables: design slot (0 = none) and factor per
+    # element end — rotational springs ky = kz replaced by factor·x[slot]
+    jslot1::Vector{Int}
+    jfac1::Vector{Float64}
+    jslot2::Vector{Int}
+    jfac2::Vector{Float64}
+    base_ends::Vector{Any}           # per-element reference EndConditions
 end
 
 const TrussOptParams = OptParams
@@ -100,11 +107,31 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
         push!(saV, factor)
     end
 
+    jslot1 = zeros(Int, nel)
+    jfac1 = ones(nel)
+    jslot2 = zeros(Int, nel)
+    jfac2 = ones(nel)
+    register_joint!(el, position, j, factor) = begin
+        el isa FrameElement || error("joint variables require a FrameElement")
+        if position in (:start, :both)
+            jslot1[el.index] == 0 || error("element $(el.index) start joint has two variables")
+            jslot1[el.index] = j
+            jfac1[el.index] = factor
+        end
+        if position in (:end, :both)
+            jslot2[el.index] == 0 || error("element $(el.index) end joint has two variables")
+            jslot2[el.index] = j
+            jfac2[el.index] = factor
+        end
+    end
+
     for v in variables
         if v isa SpatialVariable
             register_spatial!(v.node, slot[v], 1.0, v.axis)
         elseif v isa AreaVariable
             register_area!(v.element, slot[v], 1.0)
+        elseif v isa JointVariable
+            register_joint!(v.element, v.position, slot[v], 1.0)
         elseif v isa CoupledVariable
             haskey(slot, v.parent) ||
                 error("coupled variable's parent is not among the independent variables")
@@ -113,6 +140,11 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
                 v.target isa Node ||
                     error("a variable coupled to a SpatialVariable must target a Node")
                 register_spatial!(v.target, j, v.factor, v.parent.axis)
+            elseif v.parent isa JointVariable
+                tgt, pos = v.target isa Tuple ? v.target : (v.target, v.parent.position)
+                tgt isa FrameElement ||
+                    error("a variable coupled to a JointVariable must target a FrameElement (or (element, position) tuple)")
+                register_joint!(tgt, pos, j, v.factor)
             else
                 v.target isa Union{FrameElement,TrussElement} ||
                     error("a variable coupled to an AreaVariable must target an element")
@@ -130,11 +162,27 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
     F = cache.P .- cache.Pf
     i1 = [el.nodeStart.index for el in model.elements]
     i2 = [el.nodeEnd.index for el in model.elements]
+    # element-load fixed-end forces depend on end conditions, but the pure
+    # path treats loads as constant data — a joint variable on an element
+    # that carries element loads would silently use stale FEFs. Guard it.
+    for load in model.loads
+        if load isa ElementLoad && load.element isa FrameElement
+            i = load.element.index
+            (jslot1[i] != 0 || jslot2[i] != 0) && error(
+                "element $(i) (:$(load.element.id)) carries an element load AND a joint " *
+                "variable — its fixed-end forces would not track the design. Apply the " *
+                "load as NodeForces, or split the member at the load point.")
+        end
+    end
+
     base_sections = Any[el.section for el in model.elements]
     Evec = [s isa Section ? s.material.E : 0.0 for s in base_sections]
+    base_ends = Any[el isa Union{FrameElement,VariableElement} ? el.ends :
+                    EndConditions(:fixedfixed) for el in model.elements]
 
     return OptParams(model, values, lb, ub, X0,
         sparse(sxI, sxJ, sxV, 3 * nnodes, nx),
         A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F,
-        i1, i2, base_sections, Evec)
+        i1, i2, base_sections, Evec,
+        jslot1, jfac1, jslot2, jfac2, base_ends)
 end
