@@ -12,19 +12,23 @@ version = "1.11.0"
 deps = ["LinearAlgebra", "SparseArrays", "StaticArrays"]
 path = "../Asap"
 uuid = "763a8c06-ba23-41fc-b385-b3b57b52403a"
-version = "1.0.0-DEV"
+version = "1.0.0"
 
     [deps.Asap.extensions]
     AsapChainRulesExt = "ChainRulesCore"
+    AsapEnzymeExt = ["Enzyme", "ChainRulesCore"]
+    AsapMooncakeExt = ["Mooncake", "ChainRulesCore"]
 
     [deps.Asap.weakdeps]
     ChainRulesCore = "d360d2e6-b24c-11e9-a2a3-2a2ae2dbcce4"
+    Enzyme = "7da242da-08ed-463a-9acd-ee780be4f1d9"
+    Mooncake = "da2b9cff-9c12-43a0-ae48-6db2b0edb7d6"
 
 [[deps.AsapOptim]]
 deps = ["Asap", "LinearAlgebra", "SparseArrays", "StaticArrays"]
 path = "."
 uuid = "d81720e7-9d76-4c66-a69e-8f07ca321cc4"
-version = "1.0.0-DEV"
+version = "1.0.0"
 
 [[deps.CompilerSupportLibraries_jll]]
 deps = ["Artifacts", "Libdl"]
