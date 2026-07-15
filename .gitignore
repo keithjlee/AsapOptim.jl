@@ -4,3 +4,5 @@ scratch/segfault_test.jl
 scratch/scripts.jl
 scratch/scratch_frame.jl
 .DS_Store
+# personal working docs — local only
+CLAUDE.md
