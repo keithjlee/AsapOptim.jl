@@ -44,14 +44,14 @@ begin
     tops = [Node([B * (i - 1), H, 0.0], :free, :top) for i in 1:nbays+1]
 
     columns = AbstractElement{Float64}[
-        FrameElement(bases[i], tops[i], col, :column; Ψ = 0.0) for i in 1:nbays+1
+        FrameElement(bases[i], tops[i], col, :column; rollangle = 0.0) for i in 1:nbays+1
     ]
 
     # beams: semi-rigid at both ends; k0 = a stiff starting guess
     k0 = 1e6                                            # kN·m/rad
     semirigid(k) = EndConditions(EndSprings(Inf, Inf, k, k), EndSprings(Inf, Inf, k, k))
     beams = AbstractElement{Float64}[
-        FrameElement(tops[i], tops[i+1], beam, semirigid(k0), :beam; Ψ = 0.0) for i in 1:nbays
+        FrameElement(tops[i], tops[i+1], beam, semirigid(k0), :beam; rollangle = 0.0) for i in 1:nbays
     ]
 
     # wind pushes the frame; gravity loads the beam-column joints

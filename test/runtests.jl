@@ -198,8 +198,8 @@ end
     n1 = Node([0.0, 0.0, 0.0], :fixed)
     n2 = Node([3000.0, 0.0, 0.0], :free)
     n3 = Node([6000.0, 0.0, 0.0], :pinned)
-    b1 = FrameElement(n1, n2, sec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; Ψ=0.0)
-    b2 = FrameElement(n2, n3, sec, EndConditions(rigid_end(), EndSprings(Inf, Inf, 1e8, 1e8)), :b2; Ψ=0.0)
+    b1 = FrameElement(n1, n2, sec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; rollangle=0.0)
+    b2 = FrameElement(n2, n3, sec, EndConditions(rigid_end(), EndSprings(Inf, Inf, 1e8, 1e8)), :b2; rollangle=0.0)
     model = Asap.Model([n1, n2, n3], AbstractElement{Float64}[b1, b2],
         AbstractLoad{Float64}[NodeForce(n2, [0.0, -100.0, 0.0])])
 
@@ -232,7 +232,7 @@ end
     # the FEF-consistency guard fires for element loads on jointed members
     bn1 = Node([0.0, 0.0, 0.0], :fixed)
     bn2 = Node([3000.0, 0.0, 0.0], :pinned)
-    bel = FrameElement(bn1, bn2, sec, :bad; Ψ=0.0)
+    bel = FrameElement(bn1, bn2, sec, :bad; rollangle=0.0)
     badmodel = Asap.Model([bn1, bn2], AbstractElement{Float64}[bel],
         AbstractLoad{Float64}[LineLoad(bel, [0.0, -1.0, 0.0])])
     @test_throws ErrorException OptParams(badmodel,
