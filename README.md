@@ -328,6 +328,20 @@ minf, minx, ret = optimize(opt, x0)
 
 On the example-2 problem this runs 500 MMA iterations in ~7 s where the all-Zygote Nonconvex formulation needs ~60 s. If you prefer staying in Nonconvex.jl, wrap the same per-function derivatives with `Nonconvex.CustomGradFunction(f, g)` instead.
 
+### Even faster constraint Jacobians: implicit differentiation
+
+For the common constraint quantities, `solution_tangents(x, params)` computes the exact solution tangents `∂U/∂x` by the implicit-function theorem — one factorization, one multi-RHS back-substitution — about **10× faster than the prepared ForwardDiff Jacobian** (3.9 ms vs 43 ms on a 512-element / 512-variable benchmark) with ~20× less allocation:
+
+```julia
+t = solution_tangents(x, params)        # res + ∂U/∂x, exact
+J = [
+    -t.dU[3:6:end, :];                  # vertical-displacement rows
+    axial_stress_jacobian(t, params)    # stress rows
+]
+```
+
+It works for any mix of spatial/area/joint variables and couplings (verified to machine precision against ForwardDiff and Zygote), and respects `params.solver`. It is a plain-`Float64` evaluation path for optimizer callbacks — not itself differentiable.
+
 Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mode is verified correct on Julia 1.11 with the default solver (native rule in Asap) and is a useful independent check, but ForwardDiff is faster for Jacobians. See `docs/AD_BACKENDS.md` for the current per-version status.
 
 ## Examples

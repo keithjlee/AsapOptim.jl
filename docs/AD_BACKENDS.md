@@ -237,6 +237,30 @@ correctness check. Enzyme limitations that remain upstream: 1.12 aborts
 (compiler assertion) in forward mode, and Enzyme×CachedSolver aborts on
 the mutable solver struct — with Enzyme use the default solver.
 
+## Update 2026-07-17 (later): implicit-diff Jacobians — another 10×
+
+`solution_tangents(x, p)` + `axial_force_jacobian`/`axial_stress_jacobian`
+implement the implicit-function theorem directly: element-local
+pseudo-loads (closed-form truss-area fast path; generic one-partial
+ForwardDiff seed through the SAME kernels for everything else — spatial,
+frame area, joints, and any future kernel-input variable), chained through
+the compiled scatter maps (couplings/mixing structural), one factorization
++ one multi-RHS backsolve. Machine-precision parity (≤2e-14) with
+full-pipeline ForwardDiff and Zygote on mixed problems including joints.
+
+| Stress-constraint Jacobian (Julia 1.11) | time | memory |
+|---|---|---|
+| v1.0 Zygote | 7,587 ms | 614 GB churn |
+| ForwardDiff (prepared, CachedSolver) | 39–43 ms | 0.5 GB |
+| **implicit (`solution_tangents`)** | **3.9 ms** (512×512) / **4.5 ms** (gb_mma 596×540 mixed) | **26–34 MB** |
+
+That is ~10× over prepared ForwardDiff and >100× over the LEGACY
+hand-differentiated stack's 400 ms. Under NLopt-MMA the optimizer's
+~150 ms/iter subproblem now dominates outright — constraint
+aggregation/screening is the remaining lever. Plain-Float64 path for
+optimizer callbacks (not itself AD-transparent); ForwardDiff/Zygote remain
+the reference implementations in the test suite.
+
 ## Gotchas & their fixes (documented for future maintenance)
 
 1. **Neither Mooncake nor Enzyme consumes ChainRules rules automatically** —

@@ -79,6 +79,13 @@ function Base.show(io::IO, ::MIME"text/plain", p::NetworkOptParams)
     print(io, "  evaluate with solve_network(x, p)")
 end
 
+function Base.show(io::IO, ::MIME"text/plain", t::DesignTangents)
+    println(io, "DesignTangents  (implicit-diff solution tangents ∂U/∂x)")
+    println(io, "  dU: $(size(t.dU, 1)) dofs × $(size(t.dU, 2)) design variables")
+    print(io, "  chain with axial_force_jacobian/axial_stress_jacobian, " *
+              "or slice dU for displacement rows")
+end
+
 function Base.show(io::IO, ::MIME"text/plain", r::NetworkOptResults)
     println(io, "NetworkOptResults  (form-found FDM geometry)")
     println(io, "  $(length(r.X)) nodes, $(length(r.L)) elements")

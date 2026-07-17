@@ -50,6 +50,9 @@ export GeometricProperties
 include("update.jl")
 export updatemodel
 
+include("implicit.jl")
+export DesignTangents, solution_tangents, axial_force_jacobian, axial_stress_jacobian
+
 include("network.jl")
 export QVariable, NetworkOptParams, NetworkOptResults, solve_network, member_forces
 

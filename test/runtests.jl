@@ -423,3 +423,71 @@ end
     m2 = updatemodel(p, x)
     @test solve_structure(x, p).U ≈ m2.results.u rtol = 1e-10
 end
+
+@testset "implicit differentiation (solution_tangents)" begin
+    # mixed spatial + grouped areas (testbed truss): every Jacobian must
+    # match full-pipeline ForwardDiff AND Zygote to machine precision
+    model, vars = testbed()
+    p = OptParams(model, vars)
+    x = copy(p.values) .+ [0.3, -0.15, 2e-3, 4e-3]
+
+    t = solution_tangents(x, p)
+    @test t.res.U ≈ solve_structure(x, p).U rtol = 1e-12
+
+    dU_fw = ForwardDiff.jacobian(y -> solve_structure(y, p).U, x)
+    @test t.dU ≈ dU_fw rtol = 1e-10
+
+    Jσ = axial_stress_jacobian(t, p)
+    Jσ_fw = ForwardDiff.jacobian(y -> axial_stress(solve_structure(y, p), p), x)
+    Jσ_zy = Zygote.jacobian(y -> axial_stress(solve_structure(y, p), p), x)[1]
+    @test Jσ ≈ Jσ_fw rtol = 1e-10
+    @test Jσ ≈ Jσ_zy rtol = 1e-10
+
+    JN = axial_force_jacobian(t, p)
+    JN_fw = ForwardDiff.jacobian(y -> axial_force(solve_structure(y, p), p), x)
+    @test JN ≈ JN_fw rtol = 1e-10
+
+    # kitchen-sink frame: spatial + truss/frame areas + joints + couplings
+    mat = Material(200.0, 77.0, 1.0, 0.3)
+    fsec = Section(mat, 1e4, 8e7, 3e7, 5e6)
+    tsec = Section(mat, 1e3)
+    n1 = Node([0.0, 0.0, 0.0], :fixed)
+    n2 = Node([3000.0, 0.0, 0.0], :free)
+    n3 = Node([6000.0, 0.0, 0.0], :free)
+    n4 = Node([9000.0, 0.0, 0.0], :pinned)
+    n5 = Node([3000.0, 0.0, 3000.0], :pinned)
+    n6 = Node([6000.0, 0.0, 3000.0], :pinned)
+    b1 = FrameElement(n1, n2, fsec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; rollangle=0.0)
+    b2 = FrameElement(n2, n3, fsec, :b2; rollangle=0.0)
+    b3 = FrameElement(n3, n4, fsec, EndConditions(rigid_end(), EndSprings(Inf, Inf, 1e8, 1e8)), :b3; rollangle=0.0)
+    t1 = TrussElement(n2, n5, tsec, :tie)
+    t2 = TrussElement(n3, n6, tsec, :tie)
+    fmodel = Asap.Model([n1, n2, n3, n4, n5, n6],
+        AbstractElement{Float64}[b1, b2, b3, t1, t2],
+        AbstractLoad{Float64}[NodeForce(n2, [0.0, -100.0, 0.0]),
+            NodeForce(n3, [0.0, -80.0, 20.0])])
+    sv = SpatialVariable(n5, 0.0, -500.0, 500.0, :Z)
+    av_t = AreaVariable(t1, 1e3, 1e2, 1e4)
+    jv = JointVariable(b1, :start, 1e8, 1e5, 1e12)
+    fp = OptParams(fmodel, AbstractVariable[
+        sv, CoupledVariable(n6, sv, -1.0),
+        SpatialVariable(n2, 0.0, -400.0, 400.0, :X),
+        av_t, CoupledVariable(t2, av_t),
+        AreaVariable(b2, 1e4, 1e3, 1e5),
+        jv, CoupledVariable((b3, :end), jv, 1.0)])
+    xf = copy(fp.values) .+ [50.0, -30.0, 2e2, 3e3, 1e8]
+
+    tf = solution_tangents(xf, fp)
+    dU_fw = ForwardDiff.jacobian(y -> solve_structure(y, fp).U, xf)
+    @test tf.dU ≈ dU_fw rtol = 1e-9
+
+    Jσf = axial_stress_jacobian(tf, fp)
+    Jσf_fw = ForwardDiff.jacobian(y -> axial_stress(solve_structure(y, fp), fp), xf)
+    @test Jσf ≈ Jσf_fw rtol = 1e-9
+
+    # CachedSolver path shares the factorization
+    cs = Asap.CachedSolver()
+    pc = OptParams(model, vars; solver = cs)
+    tc = solution_tangents(x, pc)
+    @test tc.dU ≈ t.dU rtol = 1e-10
+end
