@@ -362,3 +362,64 @@ end
     nobj(pp) = y -> sum(abs2, member_forces(solve_network(y, pp))) / 100
     @test Zygote.gradient(nobj(npc), xq)[1] ≈ Zygote.gradient(nobj(np0), xq)[1] rtol = 1e-8
 end
+
+@testset "kitchen sink: ALL variable types mixed in one problem" begin
+    # frame + truss model carrying every current variable type at once:
+    # spatial (X and Z), truss areas (grouped), frame area, joint stiffness
+    # (with a mirrored tuple coupling) — gradients must agree across
+    # Zygote, ForwardDiff, and finite differences
+    mat = Material(200.0, 77.0, 1.0, 0.3)
+    fsec = Section(mat, 1e4, 8e7, 3e7, 5e6)
+    tsec = Section(mat, 1e3)
+
+    n1 = Node([0.0, 0.0, 0.0], :fixed)
+    n2 = Node([3000.0, 0.0, 0.0], :free)
+    n3 = Node([6000.0, 0.0, 0.0], :free)
+    n4 = Node([9000.0, 0.0, 0.0], :pinned)
+    n5 = Node([3000.0, 0.0, 3000.0], :pinned)
+    n6 = Node([6000.0, 0.0, 3000.0], :pinned)
+
+    b1 = FrameElement(n1, n2, fsec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; rollangle=0.0)
+    b2 = FrameElement(n2, n3, fsec, :b2; rollangle=0.0)
+    b3 = FrameElement(n3, n4, fsec, EndConditions(rigid_end(), EndSprings(Inf, Inf, 1e8, 1e8)), :b3; rollangle=0.0)
+    t1 = TrussElement(n2, n5, tsec, :tie)
+    t2 = TrussElement(n3, n6, tsec, :tie)
+
+    model = Asap.Model([n1, n2, n3, n4, n5, n6],
+        AbstractElement{Float64}[b1, b2, b3, t1, t2],
+        AbstractLoad{Float64}[NodeForce(n2, [0.0, -100.0, 0.0]),
+            NodeForce(n3, [0.0, -80.0, 20.0])])
+
+    sv = SpatialVariable(n5, 0.0, -500.0, 500.0, :Z)
+    av_t = AreaVariable(t1, 1e3, 1e2, 1e4)
+    jv = JointVariable(b1, :start, 1e8, 1e5, 1e12)
+    vars = AbstractVariable[
+        sv,
+        CoupledVariable(n6, sv, -1.0),            # mirrored spatial partner
+        SpatialVariable(n2, 0.0, -400.0, 400.0, :X),
+        av_t,
+        CoupledVariable(t2, av_t),                # grouped truss areas
+        AreaVariable(b2, 1e4, 1e3, 1e5),          # FRAME area (Dual section promotion)
+        jv,
+        CoupledVariable((b3, :end), jv, 1.0),     # mirrored joint pair
+    ]
+    p = OptParams(model, vars)
+    @test length(p.values) == 5                   # independents only
+
+    x = copy(p.values) .+ [50.0, -30.0, 2e2, 3e3, 1e8]
+    obj(y) = begin
+        res = solve_structure(y, p)
+        compliance(res, p) + 1e-8 * sum(abs2, axial_stress(res, p))
+    end
+    g_zy = Zygote.gradient(obj, x)[1]
+    g_fw = ForwardDiff.gradient(obj, x)
+    g_fd = FiniteDifferences.grad(FDM, obj, x)[1]
+    @test g_zy ≈ g_fw rtol = 1e-9
+    # FD truncation at the 1e8 joint-stiffness scale dominates the tolerance
+    @test g_zy ≈ g_fd rtol = 1e-3
+    @test all(abs.(g_zy) .> 0)                    # every variable type is live
+
+    # materialized model agrees with the pure path at this mixed design
+    m2 = updatemodel(p, x)
+    @test solve_structure(x, p).U ≈ m2.results.u rtol = 1e-10
+end

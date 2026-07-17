@@ -217,6 +217,8 @@ mirror = CoupledVariable((beam2, :end), j)
 
 Always couple to the *independent* parent — chains of couplings are rejected.
 
+Variable types **mix freely in one problem**: spatial + area + joint-stiffness variables (plus any couplings) can drive a single `OptParams`, on models mixing frame and truss elements — every combination is gradient-tested against finite differences in the suite. Not yet available: parameterizing a section's flexural properties (`Ix`/`Iy`/`J`) — the planned `SectionVariable`.
+
 ## Evaluating designs
 
 ### `solve_structure(x, params) -> OptResults`
@@ -262,9 +264,71 @@ end
 Zygote.gradient(obj, copy(nparams.values))
 ```
 
-## AD backends
+## AD backends: reverse for objectives, forward for constraints
 
-Loading **Zygote** (or anything ChainRulesCore-aware) is all the setup AD needs — Asap's rule extension activates automatically; there are no custom rules in this package. **Mooncake** and **Enzyme** also work out of the box (Enzyme is the fastest backend we've measured) — see [`docs/AD_BACKENDS.md`](docs/AD_BACKENDS.md) for usage, benchmarks, and the two Enzyme annotations you need, and `examples/ad_backends/` for runnable scripts.
+Loading **Zygote** (or anything ChainRulesCore-aware) is all the setup reverse-mode AD needs — Asap's rule extension activates automatically; there are no custom rules in this package. **ForwardDiff**, **Mooncake**, and **Enzyme** (both modes) also work out of the box.
+
+The rule of thumb, from extensive benchmarking ([`docs/AD_BACKENDS.md`](docs/AD_BACKENDS.md)):
+
+- **Scalar objectives** (compliance, volume): reverse mode — Zygote or Enzyme. Cost ≈ one extra adjoint solve, independent of the number of design variables.
+- **Constraint Jacobians** (per-element stresses, nodal displacements): **forward mode — ForwardDiff**. A forward Jacobian costs the same as a forward gradient (extra outputs are free), so it beats reverse by two orders of magnitude on constraint blocks: the 512×512 stress Jacobian of our benchmark spaceframe takes **43 ms with ForwardDiff vs 7.6 s with Zygote**.
+
+This holds whenever you have at least as many constraint rows as design variables — which describes most sized/shaped structural problems, since stresses are checked in every element.
+
+### Choosing the linear solver
+
+`OptParams` takes a `solver` keyword that applies to every solve through the params — values, reverse-mode adjoints, and forward-mode tangents alike:
+
+```julia
+params = OptParams(model, vars)                              # built-in CHOLMOD
+params = OptParams(model, vars; solver = KLUFactorization()) # any LinearSolve.jl algorithm
+params = OptParams(model, vars; solver = Asap.CachedSolver())# factorization sharing (below)
+```
+
+### Sharing work between the objective and the constraints
+
+At each optimizer iterate, the objective gradient, the constraint Jacobian, and every ForwardDiff chunk assemble and factorize the *same* stiffness matrix. `Asap.CachedSolver()` makes them share one factorization: it keys on the stiffness values, reuses the factorization when they're unchanged, and refactorizes numerically (reusing the symbolic analysis) when they move. No changes to your objective/constraint code — it's purely a `params` setting. One `CachedSolver` per `OptParams`; standard AD drivers and optimizer loops satisfy its (documented) atomicity contract automatically.
+
+The complete pattern — mixed AD + shared factorization + NLopt driven directly — is `examples/truss-optimization3-nlopt.jl`. Distilled:
+
+```julia
+using NLopt, Zygote, ForwardDiff, DifferentiationInterface
+
+params = OptParams(model, vars; solver = Asap.CachedSolver())
+x0 = copy(params.values)
+
+volume(x) = begin geo = GeometricProperties(x, params); dot(geo.L, geo.A) end
+constraints(x) = begin                      # g(x) .<= 0, rows normalized by limits
+    res = solve_structure(x, params)
+    [abs.(res.U[2:6:end]) ./ dmax .- 1.0; abs.(axial_stress(res, params)) ./ fy .- 1.0]
+end
+
+# reverse mode for the scalar objective
+function nlopt_objective(x, grad)
+    v, g = Zygote.withgradient(volume, x)
+    length(grad) > 0 && (grad .= g[1])
+    return v
+end
+
+# prepared FORWARD mode for the constraint Jacobian
+backend = AutoForwardDiff()
+prep = prepare_jacobian(constraints, backend, x0)
+function nlopt_constraints!(result, x, grad)   # NLopt wants grad = J' (n × m)
+    v, J = value_and_jacobian(constraints, prep, backend, x)
+    result .= v
+    length(grad) > 0 && (grad .= J')
+end
+
+opt = Opt(:LD_MMA, length(x0))
+NLopt.lower_bounds!(opt, params.lb); NLopt.upper_bounds!(opt, params.ub)
+NLopt.min_objective!(opt, nlopt_objective)
+NLopt.inequality_constraint!(opt, nlopt_constraints!, fill(1e-8, length(constraints(x0))))
+minf, minx, ret = optimize(opt, x0)
+```
+
+On the example-2 problem this runs 500 MMA iterations in ~7 s where the all-Zygote Nonconvex formulation needs ~60 s. If you prefer staying in Nonconvex.jl, wrap the same per-function derivatives with `Nonconvex.CustomGradFunction(f, g)` instead.
+
+Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mode is verified correct on Julia 1.11 with the default solver (native rule in Asap) and is a useful independent check, but ForwardDiff is faster for Jacobians. See `docs/AD_BACKENDS.md` for the current per-version status.
 
 ## Examples
 
@@ -272,6 +336,7 @@ Loading **Zygote** (or anything ChainRulesCore-aware) is all the setup AD needs 
 |---|---|
 | `examples/truss-optimization1.jl` | geometry optimization, compliance objective (the quick start) |
 | `examples/truss-optimization2.jl` | constrained minimum volume: geometry + sizing, MMA |
+| `examples/truss-optimization3-nlopt.jl` | the recommended pattern: NLopt driven directly, reverse-mode objective + forward-mode constraint Jacobian + `CachedSolver` (~9× faster per run than the all-Zygote formulation) |
 | `examples/vierendeel-geometry.jl` | FRAME optimization — Vierendeel truss profile, volume-scaled compliance, hand-rolled projected gradient descent |
 | `examples/joint-stiffness.jl` | `JointVariable`: cheapest distribution of semi-rigid connection stiffness meeting a drift limit |
 | `examples/ad_backends/` | the same problem differentiated with Zygote, Mooncake, and Enzyme |
