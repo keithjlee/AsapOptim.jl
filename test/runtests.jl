@@ -307,3 +307,58 @@ end
     xn = copy(np.values)
     @test ForwardDiff.gradient(nobj, xn) ≈ Zygote.gradient(nobj, xn)[1] rtol = 1e-10
 end
+
+@testset "solver backends through OptParams" begin
+    using LinearSolve
+
+    model, vars = testbed()
+    p0 = OptParams(model, vars)
+    x = copy(p0.values) .+ [0.3, -0.1, 1e-3, 2e-3]
+    u0 = solve_structure(x, p0).U
+    obj(pp) = x -> compliance(solve_structure(x, pp), pp)
+    g0 = Zygote.gradient(obj(p0), x)[1]
+
+    for solver in (KLUFactorization(), KrylovJL_CG(), Asap.CachedSolver())
+        p = OptParams(model, vars; solver = solver)
+        # values, reverse gradients, forward gradients: all backend-invariant
+        @test solve_structure(x, p).U ≈ u0 rtol = 1e-8
+        @test Zygote.gradient(obj(p), x)[1] ≈ g0 rtol = 1e-6
+        @test ForwardDiff.gradient(obj(p), x) ≈ g0 rtol = 1e-6
+    end
+
+    # CachedSolver shares ONE factorization across an entire ForwardDiff
+    # Jacobian (all chunks see the same design values)
+    cs = Asap.CachedSolver()
+    pc = OptParams(model, vars; solver = cs)
+    cstr(y) = axial_stress(solve_structure(y, pc), pc)
+    # chunk size 2 over 4 vars → 2 chunks; the second must reuse the
+    # factorization (same design values)
+    cfg = ForwardDiff.JacobianConfig(cstr, x, ForwardDiff.Chunk{2}())
+    J = ForwardDiff.jacobian(cstr, x, cfg)
+    @test J ≈ Zygote.jacobian(y -> axial_stress(solve_structure(y, p0), p0), x)[1] rtol = 1e-8
+    @test cs.hits > 0                       # chunks after the first reused it
+
+    # network path accepts a solver too
+    ns = [Asap.FDMnode([Float64(i), Float64(j), 0.0], !(i in (0, 2) && j in (0, 2)))
+          for j in 0:2 for i in 0:2]
+    idx(i, j) = 3j + i + 1
+    els = Asap.FDMelement[]
+    for j in 0:2, i in 0:1
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i + 1, j), 1.0))
+    end
+    for j in 0:1, i in 0:2
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i, j + 1), 1.0))
+    end
+    loads = [Asap.FDMload(n, [0.0, 0.0, -1.0]) for n in ns if all(n.fixity)]
+    network = Asap.Network(ns, els, loads)
+    qv = QVariable(els[1], 1.5, 0.1, 10.0)
+    np0 = NetworkOptParams(network, AbstractVariable[qv, QVariable(els[7], 2.0, 0.1, 10.0)])
+    npc = NetworkOptParams(network, AbstractVariable[qv, QVariable(els[7], 2.0, 0.1, 10.0)];
+        solver = Asap.CachedSolver())
+    xq = copy(np0.values)
+    r0 = solve_network(xq, np0)
+    rc = solve_network(xq, npc)
+    @test [rc.X rc.Y rc.Z] ≈ [r0.X r0.Y r0.Z] rtol = 1e-10
+    nobj(pp) = y -> sum(abs2, member_forces(solve_network(y, pp))) / 100
+    @test Zygote.gradient(nobj(npc), xq)[1] ≈ Zygote.gradient(nobj(np0), xq)[1] rtol = 1e-8
+end

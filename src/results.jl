@@ -110,7 +110,7 @@ function solve_structure(x::AbstractVector, p::OptParams)
     # eltype follows the design vector: Float64 normally, ForwardDiff Duals
     # under forward-mode AD (the Dual solve lives in AsapForwardDiffExt)
     state = ModelState{eltype(X)}(X, sections, EAvec, ends)
-    U = Asap.solve(p.model, state)
+    U = Asap.solve(p.model, state; solver = p.solver)
     return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
 end
 

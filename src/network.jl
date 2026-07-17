@@ -45,6 +45,7 @@ struct NetworkOptParams
     xyz_f::Matrix{Float64}
     embed_free::SparseMatrixCSC{Float64,Int}    # n_nodes × n_free row scatter
     embed_fixed::SparseMatrixCSC{Float64,Int}   # n_nodes × n_fixed
+    solver::Any                                 # linear-solver backend (see OptParams)
 end
 
 """
@@ -56,7 +57,8 @@ one design slot per independent variable, a sparse force-density scatter
 `Sq`, and constant copies of the connectivity, loads, and anchor positions.
 Processes the network first if needed.
 """
-function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVariable})
+function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVariable};
+    solver = nothing)
     network.cache === nothing && Asap.process!(network)
     cache = network.cache
     cache.mixed && error("NetworkOptParams does not support per-axis (mixed) node fixity yet — " *
@@ -110,7 +112,7 @@ function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVar
         collect(qmask),
         SparseMatrixCSC{Float64,Int}(cache.C[:, Nfree]), SparseMatrixCSC{Float64,Int}(cache.C[:, Ffix]),
         Matrix{Float64}(cache.P[Nfree, :]), Matrix{Float64}(cache.xyz[Ffix, :]),
-        ef, eF)
+        ef, eF, solver)
 end
 
 """
@@ -142,7 +144,9 @@ function solve_network(x::AbstractVector, p::NetworkOptParams)
     K = sparse(p.Cn' * D * p.Cn)
     rhs = p.Pn - p.Cn' * (D * (p.Cf * p.xyz_f))
 
-    xyz_free = Asap.solve_free(K, rhs)
+    # default keeps the 2-arg call (Enzyme's imported rules match it)
+    xyz_free = p.solver === nothing ? Asap.solve_free(K, rhs) :
+               Asap.solve_free(p.solver, K, rhs)
     xyz = p.embed_free * xyz_free + p.embed_fixed * p.xyz_f
 
     L = _network_lengths(xyz, p)

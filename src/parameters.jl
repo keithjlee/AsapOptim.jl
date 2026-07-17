@@ -61,6 +61,11 @@ struct OptParams
     jslot2::Vector{Int}
     jfac2::Vector{Float64}
     base_ends::Vector{Any}           # per-element reference EndConditions
+    # linear-solver backend for every solve THROUGH these params (value,
+    # adjoint, and forward-tangent systems alike): `nothing` = built-in
+    # CHOLMOD; any LinearSolve algorithm (with Asap's extension); or
+    # Asap.CachedSolver(...) to share one factorization per design iterate
+    solver::Any
 end
 
 const TrussOptParams = OptParams
@@ -75,7 +80,7 @@ of the 3 × n position matrix.
 _axis_component(axis::Symbol) = axis === :X ? 1 : axis === :Y ? 2 : 3
 
 """
-    OptParams(model::Model, variables::Vector{<:AbstractVariable})
+    OptParams(model::Model, variables::Vector{<:AbstractVariable}; solver = nothing)
 
 Compile a processed (or processable) `Asap.Model` and its design variables
 into an [`OptParams`](@ref): assign one design-vector slot per independent
@@ -88,9 +93,14 @@ Errors early on ill-posed declarations: two variables on one element's
 area or joint, couplings whose parent is not among the independents,
 target/parent type mismatches, and joint variables on elements that carry
 element loads (their fixed-end forces would not track the design).
+
+`solver` selects the linear-solver backend for every solve through these
+params (see the field docstring); `Asap.CachedSolver()` is the recommended
+choice inside optimization loops.
 """
 
-function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
+function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
+    solver = nothing)
     model.cache === nothing && process!(model)
     cache = model.cache
     assemble_loads!(cache, model)
@@ -213,5 +223,5 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
         sparse(sxI, sxJ, sxV, 3 * nnodes, nx),
         A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F,
         i1, i2, Cinc, base_sections, Evec,
-        jslot1, jfac1, jslot2, jfac2, base_ends)
+        jslot1, jfac1, jslot2, jfac2, base_ends, solver)
 end
