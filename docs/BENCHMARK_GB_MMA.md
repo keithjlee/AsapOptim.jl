@@ -63,6 +63,36 @@ MMA outcomes along different trajectories; the meaningful comparisons:
   trajectories through a nonconvex landscape); the new stack gets there
   4.0× sooner.
 
+## Why "only" 5.3×, when the Jacobian tables show 130×?
+
+Two effects, both verified by an instrumented rerun (callback counters +
+timers, 200 iterations):
+
+1. **The right baseline.** The 130× in AD_BACKENDS.md compares ForwardDiff
+   against the *v1.0 generic stack driven by Zygote* (7.6 s/Jacobian) — a
+   configuration nobody would ship. The publication stack's hand-written
+   truss adjoints made its reverse Jacobian ~400–530 ms. Against that,
+   ForwardDiff + CachedSolver at ~51 ms sustained (15% GC included) is
+   **~10×** on the Jacobian itself.
+2. **Amdahl: the optimizer's own machinery is now half the iteration.**
+   Instrumentation shows every NLopt eval carries gradients (no inner
+   value-only calls); per iteration: constraint Jacobian 50.8 ms,
+   objective 0.3 ms — and ~150 ms (early iterations; less later) inside
+   NLopt's CCSA/MMA dual subproblem over 596 constraints × 540 variables,
+   identical for both stacks. Old iteration ≈ 400 (Jacobian) + ~150 (MMA)
+   ≈ 550 ms ✓ matches; new ≈ 51 + MMA ≈ 104 ms average ✓ matches. A 10×
+   Jacobian speedup against a constant optimizer overhead yields exactly
+   the observed 5.3×.
+
+Consequence: **the bottleneck has moved from derivatives to the MMA
+subproblem.** Further derivative work (the planned implicit-diff Jacobian,
+~5 ms) buys at most ~1.3× more end-to-end under NLopt's MMA. The next real
+levers are on the optimizer side: constraint aggregation/screening (fewer
+rows also shrinks the MMA dual), or an MMA implementation with a cheaper
+inner solve. (Note also: our 0.5 GB/iteration ForwardDiff chunk churn
+triggers GC that partly lands in MMA-attributed time — the planned
+implicit-diff Jacobian removes that churn too.)
+
 ## Why the trajectories differ
 
 Formulation, settings, start point, and constraint rows are identical; the
