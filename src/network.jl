@@ -47,8 +47,19 @@ struct NetworkOptParams
     embed_fixed::SparseMatrixCSC{Float64,Int}   # n_nodes × n_fixed
 end
 
+"""
+    NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVariable})
+
+Compile a network and its [`QVariable`](@ref)s (plus `CoupledVariable`
+groupings targeting `FDMelement`s) into a [`NetworkOptParams`](@ref):
+one design slot per independent variable, a sparse force-density scatter
+`Sq`, and constant copies of the connectivity, loads, and anchor positions.
+Processes the network first if needed.
+"""
 function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVariable})
     network.processed || Asap.process!(network)
+    network.mixed && error("NetworkOptParams does not support per-axis (mixed) node fixity yet — " *
+                           "the differentiable path solves all three coordinates against one partition")
 
     slot = Dict{AbstractVariable,Int}()
     values = Float64[]
@@ -123,8 +134,7 @@ free-node coordinates (Asap's `solve_free` multi-RHS adjoint carries the
 gradients). Differentiable w.r.t. `x` end-to-end.
 """
 function solve_network(x::AbstractVector, p::NetworkOptParams)
-    qvar = p.Sq * x
-    q = [p.qmask[i] ? qvar[i] : p.q0[i] for i in eachindex(p.qmask)]
+    q = ifelse.(p.qmask, p.Sq * x, p.q0)
 
     D = Diagonal(q)
     K = sparse(p.Cn' * D * p.Cn)
@@ -137,6 +147,12 @@ function solve_network(x::AbstractVector, p::NetworkOptParams)
     return NetworkResults(xyz[:, 1], xyz[:, 2], xyz[:, 3], q, L)
 end
 
+"""
+    _network_lengths(xyz, p::NetworkOptParams) -> Vector
+
+Per-element member lengths of the form-found geometry: row norms of
+`C · xyz`, where `C` is the network's signed incidence matrix.
+"""
 function _network_lengths(xyz, p::NetworkOptParams)
     C = p.network.C
     vx = C * xyz

@@ -164,7 +164,7 @@ end
     for j in 0:1, i in 0:2
         push!(els, Asap.FDMelement(ns, idx(i, j), idx(i, j + 1), 1.0))
     end
-    loads = [Asap.FDMload(n, [0.0, 0.0, -1.0]) for n in ns if n.dof]
+    loads = [Asap.FDMload(n, [0.0, 0.0, -1.0]) for n in ns if all(n.fixity)]
     network = Asap.Network(ns, els, loads)
 
     qv = QVariable(els[1], 1.5, 0.1, 10.0)
