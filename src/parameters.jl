@@ -73,13 +73,6 @@ end
 const TrussOptParams = OptParams
 const FrameOptParams = OptParams
 
-"""
-    _axis_component(axis::Symbol) -> Int
-
-Row offset (1/2/3) of a global axis (`:X`/`:Y`/`:Z`) within a node's column
-of the 3 × n position matrix.
-"""
-_axis_component(axis::Symbol) = axis === :X ? 1 : axis === :Y ? 2 : 3
 
 """
     OptParams(model::Model, variables::Vector{<:AbstractVariable}; solver = nothing)
@@ -133,10 +126,16 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
     saV = Float64[]
     amask = falses(nel)
 
-    register_spatial!(node, j, factor, axis) = begin
-        push!(sxI, 3 * (node.index - 1) + _axis_component(axis))
-        push!(sxJ, j)
-        push!(sxV, factor)
+    # a direction scatters into up to three coordinate rows — axis-aligned
+    # variables put one entry, rail variables up to three (the components
+    # ARE the ∂X/∂x factors, so every downstream path handles rails free)
+    register_spatial!(node, j, factor, direction) = begin
+        for c in 1:3
+            iszero(direction[c]) && continue
+            push!(sxI, 3 * (node.index - 1) + c)
+            push!(sxJ, j)
+            push!(sxV, factor * direction[c])
+        end
     end
     register_area!(el, j, factor) = begin
         amask[el.index] && error("element $(el.index) (:$(el.id)) has two area variables")
@@ -166,7 +165,7 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
 
     for v in variables
         if v isa SpatialVariable
-            register_spatial!(v.node, slot[v], 1.0, v.axis)
+            register_spatial!(v.node, slot[v], 1.0, v.direction)
         elseif v isa AreaVariable
             register_area!(v.element, slot[v], 1.0)
         elseif v isa JointVariable
@@ -178,7 +177,7 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
             if v.parent isa SpatialVariable
                 v.target isa Node ||
                     error("a variable coupled to a SpatialVariable must target a Node")
-                register_spatial!(v.target, j, v.factor, v.parent.axis)
+                register_spatial!(v.target, j, v.factor, v.parent.direction)
             elseif v.parent isa JointVariable
                 tgt, pos = v.target isa Tuple ? v.target : (v.target, v.parent.position)
                 tgt isa FrameElement ||

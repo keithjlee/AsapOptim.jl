@@ -491,3 +491,55 @@ end
     tc = solution_tangents(x, pc)
     @test tc.dU ≈ t.dU rtol = 1e-10
 end
+
+@testset "directional rail SpatialVariables" begin
+    mat = Material(200e6, 1.0, 80.0, 0.3)
+    sec = Section(mat, 1e-2)
+    rot = [true, true, true]
+    n1 = Node([0.0, 0.0, 0.0], vcat([false, false, false], rot))
+    n2 = Node([4.0, 0.0, 0.0], vcat([true, true, false], rot))
+    n3 = Node([8.0, 0.0, 0.0], vcat([false, false, false], rot))
+    n4 = Node([2.0, 3.0, 0.0], vcat([true, true, false], rot), :top)
+    n5 = Node([6.0, 3.0, 0.0], vcat([true, true, false], rot), :top)
+    els = AbstractElement{Float64}[
+        TrussElement(n1, n2, sec), TrussElement(n2, n3, sec), TrussElement(n4, n5, sec),
+        TrussElement(n1, n4, sec), TrussElement(n4, n2, sec),
+        TrussElement(n2, n5, sec), TrussElement(n5, n3, sec)]
+    model = Model([n1, n2, n3, n4, n5], els,
+        AbstractLoad{Float64}[NodeForce(n2, [0.0, -50.0, 0.0])])
+
+    # rail along an UNNORMALIZED diagonal (constructor must normalize),
+    # with a mirrored coupled partner and a mixed-in area variable
+    rail = SpatialVariable(n4, [2.0, 2.0, 0.0], 0.0, -1.0, 1.5)
+    @test rail.direction ≈ [1 / √2, 1 / √2, 0.0]
+    @test SpatialVariable(n4, [0.0, 3.0, 0.0], -1.0, 1.0).value == 0.0  # legacy 4-arg form
+
+    av = AreaVariable(els[1], 1e-2, 1e-4, 5e-2)
+    p = OptParams(model, AbstractVariable[
+        rail, CoupledVariable(n5, rail, -1.0), av])
+    @test length(p.values) == 2                    # rail + area (coupling shares)
+    x = copy(p.values) .+ [0.4, 3e-3]
+
+    # materialization: node moved by value·unit(direction), mirror negated
+    m2 = updatemodel(p, x)
+    @test m2.nodes[4].position ≈ [2.0, 3.0, 0.0] .+ 0.4 .* [1 / √2, 1 / √2, 0.0]
+    @test m2.nodes[5].position ≈ [6.0, 3.0, 0.0] .- 0.4 .* [1 / √2, 1 / √2, 0.0]
+    @test solve_structure(x, p).U ≈ m2.results.u rtol = 1e-10
+
+    # gradients through every path
+    obj(y) = compliance(solve_structure(y, p), p)
+    g_zy = Zygote.gradient(obj, x)[1]
+    @test g_zy ≈ ForwardDiff.gradient(obj, x) rtol = 1e-10
+    @test g_zy ≈ FiniteDifferences.grad(FDM, obj, x)[1] rtol = 1e-6
+
+    # implicit differentiation inherits rails through the scatter maps
+    t = solution_tangents(x, p)
+    @test t.dU ≈ ForwardDiff.jacobian(y -> solve_structure(y, p).U, x) rtol = 1e-10
+    @test axial_stress_jacobian(t, p) ≈
+          Zygote.jacobian(y -> axial_stress(solve_structure(y, p), p), x)[1] rtol = 1e-10
+
+    # axis constructors are the unit-vector special case (incl. lowercase)
+    @test SpatialVariable(n4, 0.0, -1.0, 1.0, :Z).direction == [0.0, 0.0, 1.0]
+    @test SpatialVariable(n4, 0.0, -1.0, 1.0, :y).direction == [0.0, 1.0, 0.0]
+    @test_throws ArgumentError SpatialVariable(n4, 0.0, -1.0, 1.0, :W)
+end

@@ -8,9 +8,14 @@ it next. Semantics that trip users up (ADDITIVE vs ABSOLUTE variables, the
 =#
 
 function Base.show(io::IO, ::MIME"text/plain", v::SpatialVariable)
-    println(io, "SpatialVariable  (node position, ADDITIVE along one axis)")
-    println(io, "  node :$(v.node.id), axis $(v.axis)")
-    print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [length]")
+    d = v.direction
+    axis = d == SVector(1.0, 0.0, 0.0) ? "axis X" :
+           d == SVector(0.0, 1.0, 0.0) ? "axis Y" :
+           d == SVector(0.0, 0.0, 1.0) ? "axis Z" :
+           "rail " * string(round.(Vector(d); digits=4))
+    println(io, "SpatialVariable  (node position, ADDITIVE along a direction)")
+    println(io, "  node :$(v.node.id), $axis")
+    print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [length along direction]")
 end
 
 function Base.show(io::IO, ::MIME"text/plain", v::AreaVariable)

@@ -12,18 +12,28 @@ abstract type AbstractVariable end
     SpatialVariable <: AbstractVariable
 
 A nodal position variable: the design entry ADDS to the node's base
-coordinate along one global axis (legacy semantics preserved — a value of
-`0` leaves the node at its modeled position).
+position along a direction — a global axis, or an arbitrary directional
+"rail" (legacy semantics preserved — a value of `0` leaves the node at
+its modeled position):
+
+    x′ = x₀ + value · direction
+
+The rail direction is NORMALIZED at construction, so `value`/`lb`/`ub`
+are arc-length along the rail [length] regardless of the vector you pass.
 
 # Fields
 - `node::Node`: the controlled node
-- `value`: starting perturbation [length]
+- `value`: starting perturbation along the direction [length]
 - `lb`, `ub`: bounds on the perturbation [length]
-- `axis::Symbol`: `:X`, `:Y`, or `:Z`
+- `direction::SVector{3,Float64}`: unit direction of travel
 
-# Example
+# Constructors
 ```julia-repl
-julia> SpatialVariable(node, 0.0, -1.0, 1.0, :Z)   # node may move ±1 vertically
+julia> SpatialVariable(node, 0.0, -1.0, 1.0, :Z)          # global axis (:X/:Y/:Z)
+
+julia> SpatialVariable(node, [1.0, 1.0, 0.0], 0.0, -1.0, 1.0)  # rail: ±1 along the diagonal
+
+julia> SpatialVariable(node, [1.0, 1.0, 0.0], -1.0, 1.0)       # rail, starting value 0
 ```
 """
 struct SpatialVariable <: AbstractVariable
@@ -31,14 +41,35 @@ struct SpatialVariable <: AbstractVariable
     value::Float64
     lb::Float64
     ub::Float64
-    axis::Symbol
+    direction::SVector{3,Float64}
 
-    function SpatialVariable(node::Node, value::Real, lb::Real, ub::Real, axis::Symbol)
-        @assert axis in (:X, :Y, :Z) "axis must be :X, :Y, or :Z"
+    function SpatialVariable(node::Node, value::Real, lb::Real, ub::Real,
+        direction::SVector{3,Float64})
         @assert lb <= value <= ub "starting value must lie within [lb, ub]"
-        return new(node, value, lb, ub, axis)
+        n = norm(direction)
+        @assert n > 0 "direction must be a nonzero vector"
+        return new(node, value, lb, ub, direction / n)
     end
 end
+
+const _AXIS_VECTORS = (X = SVector(1.0, 0.0, 0.0),
+    Y = SVector(0.0, 1.0, 0.0), Z = SVector(0.0, 0.0, 1.0))
+
+function _axis_vector(axis::Symbol)
+    a = Symbol(uppercase(String(axis)))
+    haskey(_AXIS_VECTORS, a) || throw(ArgumentError("axis must be :X, :Y, or :Z"))
+    return _AXIS_VECTORS[a]
+end
+
+SpatialVariable(node::Node, value::Real, lb::Real, ub::Real, axis::Symbol) =
+    SpatialVariable(node, value, lb, ub, _axis_vector(axis))
+
+SpatialVariable(node::Node, direction::AbstractVector{<:Real}, value::Real, lb::Real, ub::Real) =
+    (length(direction) == 3 || throw(ArgumentError("direction must be in R³"));
+    SpatialVariable(node, value, lb, ub, SVector{3,Float64}(direction)))
+
+SpatialVariable(node::Node, direction::AbstractVector{<:Real}, lb::Real, ub::Real) =
+    SpatialVariable(node, direction, 0.0, lb, ub)
 
 """
     AreaVariable <: AbstractVariable

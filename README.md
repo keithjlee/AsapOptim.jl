@@ -187,6 +187,7 @@ All variables share the pattern `Variable(target, start_value, lower_bound, uppe
 | Variable | Controls | Semantics |
 |---|---|---|
 | `SpatialVariable(node, value, lb, ub, axis)` | node position along `:X`/`:Y`/`:Z` | **additive** — the design entry is an *offset* from the modeled position (start at `0.0` to begin from the current geometry) |
+| `SpatialVariable(node, vector, value, lb, ub)` | node position along an arbitrary directional "rail" | **additive** — `vector` is normalized, so the design entry is arc-length along the rail |
 | `AreaVariable(element, value, lb, ub)` | cross-section area | **absolute** — the design entry *replaces* the section's area; `Ix`, `Iy`, `J`, and the material are kept |
 | `JointVariable(element, position, value, lb, ub)` | rotational end-spring stiffness `ky = kz` at `:start`, `:end`, or `:both` of a `FrameElement` | **absolute** [force·length/rad] — semi-rigid connection design (see `examples/joint-stiffness.jl`) |
 | `QVariable(element, value, lb, ub)` | FDM force density of an `FDMelement` | **absolute** — for the [network path](#force-density-network-optimization) |
