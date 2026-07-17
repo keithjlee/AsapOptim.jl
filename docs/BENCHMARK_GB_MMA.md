@@ -42,11 +42,23 @@ gradient, prepared ForwardDiff constraint Jacobian (596×540), one
 | Run | Stack | Stop | Final volume | Wall time | Iterations | ms/iter |
 |---|---|---|---|---|---|---|
 | paper settings (`ftol_rel=1e-3`) | publication | FTOL | 2.6954 | 192.4 s | 347 | 554 |
-| | **v1.x** | FTOL | 2.7370 | **48.5 s** | 235 | 206 |
+| | v1.x, ForwardDiff Jacobian | FTOL | 2.7370 | 48.5 s | 235 | 206 |
+| | **v1.x, implicit Jacobian** | FTOL | 2.7720 | **31.9 s** | 202 | 158 |
 | full budget (`ftol_rel≈0`) | publication | MAXTIME (300 s) | 2.6585 | 302.5 s | 548 | 552 |
-| | **v1.x** | **MAXEVAL (1000)** | **2.6562** | **103.6 s** | 1000 | **104** |
+| | v1.x, ForwardDiff Jacobian | MAXEVAL (1000) | 2.6562 | 103.6 s | 1000 | 104 |
+| | **v1.x, implicit Jacobian** | **MAXEVAL (1000)** | **2.6554** | **56.8 s** | 1000 | **57** |
 
-All four runs end feasible (max constraint ≤ −4e-8). Volumes are local
+The implicit-Jacobian rows (`JAC=implicit`, added 2026-07-17 evening) use
+`solution_tangents` + `axial_stress_jacobian` in the constraint callback —
+same problem parity checks, all runs feasible. Full-budget headline:
+**1000 MMA iterations in 56.8 s (9.7× the publication stack per
+iteration), reaching the best objective of any run (2.6554) in 19% of the
+publication's wall time.** Constraint derivatives are now ~4.5 ms of the
+57 ms iteration — the residual is NLopt's CCSA subproblem (~52 ms average
+over a full run; ~150 ms in early iterations, declining as the
+approximation stabilizes).
+
+All runs end feasible (max constraint ≤ −4e-8). Volumes are local
 MMA outcomes along different trajectories; the meaningful comparisons:
 
 - **Per-iteration cost: 5.3× faster** (104 vs 552 ms at matched full-length

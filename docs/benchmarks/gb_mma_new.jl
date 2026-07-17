@@ -107,13 +107,27 @@ function nlopt_objective(x::Vector, grad::Vector)
     return v
 end
 
+# JAC env var selects the constraint-Jacobian method:
+#   "forwarddiff" (default) — prepared DifferentiationInterface ForwardDiff
+#   "implicit"              — solution_tangents (implicit-function theorem)
+const JAC = get(ENV, "JAC", "forwarddiff")
+println("JACOBIAN method: ", JAC)
+
 backend = AutoForwardDiff()
 prep = prepare_jacobian(constraints, backend, x0)
 function nlopt_constraints!(result::Vector, x::Vector, grad::Matrix)
     if length(grad) > 0
-        v, J = value_and_jacobian(constraints, prep, backend, x)
-        result .= v
-        grad .= J'
+        if JAC == "implicit"
+            t = solution_tangents(x, params)
+            result .= [(-t.res.U[3:6:end] .- dmax);
+                       (axial_stress(t.res, params)[i_stressed] .- fy)]
+            grad .= vcat(-t.dU[3:6:end, :],
+                         axial_stress_jacobian(t, params)[i_stressed, :])'
+        else
+            v, J = value_and_jacobian(constraints, prep, backend, x)
+            result .= v
+            grad .= J'
+        end
     else
         result .= constraints(x)
     end
@@ -134,6 +148,10 @@ NLopt.ftol_rel!(opt, parse(Float64, get(ENV, "FTOL_REL", "1e-3")))
 # also differentiates once before optimizing)
 Zygote.withgradient(volume, x0)
 value_and_jacobian(constraints, prep, backend, x0)
+if JAC == "implicit"
+    t0 = solution_tangents(x0, params)
+    axial_stress_jacobian(t0, params)
+end
 
 t_start[] = time()
 wall = @elapsed begin
