@@ -83,14 +83,15 @@ end
 """
     _element_lengths(X, p::OptParams) -> Vector
 
-Per-element Euclidean lengths from evaluated node positions `X` (3 × n) and
-the compiled end-node indices `p.i1`/`p.i2`. Pure and differentiable.
+Per-element Euclidean lengths from evaluated node positions `X` (3 × n):
+column norms of the batched end-to-end difference `X · Cincᵀ`. One matmul +
+one reduction — a handful of AD graph nodes total, where the per-element
+formulation cost one pullback closure per element.
 """
-_element_lengths(X, p::OptParams) =
-    map(eachindex(p.i1)) do k
-        i, j = p.i1[k], p.i2[k]
-        sqrt((X[1, j] - X[1, i])^2 + (X[2, j] - X[2, i])^2 + (X[3, j] - X[3, i])^2)
-    end
+function _element_lengths(X, p::OptParams)
+    ΔX = X * transpose(p.Cinc)               # 3 × n_el
+    return vec(sqrt.(sum(abs2, ΔX; dims=1)))
+end
 
 """
     solve_structure(x, p::OptParams) -> OptResults
@@ -122,17 +123,11 @@ differentiable; exact for truss elements and for the axial action of frame
 elements with rigid axial connections.
 """
 function axial_force(res::OptResults, p::OptParams)
-    map(eachindex(p.i1)) do i
-        ni, nj = p.i1[i], p.i2[i]
-        L = res.L[i]
-        nx = (res.X[1, nj] - res.X[1, ni]) / L
-        ny = (res.X[2, nj] - res.X[2, ni]) / L
-        nz = (res.X[3, nj] - res.X[3, ni]) / L
-        du1 = res.U[6*(nj-1)+1] - res.U[6*(ni-1)+1]
-        du2 = res.U[6*(nj-1)+2] - res.U[6*(ni-1)+2]
-        du3 = res.U[6*(nj-1)+3] - res.U[6*(ni-1)+3]
-        res.EA[i] / L * (nx * du1 + ny * du2 + nz * du3)
-    end
+    # batched: N = EA/L · (x̂ ⋅ Δu) = EA · (ΔX ⋅ ΔU) / L²  — two incidence
+    # matmuls + broadcasts instead of one pullback closure per element
+    ΔX = res.X * transpose(p.Cinc)                         # 3 × n_el
+    ΔU = reshape(res.U, 6, :)[1:3, :] * transpose(p.Cinc)  # translational diffs
+    return vec(sum(ΔX .* ΔU; dims=1)) .* res.EA ./ (res.L .^ 2)
 end
 
 """

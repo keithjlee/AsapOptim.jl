@@ -156,9 +156,8 @@ Per-element member lengths of the form-found geometry: row norms of
 `C · xyz`, where `C` is the network's signed incidence matrix.
 """
 function _network_lengths(xyz, p::NetworkOptParams)
-    C = p.network.cache.C
-    vx = C * xyz
-    return [sqrt(vx[i, 1]^2 + vx[i, 2]^2 + vx[i, 3]^2) for i in 1:size(vx, 1)]
+    vx = p.network.cache.C * xyz
+    return vec(sqrt.(sum(abs2, vx; dims=2)))
 end
 
 """

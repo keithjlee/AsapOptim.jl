@@ -28,6 +28,10 @@ is unified, so one parameter type serves both.)
 - `i1`, `i2::Vector{Int}`: per-element node indices; `base_sections`: the
   reference sections — plain-data mirrors so the differentiable path never
   reads mutable structs (a Zygote tangent-accumulation catastrophe at scale)
+- `Cinc::SparseMatrixCSC`: signed node-element incidence (n_el × n_nodes,
+  −1 at the start node, +1 at the end) — element geometry (lengths, axial
+  directions) evaluates as ONE matmul `X · Cincᵀ` instead of a per-element
+  map (whose pullbacks would dominate gradient cost)
 
 # Design-evaluation contract
 `x` is the vector an optimizer manipulates; [`solve_structure`](@ref)`(x, p)`
@@ -47,6 +51,7 @@ struct OptParams
     F::Vector{Float64}
     i1::Vector{Int}
     i2::Vector{Int}
+    Cinc::SparseMatrixCSC{Float64,Int}
     base_sections::Vector{Any}
     Evec::Vector{Float64}            # per-element Young's moduli (constant)
     # joint-stiffness variables: design slot (0 = none) and factor per
@@ -184,6 +189,8 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
     F = cache.P .- cache.Pf
     i1 = [el.nodeStart.index for el in model.elements]
     i2 = [el.nodeEnd.index for el in model.elements]
+    Cinc = sparse([1:nel; 1:nel], [i1; i2],
+        [fill(-1.0, nel); fill(1.0, nel)], nel, nnodes)
     # element-load fixed-end forces depend on end conditions, but the pure
     # path treats loads as constant data — a joint variable on an element
     # that carries element loads would silently use stale FEFs. Guard it.
@@ -205,6 +212,6 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
     return OptParams(model, values, lb, ub, X0,
         sparse(sxI, sxJ, sxV, 3 * nnodes, nx),
         A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F,
-        i1, i2, base_sections, Evec,
+        i1, i2, Cinc, base_sections, Evec,
         jslot1, jfac1, jslot2, jfac2, base_ends)
 end
