@@ -146,7 +146,9 @@ axial_stress(res::OptResults, p::OptParams) = axial_force(res, p) ./ res.A
 External work `Fᵀu` of the evaluated design — the canonical smooth
 stiffness objective.
 """
-compliance(res::OptResults, p::OptParams) = dot(p.F, res.U)
+# sum∘broadcast, not LinearAlgebra.dot: dot lowers to BLAS, which Enzyme's
+# forward mode cannot handle under runtime activity
+compliance(res::OptResults, p::OptParams) = sum(p.F .* res.U)
 
 """
     GeometricProperties(x, p::OptParams)

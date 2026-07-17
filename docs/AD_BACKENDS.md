@@ -192,6 +192,51 @@ Headlines:
 - The geometry batching also moved reverse mode: spaceframe ∇volume
   1.61 → **0.19 ms**, ∇compliance 1.78 → 1.34 ms (Zygote, 1.12).
 
+## Update 2026-07-17: Enzyme forward RESOLVED (native rule); solver seam; CachedSolver
+
+Four changes landed together (Asap + AsapOptim; all suites green — 2718/57):
+
+1. **Enzyme forward mode now works** (Julia 1.11, default solver). Root
+   cause of the earlier failures was never Enzyme's forward core: the
+   `@import_frule` bridge returned silently wrong tangents under runtime
+   activity (a constant argument's shadow ALIASES its primal, which the
+   generic bridge reads as a real tangent, `ΔF = F`), and the one BLAS
+   call in the pipeline (`dot` in `compliance`) is unsupported in
+   forward+runtime-activity mode. Fixes: a NATIVE `EnzymeRules.forward`
+   rule in `AsapEnzymeExt` that detects shadow aliasing explicitly, and
+   `sum(F .* u)` instead of `dot`. Verified to machine precision against
+   Zygote (gradient and full Jacobian, batch widths 1–16).
+2. **Solver selection reaches the differentiable path**:
+   `OptParams(model, vars; solver = ...)` — `nothing` (CHOLMOD), any
+   LinearSolve algorithm, or `Asap.CachedSolver()`. Values and gradients
+   are backend-invariant (tested: KLU, KrylovJL_CG, CachedSolver, across
+   Zygote AND ForwardDiff).
+3. **CachedSolver** shares one factorization across every pass at a
+   design iterate (obj gradient + constraint Jacobian + all ForwardDiff
+   chunks). Spaceframe: Jacobian 54 → 43 ms, Zygote gradient 1.34 →
+   1.06 ms. Factorization is only ~20% of these workloads at 339 DOFs —
+   the cache's share grows with model size (Dual-K assembly per chunk
+   dominates the rest; the next lever is a hand implicit-diff Jacobian
+   for area problems, where K is linear in the design).
+4. **NLopt-direct example** (`examples/truss-optimization3-nlopt.jl`):
+   Zygote objective + prepared-ForwardDiff constraint Jacobian +
+   CachedSolver → **500 MMA iterations in 6.6 s** where the
+   Nonconvex/Zygote-Jacobian formulation needs its full 60 s budget.
+
+Updated Jacobian standings (stress constraints, Julia 1.11, medians):
+
+| Problem | ForwardDiff (+CachedSolver) | Enzyme-fwd (default solver) | Zygote |
+|---|---|---|---|
+| ex1 (47×24) | **0.16 ms** | 0.30 ms | 28.8 ms |
+| spaceframe (512×512) | **43 ms** | 152 ms | 7,587 ms |
+
+Guidance unchanged in direction, sharpened in detail: **ForwardDiff for
+constraint Jacobians** (now also the fastest, not just the most robust),
+reverse for scalar objectives, Enzyme-forward as an independent
+correctness check. Enzyme limitations that remain upstream: 1.12 aborts
+(compiler assertion) in forward mode, and Enzyme×CachedSolver aborts on
+the mutable solver struct — with Enzyme use the default solver.
+
 ## Gotchas & their fixes (documented for future maintenance)
 
 1. **Neither Mooncake nor Enzyme consumes ChainRules rules automatically** —

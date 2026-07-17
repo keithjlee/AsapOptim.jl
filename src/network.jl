@@ -31,7 +31,7 @@ The FDM solve is linear in the free coordinates:
 `(Cnᵀ diag(q) Cn) · xyz_free = Pn − Cnᵀ diag(q) Cf · xyz_fixed` — evaluated
 purely by [`solve_network`](@ref), differentiable end-to-end w.r.t. `q`.
 """
-struct NetworkOptParams
+struct NetworkOptParams{S}
     network::Asap.Network
     values::Vector{Float64}
     lb::Vector{Float64}
@@ -45,7 +45,7 @@ struct NetworkOptParams
     xyz_f::Matrix{Float64}
     embed_free::SparseMatrixCSC{Float64,Int}    # n_nodes × n_free row scatter
     embed_fixed::SparseMatrixCSC{Float64,Int}   # n_nodes × n_fixed
-    solver::Any                                 # linear-solver backend (see OptParams)
+    solver::S                                   # linear-solver backend (see OptParams)
 end
 
 """

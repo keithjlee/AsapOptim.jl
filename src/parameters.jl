@@ -38,7 +38,7 @@ is unified, so one parameter type serves both.)
 gives results, gradients flow through Zygote (or any ChainRules-aware
 engine) with no additional rules.
 """
-struct OptParams
+struct OptParams{S}
     model::Model{Float64}
     values::Vector{Float64}
     lb::Vector{Float64}
@@ -64,8 +64,10 @@ struct OptParams
     # linear-solver backend for every solve THROUGH these params (value,
     # adjoint, and forward-tangent systems alike): `nothing` = built-in
     # CHOLMOD; any LinearSolve algorithm (with Asap's extension); or
-    # Asap.CachedSolver(...) to share one factorization per design iterate
-    solver::Any
+    # Asap.CachedSolver(...) to share one factorization per design iterate.
+    # CONCRETELY typed (struct parameter): solver dispatch must be static —
+    # a type-unstable solve call site breaks Enzyme's forward mode.
+    solver::S
 end
 
 const TrussOptParams = OptParams

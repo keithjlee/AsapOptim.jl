@@ -1,7 +1,12 @@
-# Enzyme FORWARD-mode probe — run in its own process: as of Enzyme 0.13.186
-# a whole-pipeline forward pass can abort the process with an Enzyme compiler
-# assertion (AdjointGenerator.h:318). The solve_free frule import itself is
-# verified working (test_forward.jl); this probes the full pipeline.
+# Enzyme FORWARD-mode probe — run in its own process (a failing
+# configuration can ABORT, not throw). Status as of 2026-07-17, native
+# EnzymeRules.forward rule in AsapEnzymeExt, Enzyme 0.13.186:
+#   * Julia 1.11 + default solver: WORKS (machine-precision gradients and
+#     Jacobians; ex1 Jacobian 0.30 ms, spaceframe 152 ms)
+#   * Julia 1.11 + CachedSolver: ABORTS in Enzyme codegen around the
+#     mutable solver struct (before rule dispatch) — use the default
+#     solver with Enzyme, or ForwardDiff (which wins on speed anyway)
+#   * Julia 1.12 (any solver): ABORTS (AdjointGenerator.h:318 assertion)
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
