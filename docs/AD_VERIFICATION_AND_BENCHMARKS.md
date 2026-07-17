@@ -83,10 +83,31 @@ future differentiable code in this ecosystem:
    `map(i -> EA(sections[i]), indices)` alone cost 42 ms. Fix: carry `EA` as
    a plain precomputed vector on `ModelState`/`OptResults`. → 50 → **2.8 ms**.
 
+### Update 2026-07-16: masked-scatter broadcast fix
+
+The per-element mask comprehensions in `_design_state`,
+`GeometricProperties`, and `solve_network`
+(`[mask[i] ? var[i] : base[i] for i ...]`) were pattern-1/2 offenders in
+disguise: each indexed read costs a one-hot `getindex` pullback (~35×
+a broadcasted `ifelse` in isolation). Replaced with
+`ifelse.(mask, Sa * x, A0)`; sections also now skip the per-element
+rebuild when no area variables exist. Same machine, Julia 1.11, same
+fixture — gradients bit-identical, AD checks unchanged:
+
+| Metric (median) | before | after | vs legacy 1.41 / 0.27 ms |
+|---|---|---|---|
+| ∇ compliance (512 area vars) | 2.77 ms | **1.78 ms** | 1.26× |
+| ∇ volume | 2.90 ms | **1.61 ms** | 6× |
+
+On the small 24-variable example-1 truss the effect is larger (fixed
+overheads dominate there): `Zygote.withgradient` of compliance went
+945 → **373 μs** (legacy stack: 161 μs), ∇ volume 627 → **72 μs**.
+
 ### Known further opportunities (not yet done)
 
-- `∇ volume` (2.9 ms) is dominated by the per-element `_element_lengths`
-  closure — batchable with the same incidence-matmul trick (expect ~0.3 ms).
+- `∇ volume` (now 1.61 ms) is dominated by the per-element
+  `_element_lengths` closure — batchable with the same incidence-matmul
+  trick (expect ~0.3 ms).
 - Frame-element groups still use the per-element kernel path; a batched
   frame assembly (or an analytic `frame_stiffness` pullback) would matter for
   frame-dominated optimization.

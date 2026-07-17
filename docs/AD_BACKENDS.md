@@ -84,6 +84,50 @@ Headlines:
   on small problems and currently trails Zygote in time on larger ones.
 - Zygote continues to work unchanged.
 
+## Update 2026-07-16: example-1 truss, backend vs legacy stack
+
+After the masked-scatter broadcast fix (AsapOptim) and the `truss_stiffness`
+static-block fix (Asap), the line-95 compliance gradient of
+`examples/truss-optimization1.jl` (24 spatial variables, 47 elements),
+`@benchmark` medians, all gradients agreeing to 1.7e-10 vs finite
+differences:
+
+| Stack / backend | median | memory |
+|---|---|---|
+| legacy (Asap 0.2.2 + AsapOptim 0.1.3), Zygote | 179 μs | 0.49 MB |
+| v1.0, Zygote | 446 μs | 0.78 MB |
+| v1.0, Mooncake (DI, prepared) | 253 μs | 0.29 MB |
+| **v1.0, Enzyme (DI, prepared)** | **189 μs** | 0.39 MB |
+
+Enzyme on the generic v1.0 path matches the fully hand-differentiated
+legacy stack (within 6%) even on this small, truss-only,
+legacy-favorable problem — consistent with the spaceframe result above,
+where Enzyme beats legacy outright.
+
+And the S4.2 spaceframe (512 area variables), same conditions — the
+legacy baseline here is the REGISTERED old stack (Asap 0.2.2 +
+AsapOptim 0.1.3 with current Zygote), which is faster than the
+publication's pinned environment measured in the original table above
+(0.83 vs 1.41 ms), so this is the tougher comparison:
+
+| Stack / backend | Julia 1.12.6 | Julia 1.11 |
+|---|---|---|
+| legacy 0.1.3, Zygote | 0.832 ms / 7.5 MB | — |
+| v1.0, Zygote | 1.433 ms / 8.5 MB | 1.43 ms / 8.7 MB |
+| v1.0, Mooncake (DI, prepared) | 4.35 ms / 3.9 MB | 4.46 ms / 3.9 MB |
+| v1.0, Enzyme (DI, prepared) | 1.69 ms / 4.3 MB | **0.832 ms** / 3.5 MB |
+
+All backends agree with the finite-difference directional derivative to
+1.9e-9. Two observations:
+
+- On Julia 1.11, Enzyme matches the legacy hand-differentiated stack
+  EXACTLY (0.832 ms) at 512 variables — zero generality tax.
+- **Enzyme is 2× slower on Julia 1.12 than 1.11 for identical code**
+  (1.69 vs 0.832 ms; Zygote and Mooncake are version-stable). This is an
+  Enzyme×Julia-1.12 codegen interaction, not an Asap/AsapOptim issue —
+  worth re-checking as Enzyme releases catch up to 1.12. On 1.12,
+  Zygote (1.43 ms) is currently the fastest backend at this scale.
+
 ## Gotchas & their fixes (documented for future maintenance)
 
 1. **Neither Mooncake nor Enzyme consumes ChainRules rules automatically** —

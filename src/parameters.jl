@@ -61,7 +61,29 @@ end
 const TrussOptParams = OptParams
 const FrameOptParams = OptParams
 
+"""
+    _axis_component(axis::Symbol) -> Int
+
+Row offset (1/2/3) of a global axis (`:X`/`:Y`/`:Z`) within a node's column
+of the 3 × n position matrix.
+"""
 _axis_component(axis::Symbol) = axis === :X ? 1 : axis === :Y ? 2 : 3
+
+"""
+    OptParams(model::Model, variables::Vector{<:AbstractVariable})
+
+Compile a processed (or processable) `Asap.Model` and its design variables
+into an [`OptParams`](@ref): assign one design-vector slot per independent
+variable, build the sparse position/area scatter maps (couplings become
+extra scattered entries with their factors), record the joint-variable
+slots, and snapshot all constant data (base positions, sections, loads) as
+plain arrays.
+
+Errors early on ill-posed declarations: two variables on one element's
+area or joint, couplings whose parent is not among the independents,
+target/parent type mismatches, and joint variables on elements that carry
+element loads (their fixed-end forces would not track the design).
+"""
 
 function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable})
     model.cache === nothing && process!(model)

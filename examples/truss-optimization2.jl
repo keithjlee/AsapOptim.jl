@@ -83,7 +83,10 @@ OBJ = x -> obj(x, params)
 o0, ∇o0 = Zygote.withgradient(OBJ, x0)
 println("initial volume: ", o0, " m³")
 
-# constraints: vertical displacements and axial stresses
+# constraints: vertical displacements and axial stresses, each row
+# NORMALIZED by its limit (quantity/limit − 1 ≤ 0). Normalization matters:
+# raw displacement rows are O(0.01) while stress rows are O(1e5), and that
+# scale mismatch stalls MMA at an infeasible point with ~2× the volume.
 # (NOTE the v1.0 DOF layout: 6 DOFs per node — vertical is U[2:6:end])
 function cstr(x, p, dmax, smax)
     res = solve_truss(x, p)
@@ -92,8 +95,8 @@ function cstr(x, p, dmax, smax)
     stresses = axial_stress(res, p)
 
     return [
-        abs.(vertical_displacements) .- dmax;
-        abs.(stresses) .- smax
+        abs.(vertical_displacements) ./ dmax .- 1.0;
+        abs.(stresses) ./ smax .- 1.0
     ]
 end
 CSTR = x -> cstr(x, params, dmax, fy)

@@ -1,270 +1,286 @@
 # AsapOptim.jl
+
 ![](figures/gradients-axo.png)
 ![](figures/gb_mma_small.gif)
 
-High performance *general* structural optimization in the [Asap.jl](https://github.com/keithjlee/Asap) environment.
+High-performance, *general* structural optimization in the [Asap.jl](https://github.com/keithjlee/Asap) environment.
 
-# Installation
-In package mode, add `AsapOptim` via:
+AsapOptim maps a **design vector** — node positions, cross-section areas, connection stiffnesses, force densities — to a differentiable structural analysis and back. You write ordinary Julia objective/constraint functions; gradients flow end-to-end through the solve via automatic differentiation, and any gradient-based optimizer (Nonconvex.jl, NLopt, Optim, your own loop) drives the design.
+
+**v1.0** is a ground-up rewrite on Asap v1.0's differentiable core. AsapOptim no longer re-implements analysis or hand-writes adjoints — it is a thin layer (~600 lines) that compiles design variables into sparse scatter maps and evaluates designs through Asap's pure, AD-transparent solve path. One unified core handles trusses, frames, semi-rigid joints, and mixed models. See [Migrating from v0.1](#migrating-from-v01) if you used earlier versions.
+
+## Installation
+
 ```julia-repl
 pkg> add AsapOptim
 ```
 
-# Usage
-The files used to make these examples are in `examples/`
+For the examples below you will also want an AD engine and an optimizer:
 
-Let's consider the following truss structure:
+```julia-repl
+pkg> add Zygote Nonconvex NonconvexNLopt
+```
+
+## The workflow
+
+Every optimization follows the same five steps:
+
+1. **Model** — build and solve an `Asap.Model` as usual.
+2. **Variables** — declare what the optimizer controls ([`SpatialVariable`](#design-variables), [`AreaVariable`](#design-variables), [`JointVariable`](#design-variables), [`CoupledVariable`](#coupling-variables-symmetry-and-grouping)).
+3. **Parameters** — compile model + variables into an `OptParams` (once).
+4. **Objective/constraints** — plain functions of `solve_structure(x, params)` results (or `GeometricProperties(x, params)` when no solve is needed).
+5. **Optimize** — hand the function and `params.lb`/`params.ub` to your optimizer; recover the final design with `updatemodel(params, x_optimal)`.
+
+```julia
+using Asap, AsapOptim, LinearAlgebra
+using Zygote                       # activates Asap's ChainRules extension
+
+vars   = AbstractVariable[ ... ]   # step 2
+params = OptParams(model, vars)    # step 3
+x0     = copy(params.values)
+
+objective(x) = compliance(solve_structure(x, params), params)   # step 4
+
+value, gradient = Zygote.withgradient(objective, x0)            # step 5: any
+                                                                # gradient-based
+                                                                # optimizer from here
+```
+
+## Quick start: geometry optimization
+
+The runnable files for everything below are in `examples/`. Consider this truss:
+
 ![](figures/problem_formulation.png)
 
-We can make and analyze this using `Asap.jl` via:
+Built with Asap:
 
 ```julia
 using Asap
-# initial section
-A = 0.01 # [m²]
-E = 200E6 # [KN/m²]
-fy = 350e3 # [kN/m²]
-section = TrussSection(A, E)
 
-L = 10. # total span of truss [m]
-nx = 12 # number of bays in span
-dy = 1.0 # truss depth [m]
-load = 75. # downward force applied at free bottom chord nodes [kN]
+steel = Material(200e6, 80.0, 0.3)        # E [kN/m²], ρ, ν
+section = Section(steel, 0.01)            # axial-only, A = 0.01 m²
 
-# Generate truss
-dx = L / nx # bay length [m]
-dmax = L / 360 #displacement limit [m]
+L = 10.0    # span [m]
+nx = 12     # bays
+dy = 1.0    # depth [m]
+load = 75.0 # per-node load [kN]
+dx = L / nx
 
-# bottom nodes
-bottom_nodes = [TrussNode([x, 0., 0.], :free, :bottom) for x in range(0, L, nx+1)]
-
-# make supports
+bottom_nodes = [Node([x, 0.0, 0.0], :free, :bottom) for x in range(0, L, nx + 1)]
 fixnode!(first(bottom_nodes), :pinned)
-first(bottom_nodes).id = :pin
-
 fixnode!(last(bottom_nodes), :xfree)
-last(bottom_nodes).id = :roller
 
-# top nodes
-top_nodes = [TrussNode([dx/2 + dx * (i-1), dy, 0.], :free, :top) for i = 1:nx]
+top_nodes = [Node([dx / 2 + dx * (i - 1), dy, 0.0], :free, :top) for i in 1:nx]
 
-# bottom chord elements
-bottom_elements = [TrussElement(bottom_nodes[i], bottom_nodes[i+1], section, :bottom) for i = 1:nx]
-
-#top chord elements
-top_elements = [TrussElement(top_nodes[i], top_nodes[i+1], section, :top) for i = 1:nx-1]
-
-# web elements
+bottom_elements = [TrussElement(bottom_nodes[i], bottom_nodes[i+1], section, :bottom) for i in 1:nx]
+top_elements = [TrussElement(top_nodes[i], top_nodes[i+1], section, :top) for i in 1:nx-1]
 web_elements = [
     [TrussElement(nb, nt, section, :web) for (nb, nt) in zip(bottom_nodes[1:end-1], top_nodes)];
     [TrussElement(nt, nb, section, :web) for (nt, nb) in zip(top_nodes, bottom_nodes[2:end])]
 ]
 
-# collect
 nodes = [bottom_nodes; top_nodes]
-elements = [bottom_elements; top_elements; web_elements]
-loads = [NodeForce(node, [0, -load, 0]) for node in nodes[:bottom]]
+elements = AbstractElement{Float64}[bottom_elements; top_elements; web_elements]
+loads = AbstractLoad{Float64}[NodeForce(node, [0.0, -load, 0.0]) for node in nodes[:bottom]]
 
-# assemble
-model = TrussModel(nodes, elements, loads)
+model = Model(nodes, elements, loads)
 planarize!(model)
 solve!(model)
 ```
 
-## Unconstrained optimization
-Let's find the minimum compliance geometry of our truss (minimum strain energy).
 ![](figures/compliance_init.png)
 
-### Design variables
-Our design variables are `SpatialVariable`s for each top node: one in the x-axis and one in the y-axis. Defined via:
-```julia
-# bounds
-xmin, xmax = (-1, 1) .* dx ./ 2 .* .9
-ymin, ymax = -.9dy, dy
+Let's find the minimum-compliance (maximum-stiffness) geometry by letting every top-chord node move in x and y:
 
-vars = [
-    [SpatialVariable(node, 0., xmin, xmax, :X) for node in model.nodes[:top]];
-    [SpatialVariable(node, 0., ymin, ymax, :Y) for node in model.nodes[:top]]
+```julia
+using AsapOptim, LinearAlgebra
+using Zygote
+
+xmin, xmax = (-1, 1) .* dx ./ 2 .* 0.9
+ymin, ymax = -0.9dy, dy
+
+vars = AbstractVariable[
+    [SpatialVariable(node, 0.0, xmin, xmax, :X) for node in model.nodes[:top]];
+    [SpatialVariable(node, 0.0, ymin, ymax, :Y) for node in model.nodes[:top]]
 ]
+
+params = OptParams(model, vars)
+x0 = copy(params.values)      # the optimizer's starting point
 ```
 
-- `SpatialVariables` for a Cartesian axis can be defined by: `SpatialVariable(node, initial_value, lowerbound, upperbound, :AXIS)`, where `:AXIS` can be `:X, :Y, :Z`.
-- You can specify the directional vector of a `SpatialVariable` via: `SpatialVariable(node, vector, initial_value, lowerbound, upperbound)`, where `vector` is a 3d vector that specifies the "rail" that the variable can travel on.
-- `SpatialVariables` are *additive*. I.e., they do not specify the absolute position of a node, but rather an *offset* from the initial position.
-
-### Parameters
-We then generate a `TrussOptParams` object that contains all necessary information to perform analysis using our variables (such as node-element topology, fixed values, etc).
+The objective is one line — `solve_structure` evaluates a design, `compliance` reduces it to the scalar `Fᵀu`:
 
 ```julia
-params = TrussOptParams(model, vars)
-x0 = copy(params.values) #this is the starting point for optimization
+OBJ = x -> compliance(solve_structure(x, params), params)
+
+Zygote.withgradient(OBJ, x0)  # value and exact gradient, no extra setup
 ```
 
-### Objective function
-Define your objective function as a typical Julia function. Generally, the arguments should include `x`, which is the vector of design variables, equal in size to `params.values`, as well as a `p::TrussOptParams` object that enables the use of convenient solver functions. Like so:
+Optimize with anything gradient-based — here L-BFGS via Nonconvex.jl:
 
-```julia
-function obj(x, p)
-    res = solve_truss(x, p)
-
-    dot(res.U, p.P)
-end
-```
-
-`solve_truss(x::Vector{Float64}, p::TrussOptParams)` updates the structure with the given values in `x`, and returns a `TrussResults` object:
-
-```julia
-struct TrussResults
-    X::Vector{Float64} #X position of nodes
-    Y::Vector{Float64} #Y position of nodes
-    Z::Vector{Float64} #Z position of nodes
-    A::Vector{Float64} #Areas of all elements
-    L::Vector{Float64} #Lengths of all elements
-    K::Vector{Matrix{Float64}} #elemental stiffness matrices in global coordinate system
-    R::Vector{Matrix{Float64}} #elemental transformation matrices
-    U::Vector{Float64} #global displacement vector
-end
-```
-which contains up-to-date values of all relevant fields that might be useful in defining your objective function.
-
-In this case, structural compliance is simply the dot product between the displacement vector `res.U` and the static vector of external loads, which is stored in our params as `p.P`.
-
-
-Let's make a function closure for our 2-argument objective function to work well with our optimization package of choice, `Nonconvex.jl`:
-
-```julia
-OBJ = x -> obj(x, params)
-```
-
-### Optimization using `Nonconvex.jl` and `NonconvexNLopt.jl`
-Let's solve our optimization problem!
 ```julia
 using Nonconvex, NonconvexNLopt
 
-# make optimization model
 optmodel = Nonconvex.Model(OBJ)
-
-# add variable bounds
 addvar!(optmodel, params.lb, params.ub)
 
-# define algorithm and options
-alg = NLoptAlg(:LD_LBFGS)
-opts = NLoptOptions(
-    maxeval = 500,
-    maxtime = 60
-)
+res = optimize(optmodel, NLoptAlg(:LD_LBFGS), x0,
+    options = NLoptOptions(maxeval = 500, maxtime = 60))
 
-# solve
-res = optimize(
-    optmodel,
-    alg,
-    x0,
-    options = opts
-)
+model2 = updatemodel(params, res.minimizer)   # a solved Asap.Model of the optimum
 ```
 
-We can create a new `Asap.TrussModel` from our results using the `updatemodel` function:
-```julia
-# make new model from solution
-model2 = updatemodel(params, res.minimizer)
-```
-giving:
 ![](figures/compliance_sol.png)
 
-## Constrained optimization
-Let's try a different problem:
+## Constrained optimization: geometry + sizing
+
 ![](figures/volume_init.png)
-Along with our spatial design variables, we also consider the cross-section areas of our elements to find a minimum volume truss that meets our stress and displacement constraints.
-Without the constraints, the solutions is trivial: make the truss as shallow as possible, and set the areas to 0.
 
-With our constraints, the problem is more interesting: reducing the depth of the truss reduces element lengths and thus our volume, at the cost of increasing internal force values that increase the required cross-section area. What's the best tradeoff here?
+Add member areas as variables and minimize material volume subject to displacement and stress limits — without the constraints, the trivial optimum is a flat truss of zero area; with them, depth trades against member force:
 
-### Design variables
-Simply add out area variables:
 ```julia
-vars = TrussVariable[
-    [SpatialVariable(node, 0., xmin, xmax, :X) for node in model.nodes[:top]];
-    [SpatialVariable(node, 0., ymin, ymax, :Y) for node in model.nodes[:top]];
-    [AreaVariable(element, element.section.A, .01element.section.A, 5element.section.A) for element in model.elements]
+vars = AbstractVariable[
+    [SpatialVariable(node, 0.0, xmin, xmax, :X) for node in model.nodes[:top]];
+    [SpatialVariable(node, 0.0, ymin, ymax, :Y) for node in model.nodes[:top]];
+    [AreaVariable(element, element.section.A, 0.01 * element.section.A, 5 * element.section.A)
+     for element in model.elements]
 ]
-```
-We've restricted the element area to between 1% and 500% of the starting area.
 
-### Parameters
-Define our optimization parameters as before
+params = OptParams(model, vars)
+x0 = copy(params.values)
 
-```julia
-params = TrussOptParams(model, vars)
-x0 = copy(params.values) #this is the starting point for optimization
-```
-
-### Objective and Constraint functions
-```julia
-# objective function
+# objective: material volume — geometry only, no solve needed
 function obj(x, p)
     geo = GeometricProperties(x, p)
-
     dot(geo.L, geo.A)
 end
-
-#make closure
 OBJ = x -> obj(x, params)
 
-# constraint function
+# constraints: g(x) .<= 0 feasible (Nonconvex.jl convention), each row
+# normalized by its limit — mixed-scale constraint rows stall MMA
+# NOTE the DOF layout: 6 DOFs per node — vertical displacements are U[2:6:end]
 function cstr(x, p, dmax, smax)
-    res = solve_truss(x, p)
-    
-    vertical_displacements = res.U[2:3:end]
-    stresses = AsapOptim.axial_force(res, p) ./ res.A
-
+    res = solve_structure(x, p)
     return [
-        (abs.(vertical_displacements) .- dmax);
-        abs.(stresses) .- smax
+        abs.(res.U[2:6:end]) ./ dmax .- 1.0;
+        abs.(axial_stress(res, p)) ./ smax .- 1.0
     ]
 end
-
-#make closure
 CSTR = x -> cstr(x, params, dmax, fy)
-```
 
-For our objective, we make a `GeometricProperties` object, that simply extracts the current nodal positions and element lengths/areas *without* performing structural analysis:
-```julia
-struct GeometricProperties
-    X::Vector{Float64}
-    Y::Vector{Float64}
-    Z::Vector{Float64}
-    evecs::Matrix{Float64}
-    A::Vector{Float64}
-    L::Vector{Float64}
-end
-```
-
-For our constraint, we use `axial_force(res::TrussResults, p::TrussOptParams)` to get the axial forces of all elements to get our stress values. This constraint function is meant to work with `Nonconvex.jl` in which we return a *single* vector of constraint values `g` such that $g \leq  0$ means we are in a feasible region. Depending on the optimization package you use, the format of this might be different.
-
-### Optimization
-Optimizing as before, but this time using the MMA algorithm for constrained optimization:
-
-```julia
 optmodel = Nonconvex.Model(OBJ)
 addvar!(optmodel, params.lb, params.ub)
 add_ineq_constraint!(optmodel, CSTR)
 
-alg = NLoptAlg(:LD_MMA)
-opts = NLoptOptions(
-    maxeval = 500,
-    maxtime = 60
-)
+res = optimize(optmodel, NLoptAlg(:LD_MMA), x0,
+    options = NLoptOptions(maxeval = 500, maxtime = 60))
 
-res = optimize(
-    optmodel,
-    alg,
-    x0,
-    options = opts
-)
-
-# make new model from solution
 model2 = updatemodel(params, res.minimizer)
 ```
 
-gives:
 ![](figures/volume_sol.png)
+
+## Design variables
+
+All variables share the pattern `Variable(target, start_value, lower_bound, upper_bound, ...)`. Mind the two semantics:
+
+| Variable | Controls | Semantics |
+|---|---|---|
+| `SpatialVariable(node, value, lb, ub, axis)` | node position along `:X`/`:Y`/`:Z` | **additive** — the design entry is an *offset* from the modeled position (start at `0.0` to begin from the current geometry) |
+| `AreaVariable(element, value, lb, ub)` | cross-section area | **absolute** — the design entry *replaces* the section's area; `Ix`, `Iy`, `J`, and the material are kept |
+| `JointVariable(element, position, value, lb, ub)` | rotational end-spring stiffness `ky = kz` at `:start`, `:end`, or `:both` of a `FrameElement` | **absolute** [force·length/rad] — semi-rigid connection design (see `examples/joint-stiffness.jl`) |
+| `QVariable(element, value, lb, ub)` | FDM force density of an `FDMelement` | **absolute** — for the [network path](#force-density-network-optimization) |
+
+Notes:
+
+- `AreaVariable` requires a geometric `Section`; a `RigiditySection` has no area to vary — parameterize its rigidities directly instead.
+- `JointVariable` errors (at `OptParams` time) if the element also carries an element load, because the load's fixed-end forces would not track the changing stiffness. Apply such loads as `NodeForce`s or split the member.
+
+### Coupling variables: symmetry and grouping
+
+`CoupledVariable(target, parent, factor = 1.0)` makes `target` share `parent`'s design-vector entry, scaled by `factor` — equality constraints expressed for free, shrinking the design space instead of adding constraint rows:
+
+```julia
+# mirror-symmetric geometry: right node's x-offset is the negative of the left's
+x_left = SpatialVariable(left_node, 0.0, -1.0, 1.0, :X)
+x_right = CoupledVariable(right_node, x_left, -1.0)
+
+# member groups: all web elements share one area
+a_web = AreaVariable(web_elements[1], 0.01, 1e-4, 0.05)
+groups = [CoupledVariable(el, a_web) for el in web_elements[2:end]]
+
+# joint pairs: couple another element's end to a JointVariable
+# (target may be an element, or an (element, position) tuple)
+j = JointVariable(beam1, :start, 1e8, 1e5, 1e12)
+mirror = CoupledVariable((beam2, :end), j)
+```
+
+Always couple to the *independent* parent — chains of couplings are rejected.
+
+## Evaluating designs
+
+### `solve_structure(x, params) -> OptResults`
+
+The full differentiable analysis: scatter positions/areas/joint stiffnesses, run Asap's pure solve, package the results. `solve_truss` and `solve_frame` are aliases — the v1.0 core is unified, so one function serves both (and mixed models).
+
+`OptResults` fields, all plain data — any scalar function of them is differentiable back to `x`:
+
+- `U` — global displacement vector, **6 DOFs per node** (`ux, uy, uz, θx, θy, θz`): node `i`'s translations are `U[6(i-1) .+ (1:3)]`; all y-displacements are `U[2:6:end]`, all z-displacements `U[3:6:end]`
+- `X` — evaluated node positions (3 × n_nodes)
+- `A`, `L` — per-element areas and lengths
+- `sections`, `EA` — evaluated sections and axial rigidities
+
+Built-in reductions of an `OptResults`:
+
+- `compliance(res, params)` — external work `Fᵀu`, the canonical smooth stiffness objective
+- `axial_force(res, params)` — per-element axial force, tension-positive
+- `axial_stress(res, params)` — axial force over evaluated area
+
+### `GeometricProperties(x, params)`
+
+Geometry-only evaluation — positions `X`, lengths `L`, areas `A` — with **no structural solve**. Use it for objectives like material volume (`dot(geo.A, geo.L)`) where paying for a solve (and its gradient) would be waste.
+
+### `updatemodel(params, x) -> Model`
+
+Materializes a design back into the reference `Asap.Model`: writes positions, sections, and joint stiffnesses, re-solves, and returns the ordinary mutable model — ready for post-processing, force recovery, visualization, or export.
+
+## Force-density network optimization
+
+The same variable → params → solve pattern works on `Asap.Network` (FDM form-finding). `solve_network` is differentiable in the force densities end-to-end:
+
+```julia
+qv = QVariable(network.elements[1], 1.0, 0.1, 10.0)
+vars = AbstractVariable[qv; [CoupledVariable(el, qv) for el in network.elements[2:5]]]
+
+nparams = NetworkOptParams(network, vars)
+
+function obj(x)
+    res = solve_network(x, nparams)          # NetworkResults: X, Y, Z, Q, L
+    sum(abs2, member_forces(res))            # forces are Q .* L, tension-positive
+end
+
+Zygote.gradient(obj, copy(nparams.values))
+```
+
+## AD backends
+
+Loading **Zygote** (or anything ChainRulesCore-aware) is all the setup AD needs — Asap's rule extension activates automatically; there are no custom rules in this package. **Mooncake** and **Enzyme** also work out of the box (Enzyme is the fastest backend we've measured) — see [`docs/AD_BACKENDS.md`](docs/AD_BACKENDS.md) for usage, benchmarks, and the two Enzyme annotations you need, and `examples/ad_backends/` for runnable scripts.
+
+## Examples
+
+| File | What it shows |
+|---|---|
+| `examples/truss-optimization1.jl` | geometry optimization, compliance objective (the quick start) |
+| `examples/truss-optimization2.jl` | constrained minimum volume: geometry + sizing, MMA |
+| `examples/vierendeel-geometry.jl` | FRAME optimization — Vierendeel truss profile, volume-scaled compliance, hand-rolled projected gradient descent |
+| `examples/joint-stiffness.jl` | `JointVariable`: cheapest distribution of semi-rigid connection stiffness meeting a drift limit |
+| `examples/ad_backends/` | the same problem differentiated with Zygote, Mooncake, and Enzyme |
+
+## Migrating from v0.1
+
+- `TrussOptParams` and `FrameOptParams` still work — they are now aliases of the unified `OptParams`, and `solve_truss`/`solve_frame` alias `solve_structure`.
+- `res.U` is now the **full 6-DOF-per-node** vector for every model (v0.1's truss path was 3-DOF): vertical displacements are `U[2:6:end]`, not `U[2:3:end]`.
+- Results carry positions as a 3 × n matrix `res.X` instead of separate `X`/`Y`/`Z` vectors.
+- The static load vector for compliance-style objectives is `params.F` (or just use `compliance(res, params)`).
+- Custom rrules, the functional re-assembly path, and the truss/frame code split are gone — differentiability comes from Asap's core. The old implementation is preserved (unloaded) in `legacy_v0/` for reference.
+- Not yet ported: full section parameterization (`SectionVariable`); `RigiditySection`-based parameterization is the intended v1.0 idiom.

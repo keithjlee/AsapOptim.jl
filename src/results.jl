@@ -6,8 +6,9 @@ everything downstream objectives and constraints consume — all plain data,
 so gradients of any scalar of these fields flow back to the design vector.
 
 # Fields
-- `U::Vector`: full-space displacements (6 slots per node — index a node's
-  vertical displacement as `U[6(i−1)+3]`)
+- `U::Vector`: full-space displacements, 6 slots per node in the order
+  `ux, uy, uz, θx, θy, θz` — node `i`'s translations are `U[6(i−1) .+ (1:3)]`
+  (e.g. all z-displacements are `U[3:6:end]`)
 - `X::Matrix`: evaluated node positions (3 × n_nodes)
 - `A::Vector`: evaluated per-element areas
 - `L::Vector`: evaluated element lengths
@@ -25,23 +26,46 @@ struct OptResults{TU,TX,TA,TL,TS,TE}
     EA::TE
 end
 
-# design vector → (positions, areas, sections, state); the shared pure core
+"""
+    _design_state(x, p::OptParams) -> (X, A, sections, EAvec, ends)
+
+The shared pure core of a design evaluation: scatter the design vector into
+node positions (`X0 + Sx·x`, additive), per-element areas (`Sa·x` where
+masked, `A0` elsewhere), rebuilt sections, axial rigidities `E·A`, and
+joint-substituted end conditions. Everything downstream —
+[`solve_structure`](@ref) and [`updatemodel`](@ref) — is built on this one
+function, so the optimization path and the materialized model can never
+disagree.
+"""
 function _design_state(x::AbstractVector, p::OptParams)
     X = p.X0 + reshape(p.Sx * x, 3, :)
-    Avar = p.Sa * x
-    A = [p.amask[i] ? Avar[i] : p.A0[i] for i in eachindex(p.amask)]
-    sections = map(eachindex(p.amask)) do i
-        s = p.base_sections[i]::Section{Float64}
-        p.amask[i] ? Section(s.material, A[i], s.Ix, s.Iy, s.J) : s
+    # masked scatter as a BROADCAST, not a comprehension — per-element
+    # getindex pullbacks (one one-hot adjoint each) cost ~35× the
+    # broadcasted ifelse under Zygote
+    A = ifelse.(p.amask, p.Sa * x, p.A0)
+    # no area variables ⇒ the sections are constants: reuse them instead of
+    # rebuilding (and differentiating) an identical struct per element
+    sections = if any(p.amask)
+        map(eachindex(p.amask)) do i
+            s = p.base_sections[i]::Section{Float64}
+            p.amask[i] ? Section(s.material, A[i], s.Ix, s.Iy, s.J) : s
+        end
+    else
+        p.base_sections
     end
     EAvec = p.Evec .* A
     ends = _design_ends(x, p)
     return X, A, sections, EAvec, ends
 end
 
-# per-element EndConditions with joint-variable rotational stiffnesses
-# substituted; `nothing` when no joint variables exist (frame kernels then
-# use the cached ends — zero overhead)
+"""
+    _design_ends(x, p::OptParams) -> Vector{EndConditions} | nothing
+
+Per-element `EndConditions` with joint-variable rotational stiffnesses
+(`ky = kz = factor·x[slot]`) substituted at the flagged ends. Returns
+`nothing` when the problem has no joint variables — Asap's frame kernels
+then use the model's cached ends, so joint-free problems pay zero overhead.
+"""
 function _design_ends(x::AbstractVector, p::OptParams)
     all(iszero, p.jslot1) && all(iszero, p.jslot2) && return nothing
     return map(eachindex(p.base_ends)) do i
@@ -56,6 +80,12 @@ function _design_ends(x::AbstractVector, p::OptParams)
     end
 end
 
+"""
+    _element_lengths(X, p::OptParams) -> Vector
+
+Per-element Euclidean lengths from evaluated node positions `X` (3 × n) and
+the compiled end-node indices `p.i1`/`p.i2`. Pure and differentiable.
+"""
 _element_lengths(X, p::OptParams) =
     map(eachindex(p.i1)) do k
         i, j = p.i1[k], p.i2[k]
@@ -140,7 +170,6 @@ function GeometricProperties(x::AbstractVector, p::OptParams)
     # geometry-only: skip section-struct construction entirely (its
     # constructor pullbacks would dominate this otherwise trivial path)
     X = p.X0 + reshape(p.Sx * x, 3, :)
-    Avar = p.Sa * x
-    A = [p.amask[i] ? Avar[i] : p.A0[i] for i in eachindex(p.amask)]
+    A = ifelse.(p.amask, p.Sa * x, p.A0)
     return GeometricProperties(X, _element_lengths(X, p), A)
 end

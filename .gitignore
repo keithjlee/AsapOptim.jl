@@ -6,3 +6,8 @@ scratch/scratch_frame.jl
 .DS_Store
 # personal working docs — local only
 CLAUDE.md
+
+# local dev manifest (pins Asap to a local path)
+Manifest.toml
+# benchmark output artifacts (regenerable)
+docs/benchmarks/*.txt

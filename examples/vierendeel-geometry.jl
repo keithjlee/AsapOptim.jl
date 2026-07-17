@@ -128,6 +128,8 @@ function optimize_pgd(f, x0, lb, ub; iters = 60, α0 = 1.0, tol = 1e-8)
     return x, fx, history
 end
 
+@time f, dfdx = Zygote.withgradient(OBJ, x0)
+
 f0 = OBJ(x0)
 xopt, fopt, history = optimize_pgd(OBJ, x0, params.lb, params.ub)
 
