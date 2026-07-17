@@ -39,10 +39,11 @@ disagree.
 """
 function _design_state(x::AbstractVector, p::OptParams)
     X = p.X0 + reshape(p.Sx * x, 3, :)
-    # masked scatter as a BROADCAST, not a comprehension — per-element
-    # getindex pullbacks (one one-hot adjoint each) cost ~35× the
-    # broadcasted ifelse under Zygote
-    A = ifelse.(p.amask, p.Sa * x, p.A0)
+    # masked scatter as arithmetic BROADCASTS, not a comprehension (per-
+    # element getindex pullbacks cost ~35×) and not `ifelse.` (its mixed
+    # Dual/Float64 branches give a union eltype that poisons downstream
+    # sparse algebra under ForwardDiff)
+    A = p.A0 .* .!p.amask .+ (p.Sa * x) .* p.amask
     # no area variables ⇒ the sections are constants: reuse them instead of
     # rebuilding (and differentiating) an identical struct per element
     sections = if any(p.amask)
@@ -106,7 +107,9 @@ distinction).
 """
 function solve_structure(x::AbstractVector, p::OptParams)
     X, A, sections, EAvec, ends = _design_state(x, p)
-    state = ModelState{Float64}(X, sections, EAvec, ends)
+    # eltype follows the design vector: Float64 normally, ForwardDiff Duals
+    # under forward-mode AD (the Dual solve lives in AsapForwardDiffExt)
+    state = ModelState{eltype(X)}(X, sections, EAvec, ends)
     U = Asap.solve(p.model, state)
     return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
 end
@@ -165,6 +168,6 @@ function GeometricProperties(x::AbstractVector, p::OptParams)
     # geometry-only: skip section-struct construction entirely (its
     # constructor pullbacks would dominate this otherwise trivial path)
     X = p.X0 + reshape(p.Sx * x, 3, :)
-    A = ifelse.(p.amask, p.Sa * x, p.A0)
+    A = p.A0 .* .!p.amask .+ (p.Sa * x) .* p.amask
     return GeometricProperties(X, _element_lengths(X, p), A)
 end

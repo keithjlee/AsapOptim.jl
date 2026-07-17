@@ -7,6 +7,7 @@ using Asap
 using Test
 using LinearAlgebra
 using Zygote                # activates Asap's ChainRules extension
+using ForwardDiff           # activates Asap's Dual solve path
 using FiniteDifferences
 
 const FDM = central_fdm(5, 1)
@@ -237,4 +238,72 @@ end
         AbstractLoad{Float64}[LineLoad(bel, [0.0, -1.0, 0.0])])
     @test_throws ErrorException OptParams(badmodel,
         AbstractVariable[JointVariable(bel, :start, 1e8, 1e5, 1e12)])
+end
+
+@testset "ForwardDiff forward mode" begin
+    model, vars = testbed()
+    p = OptParams(model, vars)
+    x0 = copy(p.values)
+
+    # compliance gradient: forward ≡ reverse to machine precision
+    obj(x) = compliance(solve_structure(x, p), p)
+    g_fwd = ForwardDiff.gradient(obj, x0)
+    g_rev = Zygote.gradient(obj, x0)[1]
+    @test g_fwd ≈ g_rev rtol = 1e-12
+
+    # stress-constraint JACOBIAN — the forward-mode sweet spot
+    # (n_outputs = n_elements ≥ n_variables)
+    cstr(x) = axial_stress(solve_structure(x, p), p)
+    J_fwd = ForwardDiff.jacobian(cstr, x0)
+    J_rev = Zygote.jacobian(cstr, x0)[1]
+    @test J_fwd ≈ J_rev rtol = 1e-12
+
+    # volume objective through GeometricProperties (no solve)
+    vol(x) = begin
+        geo = GeometricProperties(x, p)
+        dot(geo.A, geo.L)
+    end
+    @test ForwardDiff.gradient(vol, x0) ≈ Zygote.gradient(vol, x0)[1] rtol = 1e-12
+
+    # frame + semi-rigid joints: Dual sections (promotion) + Dual EndConditions
+    mat = Material(200.0, 77.0, 1.0, 0.3)
+    fsec = Section(mat, 1e4, 8e7, 3e7, 5e6)
+    fn1 = Node([0.0, 0.0, 0.0], :fixed)
+    fn2 = Node([3000.0, 0.0, 0.0], :free)
+    fn3 = Node([6000.0, 0.0, 0.0], :pinned)
+    b1 = FrameElement(fn1, fn2, fsec,
+        EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; rollangle=0.0)
+    b2 = FrameElement(fn2, fn3, fsec, :b2; rollangle=0.0)
+    fmodel = Asap.Model([fn1, fn2, fn3], AbstractElement{Float64}[b1, b2],
+        AbstractLoad{Float64}[NodeForce(fn2, [0.0, -100.0, 0.0])])
+    fp = OptParams(fmodel, AbstractVariable[
+        JointVariable(b1, :start, 1e8, 1e5, 1e12),
+        AreaVariable(b2, 1e4, 1e2, 1e5),
+        SpatialVariable(fn2, 0.0, -500.0, 500.0, :Y)])
+    fobj(x) = compliance(solve_structure(x, fp), fp)
+    xf = copy(fp.values)
+    @test ForwardDiff.gradient(fobj, xf) ≈ Zygote.gradient(fobj, xf)[1] rtol = 1e-10
+
+    # network (FDM) path: Dual force densities through the multi-RHS solve
+    ns = [Asap.FDMnode([Float64(i), Float64(j), 0.0], !(i in (0, 2) && j in (0, 2)))
+          for j in 0:2 for i in 0:2]
+    idx(i, j) = 3j + i + 1
+    els = Asap.FDMelement[]
+    for j in 0:2, i in 0:1
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i + 1, j), 1.0))
+    end
+    for j in 0:1, i in 0:2
+        push!(els, Asap.FDMelement(ns, idx(i, j), idx(i, j + 1), 1.0))
+    end
+    loads = [Asap.FDMload(n, [0.0, 0.0, -1.0]) for n in ns if all(n.fixity)]
+    network = Asap.Network(ns, els, loads)
+    qv = QVariable(els[1], 1.5, 0.1, 10.0)
+    np = NetworkOptParams(network, AbstractVariable[qv,
+        CoupledVariable(els[2], qv), QVariable(els[7], 2.0, 0.1, 10.0)])
+    nobj(x) = begin
+        r = solve_network(x, np)
+        sum(abs2, member_forces(r)) / 100
+    end
+    xn = copy(np.values)
+    @test ForwardDiff.gradient(nobj, xn) ≈ Zygote.gradient(nobj, xn)[1] rtol = 1e-10
 end

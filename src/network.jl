@@ -136,7 +136,7 @@ free-node coordinates (Asap's `solve_free` multi-RHS adjoint carries the
 gradients). Differentiable w.r.t. `x` end-to-end.
 """
 function solve_network(x::AbstractVector, p::NetworkOptParams)
-    q = ifelse.(p.qmask, p.Sq * x, p.q0)
+    q = p.q0 .* .!p.qmask .+ (p.Sq * x) .* p.qmask
 
     D = Diagonal(q)
     K = sparse(p.Cn' * D * p.Cn)
