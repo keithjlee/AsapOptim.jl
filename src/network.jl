@@ -57,9 +57,11 @@ one design slot per independent variable, a sparse force-density scatter
 Processes the network first if needed.
 """
 function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVariable})
-    network.processed || Asap.process!(network)
-    network.mixed && error("NetworkOptParams does not support per-axis (mixed) node fixity yet — " *
-                           "the differentiable path solves all three coordinates against one partition")
+    network.cache === nothing && Asap.process!(network)
+    cache = network.cache
+    cache.mixed && error("NetworkOptParams does not support per-axis (mixed) node fixity yet — " *
+                         "the differentiable path solves all three coordinates against one partition")
+    Asap._refresh_state!(cache, network)   # current anchor positions + loads
 
     slot = Dict{AbstractVariable,Int}()
     values = Float64[]
@@ -80,7 +82,7 @@ function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVar
     sV = Float64[]
     qmask = falses(nel)
     register!(el, j, factor) = begin
-        i = el.elementID
+        i = el.index
         qmask[i] && error("element $i has two force-density variables")
         qmask[i] = true
         push!(sI, i)
@@ -98,27 +100,27 @@ function NetworkOptParams(network::Asap.Network, variables::Vector{<:AbstractVar
     end
 
     n = length(network.nodes)
-    Nfree = network.N
-    Ffix = network.F
+    Nfree = cache.N
+    Ffix = cache.F
     ef = sparse(Nfree, 1:length(Nfree), ones(length(Nfree)), n, length(Nfree))
     eF = sparse(Ffix, 1:length(Ffix), ones(length(Ffix)), n, length(Ffix))
 
     return NetworkOptParams(network, values, lb, ub,
-        Vector{Float64}(network.q), sparse(sI, sJ, sV, nel, length(values)),
+        Float64[el.q for el in network.elements], sparse(sI, sJ, sV, nel, length(values)),
         collect(qmask),
-        SparseMatrixCSC{Float64,Int}(network.Cn), SparseMatrixCSC{Float64,Int}(network.Cf),
-        Matrix{Float64}(network.Pn), Matrix{Float64}(network.xyz[Ffix, :]),
+        SparseMatrixCSC{Float64,Int}(cache.C[:, Nfree]), SparseMatrixCSC{Float64,Int}(cache.C[:, Ffix]),
+        Matrix{Float64}(cache.P[Nfree, :]), Matrix{Float64}(cache.xyz[Ffix, :]),
         ef, eF)
 end
 
 """
-    NetworkResults
+    NetworkOptResults
 
 Outputs of a force-density design evaluation: full nodal coordinates
 (`X`, `Y`, `Z` columns of the form-found geometry), the evaluated force
 densities `Q`, and member lengths `L`. Member forces are `Q .* L`.
 """
-struct NetworkResults{TX,TQ,TL}
+struct NetworkOptResults{TX,TQ,TL}
     X::TX
     Y::TX
     Z::TX
@@ -127,7 +129,7 @@ struct NetworkResults{TX,TQ,TL}
 end
 
 """
-    solve_network(x, p::NetworkOptParams) -> NetworkResults
+    solve_network(x, p::NetworkOptParams) -> NetworkOptResults
 
 Evaluate force densities: assemble the FDM system purely and solve for the
 free-node coordinates (Asap's `solve_free` multi-RHS adjoint carries the
@@ -144,7 +146,7 @@ function solve_network(x::AbstractVector, p::NetworkOptParams)
     xyz = p.embed_free * xyz_free + p.embed_fixed * p.xyz_f
 
     L = _network_lengths(xyz, p)
-    return NetworkResults(xyz[:, 1], xyz[:, 2], xyz[:, 3], q, L)
+    return NetworkOptResults(xyz[:, 1], xyz[:, 2], xyz[:, 3], q, L)
 end
 
 """
@@ -154,14 +156,14 @@ Per-element member lengths of the form-found geometry: row norms of
 `C · xyz`, where `C` is the network's signed incidence matrix.
 """
 function _network_lengths(xyz, p::NetworkOptParams)
-    C = p.network.C
+    C = p.network.cache.C
     vx = C * xyz
     return [sqrt(vx[i, 1]^2 + vx[i, 2]^2 + vx[i, 3]^2) for i in 1:size(vx, 1)]
 end
 
 """
-    member_forces(res::NetworkResults) -> Vector
+    member_forces(res::NetworkOptResults) -> Vector
 
 FDM member forces [force]: `q · L`, tension-positive.
 """
-member_forces(res::NetworkResults) = res.Q .* res.L
+member_forces(res::NetworkOptResults) = res.Q .* res.L

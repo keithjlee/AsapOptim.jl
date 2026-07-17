@@ -51,7 +51,7 @@ include("update.jl")
 export updatemodel
 
 include("network.jl")
-export QVariable, NetworkOptParams, NetworkResults, solve_network, member_forces
+export QVariable, NetworkOptParams, NetworkOptResults, solve_network, member_forces
 
 include("ShowMethods.jl")
 

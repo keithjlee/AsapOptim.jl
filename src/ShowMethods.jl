@@ -79,8 +79,8 @@ function Base.show(io::IO, ::MIME"text/plain", p::NetworkOptParams)
     print(io, "  evaluate with solve_network(x, p)")
 end
 
-function Base.show(io::IO, ::MIME"text/plain", r::NetworkResults)
-    println(io, "NetworkResults  (form-found FDM geometry)")
+function Base.show(io::IO, ::MIME"text/plain", r::NetworkOptResults)
+    println(io, "NetworkOptResults  (form-found FDM geometry)")
     println(io, "  $(length(r.X)) nodes, $(length(r.L)) elements")
     println(io, "  z ∈ [$(minimum(r.Z)), $(maximum(r.Z))], " *
                 "q ∈ [$(minimum(r.Q)), $(maximum(r.Q))]")

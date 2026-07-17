@@ -179,7 +179,7 @@ end
     res = solve_network(x, np)
     Asap.update_q!(network, collect(res.Q))
     Asap.solve!(network; reprocess = true)
-    @test [res.X res.Y res.Z] ≈ network.xyz rtol = 1e-10
+    @test [res.X res.Y res.Z] ≈ vcat([n.position' for n in network.nodes]...) rtol = 1e-10
     @test all(isfinite, member_forces(res))
 
     # gradient of a smooth force-length objective
