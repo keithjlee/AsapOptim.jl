@@ -188,6 +188,7 @@ All variables share the pattern `Variable(target, start_value, lower_bound, uppe
 |---|---|---|
 | `SpatialVariable(node, value, lb, ub, axis)` | node position along `:X`/`:Y`/`:Z` | **additive** — the design entry is an *offset* from the modeled position (start at `0.0` to begin from the current geometry) |
 | `SpatialVariable(node, vector, value, lb, ub)` | node position along an arbitrary directional "rail" | **additive** — `vector` is normalized, so the design entry is arc-length along the rail |
+| `SectionVariable(element, value, lb, ub, prop)` | a section property: `:A`, `:Ix`, `:Iy`, or `:J` (flexural/torsional require a `FrameElement`) | **absolute** — the design entry *replaces* the property; the rest of the section is kept |
 | `AreaVariable(element, value, lb, ub)` | cross-section area | **absolute** — the design entry *replaces* the section's area; `Ix`, `Iy`, `J`, and the material are kept |
 | `JointVariable(element, position, value, lb, ub)` | rotational end-spring stiffness `ky = kz` at `:start`, `:end`, or `:both` of a `FrameElement` | **absolute** [force·length/rad] — semi-rigid connection design (see `examples/joint-stiffness.jl`) |
 | `QVariable(element, value, lb, ub)` | FDM force density of an `FDMelement` | **absolute** — for the [network path](#force-density-network-optimization) |
@@ -218,7 +219,7 @@ mirror = CoupledVariable((beam2, :end), j)
 
 Always couple to the *independent* parent — chains of couplings are rejected.
 
-Variable types **mix freely in one problem**: spatial + area + joint-stiffness variables (plus any couplings) can drive a single `OptParams`, on models mixing frame and truss elements — every combination is gradient-tested against finite differences in the suite. Not yet available: parameterizing a section's flexural properties (`Ix`/`Iy`/`J`) — the planned `SectionVariable`.
+Variable types **mix freely in one problem**: spatial + area + section-property + joint-stiffness variables (plus any couplings) can drive a single `OptParams`, on models mixing frame and truss elements — every combination is gradient-tested against finite differences in the suite.
 
 ## Evaluating designs
 

@@ -23,6 +23,10 @@ is unified, so one parameter type serves both.)
   variable keep these)
 - `Sa::SparseMatrixCSC`, `amask::Vector{Bool}`: area scatter — for elements
   with a variable, `A(x) = Sa·x` REPLACES the area (absolute semantics)
+- `P0v::Vector{Float64}`, `Sp::SparseMatrixCSC`, `prmask::Vector{Bool}`,
+  `pmask::Vector{Bool}`: flexural/torsional section-property scatter
+  (rows `3(e−1)+k` for `Ix`/`Iy`/`J` of element `e`) — same absolute
+  semantics as areas; `pmask` flags elements with ANY such variable
 - `F::Vector{Float64}`: the free-DOF load vector (loads are constant data
   in the differentiable path)
 - `i1`, `i2::Vector{Int}`: per-element node indices; `base_sections`: the
@@ -48,6 +52,10 @@ struct OptParams{S}
     A0::Vector{Float64}
     Sa::SparseMatrixCSC{Float64,Int}
     amask::Vector{Bool}
+    P0v::Vector{Float64}
+    Sp::SparseMatrixCSC{Float64,Int}
+    prmask::Vector{Bool}
+    pmask::Vector{Bool}
     F::Vector{Float64}
     i1::Vector{Int}
     i2::Vector{Int}
@@ -145,6 +153,24 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
         push!(saV, factor)
     end
 
+    # flexural/torsional properties: row 3(e−1)+k, k ∈ (Ix=1, Iy=2, J=3)
+    _prop_row(k::Symbol) = k === :Ix ? 1 : k === :Iy ? 2 : 3
+    spI = Int[]
+    spJ = Int[]
+    spV = Float64[]
+    prmask = falses(3nel)
+    pmask = falses(nel)
+    register_prop!(el, prop, j, factor) = begin
+        el isa FrameElement || error("section variable :$prop requires a FrameElement")
+        r = 3 * (el.index - 1) + _prop_row(prop)
+        prmask[r] && error("element $(el.index) (:$(el.id)) has two :$prop variables")
+        prmask[r] = true
+        pmask[el.index] = true
+        push!(spI, r)
+        push!(spJ, j)
+        push!(spV, factor)
+    end
+
     jslot1 = zeros(Int, nel)
     jfac1 = ones(nel)
     jslot2 = zeros(Int, nel)
@@ -168,6 +194,9 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
             register_spatial!(v.node, slot[v], 1.0, v.direction)
         elseif v isa AreaVariable
             register_area!(v.element, slot[v], 1.0)
+        elseif v isa SectionVariable
+            v.property === :A ? register_area!(v.element, slot[v], 1.0) :
+            register_prop!(v.element, v.property, slot[v], 1.0)
         elseif v isa JointVariable
             register_joint!(v.element, v.position, slot[v], 1.0)
         elseif v isa CoupledVariable
@@ -183,6 +212,11 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
                 tgt isa FrameElement ||
                     error("a variable coupled to a JointVariable must target a FrameElement (or (element, position) tuple)")
                 register_joint!(tgt, pos, j, v.factor)
+            elseif v.parent isa SectionVariable
+                v.target isa Union{FrameElement,TrussElement} ||
+                    error("a variable coupled to a SectionVariable must target an element")
+                v.parent.property === :A ? register_area!(v.target, j, v.factor) :
+                register_prop!(v.target, v.parent.property, j, v.factor)
             else
                 v.target isa Union{FrameElement,TrussElement} ||
                     error("a variable coupled to an AreaVariable must target an element")
@@ -196,6 +230,14 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
         X0[:, i] = n.position
     end
     A0 = [el.section isa Section ? el.section.A : 0.0 for el in model.elements]
+    P0v = zeros(3nel)
+    for (e, el) in enumerate(model.elements)
+        el.section isa Section || continue
+        # NB: `3e-2` would lex as the float 0.03 — index explicitly
+        P0v[3*e-2] = el.section.Ix
+        P0v[3*e-1] = el.section.Iy
+        P0v[3*e] = el.section.J
+    end
 
     F = cache.P .- cache.Pf
     i1 = [el.nodeStart.index for el in model.elements]
@@ -222,7 +264,8 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
 
     return OptParams(model, values, lb, ub, X0,
         sparse(sxI, sxJ, sxV, 3 * nnodes, nx),
-        A0, sparse(saI, saJ, saV, nel, nx), collect(amask), F,
+        A0, sparse(saI, saJ, saV, nel, nx), collect(amask),
+        P0v, sparse(spI, spJ, spV, 3nel, nx), collect(prmask), collect(pmask), F,
         i1, i2, Cinc, base_sections, Evec,
         jslot1, jfac1, jslot2, jfac2, base_ends, solver)
 end

@@ -96,12 +96,21 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
             push!(area_inputs[rows[ptr]], (j, vals[ptr]))
         end
     end
+    # element -> [(property row k ∈ 1:3 for Ix/Iy/J, slot, factor)]
+    prop_inputs = [Tuple{Int,Int,Float64}[] for _ in 1:nel]
+    let rows = rowvals(p.Sp), vals = nonzeros(p.Sp)
+        for j in 1:n, ptr in nzrange(p.Sp, j)
+            r = rows[ptr]
+            push!(prop_inputs[(r-1)÷3+1], ((r - 1) % 3 + 1, j, vals[ptr]))
+        end
+    end
 
     # stage 1: element-local pseudo-loads W[:, j] = (∂K/∂xⱼ)·U
     W = zeros(length(U), n)
     for (e, el) in enumerate(p.model.elements)
         i1, i2 = p.i1[e], p.i2[e]
-        touched = !isempty(area_inputs[e]) || !isempty(node_inputs[i1]) ||
+        touched = !isempty(area_inputs[e]) || !isempty(prop_inputs[e]) ||
+                  !isempty(node_inputs[i1]) ||
                   !isempty(node_inputs[i2]) || p.jslot1[e] != 0 || p.jslot2[e] != 0
         touched || continue
         el isa Union{TrussElement,FrameElement} || error(
@@ -144,6 +153,17 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
                 for (j, fac) in area_inputs[e]
                     @views W[dofs, j] .+= fac .* w
                 end
+            end
+            # flexural/torsional section properties: seed the property —
+            # the generic path that absorbs SectionVariable with zero new
+            # derivative code
+            for (k, j, fac) in prop_inputs[e]
+                secd = Section(sec.material, sec.A,
+                    k == 1 ? _dual1(sec.Ix) : sec.Ix,
+                    k == 2 ? _dual1(sec.Iy) : sec.Iy,
+                    k == 3 ? _dual1(sec.J) : sec.J)
+                w = partials.(Asap.frame_stiffness(secd, ec, x1, x2, roll), 1) * ue
+                @views W[dofs, j] .+= fac .* w
             end
             # spatial
             for (xi, ni) in ((1, i1), (2, i2)), (c, j, fac) in node_inputs[ni]

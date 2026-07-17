@@ -36,6 +36,13 @@ function Base.show(io::IO, ::MIME"text/plain", v::QVariable)
     print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [force/length]")
 end
 
+function Base.show(io::IO, ::MIME"text/plain", v::SectionVariable)
+    unit = v.property === :A ? "length²" : "length⁴"
+    println(io, "SectionVariable  (section $(v.property), ABSOLUTE)")
+    println(io, "  element :$(v.element.id)")
+    print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [$unit]")
+end
+
 # a CoupledVariable's target can be a Node, an element (frame/truss/FDM),
 # or an (element, position) tuple for joint parents — describe each legibly
 _target_description(t::Node) = "node :$(t.id)"

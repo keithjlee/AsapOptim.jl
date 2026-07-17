@@ -102,6 +102,52 @@ struct AreaVariable <: AbstractVariable
 end
 
 """
+    SectionVariable <: AbstractVariable
+
+A geometric section-property variable: the design entry REPLACES one of
+the element section's properties (absolute semantics, like
+[`AreaVariable`](@ref)). `property` is `:A`, `:Ix`, `:Iy`, or `:J` —
+`:A` is exactly an [`AreaVariable`](@ref); the flexural/torsional
+properties require a `FrameElement` (they do nothing on a truss). The
+section's other properties and material are kept.
+
+# Fields
+- `element`: the controlled element (`FrameElement`, or `TrussElement` for `:A`)
+- `value`, `lb`, `ub`: starting value and bounds [length⁴, or length² for `:A`]
+- `property::Symbol`: `:A`, `:Ix`, `:Iy`, or `:J`
+
+# Constructors
+```julia-repl
+julia> SectionVariable(beam, 8e7, 1e6, 5e8, :Ix)
+
+julia> SectionVariable(beam, 1e6, 5e8, :Ix)   # starting value = current section value
+```
+"""
+struct SectionVariable <: AbstractVariable
+    element::Union{FrameElement,TrussElement}
+    value::Float64
+    lb::Float64
+    ub::Float64
+    property::Symbol
+
+    function SectionVariable(element::Union{FrameElement,TrussElement},
+        value::Real, lb::Real, ub::Real, property::Symbol=:A)
+        property in (:A, :Ix, :Iy, :J) ||
+            throw(ArgumentError("property must be :A, :Ix, :Iy, or :J"))
+        property === :A || element isa FrameElement ||
+            throw(ArgumentError("flexural/torsional section variables (:$property) require a FrameElement"))
+        @assert element.section isa Section "section variables require a geometric Section " *
+                                            "(RigiditySections have no geometric properties — vary their rigidities instead)"
+        @assert 0 < lb <= value <= ub "need 0 < lb ≤ value ≤ ub"
+        return new(element, value, lb, ub, property)
+    end
+end
+
+SectionVariable(element::Union{FrameElement,TrussElement}, lb::Real, ub::Real,
+    property::Symbol=:A) =
+    SectionVariable(element, getproperty(element.section, property), lb, ub, property)
+
+"""
     CoupledVariable <: AbstractVariable
 
 A variable that mirrors an independent parent variable's design entry,

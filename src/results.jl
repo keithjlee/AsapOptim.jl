@@ -44,12 +44,20 @@ function _design_state(x::AbstractVector, p::OptParams)
     # Dual/Float64 branches give a union eltype that poisons downstream
     # sparse algebra under ForwardDiff)
     A = p.A0 .* .!p.amask .+ (p.Sa * x) .* p.amask
-    # no area variables ⇒ the sections are constants: reuse them instead of
-    # rebuilding (and differentiating) an identical struct per element
-    sections = if any(p.amask)
-        map(eachindex(p.amask)) do i
+    # no section-affecting variables ⇒ the sections are constants: reuse
+    # them instead of rebuilding (and differentiating) identical structs.
+    # Flexural/torsional properties evaluate only when some element has a
+    # SectionVariable (props falls back to the constant base vector, and
+    # for unmasked rows the two coincide) — the closure keeps the simple
+    # two-branch mask shape, which Enzyme compiles where a three-branch
+    # variant hits an internal error.
+    secvar = any(p.pmask)
+    props = secvar ? p.P0v .* .!p.prmask .+ (p.Sp * x) .* p.prmask : p.P0v
+    secmask = p.amask .| p.pmask
+    sections = if any(secmask)
+        map(eachindex(secmask)) do i
             s = p.base_sections[i]::Section{Float64}
-            p.amask[i] ? Section(s.material, A[i], s.Ix, s.Iy, s.J) : s
+            secmask[i] ? Section(s.material, A[i], props[3i-2], props[3i-1], props[3i]) : s
         end
     else
         p.base_sections

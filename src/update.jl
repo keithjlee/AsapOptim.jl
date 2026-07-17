@@ -15,7 +15,7 @@ function updatemodel(p::OptParams, x::AbstractVector)
         node.position = SVector{3,Float64}(X[1, i], X[2, i], X[3, i])
     end
     for (i, el) in enumerate(p.model.elements)
-        p.amask[i] && (el.section = sections[i])
+        (p.amask[i] || p.pmask[i]) && (el.section = sections[i])
         if ends !== nothing && el isa FrameElement &&
            (p.jslot1[i] != 0 || p.jslot2[i] != 0)
             el.ends = ends[i]

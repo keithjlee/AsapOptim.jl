@@ -543,3 +543,73 @@ end
     @test SpatialVariable(n4, 0.0, -1.0, 1.0, :y).direction == [0.0, 1.0, 0.0]
     @test_throws ArgumentError SpatialVariable(n4, 0.0, -1.0, 1.0, :W)
 end
+
+@testset "SectionVariable (flexural/torsional section properties)" begin
+    mat = Material(200.0, 77.0, 1.0, 0.3)
+    fsec = Section(mat, 1e4, 8e7, 3e7, 5e6)
+    tsec = Section(mat, 1e3)
+    n1 = Node([0.0, 0.0, 0.0], :fixed)
+    n2 = Node([3000.0, 0.0, 0.0], :free)
+    n3 = Node([6000.0, 0.0, 0.0], :free)
+    n4 = Node([9000.0, 0.0, 0.0], :pinned)
+    n5 = Node([3000.0, 0.0, 3000.0], :pinned)
+    n6 = Node([6000.0, 0.0, 3000.0], :pinned)
+    b1 = FrameElement(n1, n2, fsec, EndConditions(EndSprings(Inf, Inf, 1e8, 1e8), rigid_end()), :b1; rollangle=0.0)
+    b2 = FrameElement(n2, n3, fsec, :b2; rollangle=0.0)
+    b3 = FrameElement(n3, n4, fsec, :b3; rollangle=0.0)
+    t1 = TrussElement(n2, n5, tsec, :tie)
+    t2 = TrussElement(n3, n6, tsec, :tie)
+    model = Asap.Model([n1, n2, n3, n4, n5, n6],
+        AbstractElement{Float64}[b1, b2, b3, t1, t2],
+        AbstractLoad{Float64}[
+            NodeForce(n2, [50.0, -100.0, 0.0]),  # X component: frame axial (:A) live
+            NodeForce(n3, [0.0, -80.0, 20.0]),
+            NodeMoment(n2, [3e4, 0.0, 5e4])])    # Mx component twists the beams: :J live
+
+    # constructor guards + convenience form
+    @test_throws ArgumentError SectionVariable(t1, 1e3, 1e2, 1e4, :Ix)   # truss can't flex
+    @test_throws ArgumentError SectionVariable(b1, 1e3, 1e2, 1e4, :W)
+    @test SectionVariable(b1, 1e6, 5e8, :Ix).value == 8e7                # reads current value
+
+    # THE FULL MIX: all five variable types in one OptParams
+    sv = SpatialVariable(n5, 0.0, -500.0, 500.0, :Z)
+    ix = SectionVariable(b2, 8e7, 1e6, 5e8, :Ix)
+    jv = JointVariable(b1, :start, 1e8, 1e5, 1e12)
+    av = AreaVariable(t1, 1e3, 1e2, 1e4)
+    p = OptParams(model, AbstractVariable[
+        sv,
+        ix,
+        CoupledVariable(b3, ix, 0.5),               # grouped Ix at half scale
+        SectionVariable(b1, 5e6, 1e5, 5e7, :J),     # torsional variable
+        SectionVariable(b1, 1e4, 1e3, 1e5, :A),     # :A routes to the area machinery
+        jv,
+        av, CoupledVariable(t2, av)])
+    @test length(p.values) == 6
+    x = copy(p.values) .+ [40.0, 3e7, 1e6, 2e3, 2e8, 2e2]
+
+    # materialization: absolute property replacement, coupling factor honored
+    m2 = updatemodel(p, x)
+    @test m2.elements[2].section.Ix ≈ x[2]
+    @test m2.elements[3].section.Ix ≈ 0.5 * x[2]
+    @test m2.elements[1].section.J ≈ x[3]
+    @test m2.elements[1].section.A ≈ x[4]
+    @test m2.elements[2].section.Iy ≈ 3e7                 # untouched property kept
+    @test solve_structure(x, p).U ≈ m2.results.u rtol = 1e-10
+
+    # gradients: all three AD paths agree, every variable live
+    obj(y) = begin
+        res = solve_structure(y, p)
+        compliance(res, p) + 1e-10 * sum(abs2, axial_stress(res, p))
+    end
+    g_zy = Zygote.gradient(obj, x)[1]
+    @test g_zy ≈ ForwardDiff.gradient(obj, x) rtol = 1e-9
+    @test g_zy ≈ FiniteDifferences.grad(FDM, obj, x)[1] rtol = 1e-3
+    @test all(abs.(g_zy) .> 0)
+    @test g_zy[2] < 0                                     # stiffer beam ⇒ lower compliance
+
+    # implicit differentiation absorbs section variables (zero new code path)
+    t = solution_tangents(x, p)
+    @test t.dU ≈ ForwardDiff.jacobian(y -> solve_structure(y, p).U, x) rtol = 1e-9
+    @test axial_stress_jacobian(t, p) ≈
+          Zygote.jacobian(y -> axial_stress(solve_structure(y, p), p), x)[1] rtol = 1e-9
+end
