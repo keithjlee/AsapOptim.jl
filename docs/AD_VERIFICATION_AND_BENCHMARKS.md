@@ -83,6 +83,43 @@ future differentiable code in this ecosystem:
    `map(i -> EA(sections[i]), indices)` alone cost 42 ms. Fix: carry `EA` as
    a plain precomputed vector on `ModelState`/`OptResults`. → 50 → **2.8 ms**.
 
+### Update 2026-07-17: PARITY REACHED AND EXCEEDED — this supersedes the headline table
+
+After the masked-scatter fix (below), the incidence-matmul geometry
+batching, and Asap v1.1.1, the original "2× / 10× slower" verdict is
+obsolete. Same scripts, same machine, Julia 1.11, fresh same-session runs
+of BOTH stacks (legacy = the publication environment, as in the original
+table):
+
+| Metric (median) | Legacy (0.2.1 + paper layer) | **New v1.x** | Ratio |
+|---|---|---|---|
+| `solve!` | 0.95 ms | **0.58 ms** | 1.6× faster |
+| stiffness assembly alone | 0.186 ms | **0.045 ms** | 4.1× faster |
+| differentiable forward solve | 0.78 ms | **0.40 ms** | 1.9× faster |
+| ∇ compliance (Zygote, 512 vars) | 1.29 ms | 1.53 ms | 1.19× slower |
+| ∇ compliance (**Enzyme**, 512 vars) | — | **0.83 ms** | **1.55× faster** |
+| ∇ volume | 0.229 ms | **0.158 ms** | 1.45× faster |
+
+And on the workloads that dominate real constrained optimization
+(measured in `docs/AD_BACKENDS.md` / `docs/BENCHMARK_GB_MMA.md`):
+
+- **512×512 stress-constraint Jacobian**: legacy ~400 ms → implicit
+  differentiation **3.8 ms** (~105× faster).
+- **The publication's own gb_mma benchmark end-to-end**: 552 → 57
+  ms/iteration; its 1000-iteration budget completes in 56.8 s vs the
+  publication stack spending 300 s on 548 iterations.
+
+The sole remaining legacy win is Zygote-driven ∇compliance at +19% — the
+documented price of the generic pipeline under the interpreter-based
+engine, erased by switching to Enzyme (and irrelevant to constrained
+optimization, where Jacobians dominate). AD checks unchanged
+(1.9e-9 / 8.6e-15).
+
+Status of the "known further opportunities" listed at the bottom:
+lengths batching DONE (the ∇volume flip); the `solve_free` cotangent
+projection DONE; Enzyme/Mooncake DONE (see AD_BACKENDS.md); batched
+frame-element assembly remains open.
+
 ### Update 2026-07-16: masked-scatter broadcast fix
 
 The per-element mask comprehensions in `_design_state`,
