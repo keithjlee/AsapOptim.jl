@@ -27,8 +27,18 @@ is unified, so one parameter type serves both.)
   `pmask::Vector{Bool}`: flexural/torsional section-property scatter
   (rows `3(e−1)+k` for `Ix`/`Iy`/`J` of element `e`) — same absolute
   semantics as areas; `pmask` flags elements with ANY such variable
-- `F::Vector{Float64}`: the free-DOF load vector (loads are constant data
-  in the differentiable path)
+- `F::Vector{Float64}`: the full-space load vector `P − Pf` at the BASE
+  design (used as-is when `loads = :frozen`, or when the model has no
+  element loads)
+- `P::Vector{Float64}`: the full-space NODAL load vector (constant)
+- `loads::Symbol`: `:design` (default) re-evaluates element-load fixed-end
+  forces at every design (`F(x) = P − Pf(x)`, Asap ≥ 1.2: line loads follow
+  member length, self-weight ρA, condensed end moments the joint springs
+  and EI); `:frozen` keeps `F` at the base design
+- `qa0::Vector{Float64}`: per-element axial fixed-end force `q̃₇` at the base
+  design (the frozen axial-force correction)
+- `Eload::SparseMatrixCSC`: n_el × n_loads, 1 where load `j` sits on element
+  `e` (`cache.fef` order) — sums per-load FEF terms per element
 - `i1`, `i2::Vector{Int}`: per-element node indices; `base_sections`: the
   reference sections — plain-data mirrors so the differentiable path never
   reads mutable structs (a Zygote tangent-accumulation catastrophe at scale)
@@ -69,6 +79,10 @@ struct OptParams{S}
     jslot2::Vector{Int}
     jfac2::Vector{Float64}
     base_ends::Vector{Any}           # per-element reference EndConditions
+    P::Vector{Float64}               # full-space nodal loads (constant)
+    loads::Symbol                    # :design (F follows x) or :frozen
+    qa0::Vector{Float64}             # per-element axial q̃₇ at the base design
+    Eload::SparseMatrixCSC{Float64,Int}   # n_el × n_loads incidence
     # linear-solver backend for every solve THROUGH these params (value,
     # adjoint, and forward-tangent systems alike): `nothing` = built-in
     # CHOLMOD; any LinearSolve algorithm (with Asap's extension); or
@@ -93,9 +107,12 @@ slots, and snapshot all constant data (base positions, sections, loads) as
 plain arrays.
 
 Errors early on ill-posed declarations: two variables on one element's
-area or joint, couplings whose parent is not among the independents,
-target/parent type mismatches, and joint variables on elements that carry
-element loads (their fixed-end forces would not track the design).
+area or joint, couplings whose parent is not among the independents, and
+target/parent type mismatches.
+
+`loads = :design` (default) makes element-load fixed-end forces follow the
+design (see the `loads` field); `loads = :frozen` keeps the base-design load
+vector, for studies where the load is fixed in space.
 
 `solver` selects the linear-solver backend for every solve through these
 params (see the field docstring); `Asap.CachedSolver()` is the recommended
@@ -103,7 +120,9 @@ choice inside optimization loops.
 """
 
 function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
-    solver = nothing)
+    solver = nothing, loads::Symbol = :design)
+    loads === :design || loads === :frozen ||
+        throw(ArgumentError("loads must be :design or :frozen, got :$loads"))
     model.cache === nothing && process!(model)
     cache = model.cache
     assemble_loads!(cache, model)
@@ -244,18 +263,13 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
     i2 = [el.nodeEnd.index for el in model.elements]
     Cinc = sparse([1:nel; 1:nel], [i1; i2],
         [fill(-1.0, nel); fill(1.0, nel)], nel, nnodes)
-    # element-load fixed-end forces depend on end conditions, but the pure
-    # path treats loads as constant data — a joint variable on an element
-    # that carries element loads would silently use stale FEFs. Guard it.
-    for load in model.loads
-        if load isa ElementLoad && load.element isa FrameElement
-            i = load.element.index
-            (jslot1[i] != 0 || jslot2[i] != 0) && error(
-                "element $(i) (:$(load.element.id)) carries an element load AND a joint " *
-                "variable — its fixed-end forces would not track the design. Apply the " *
-                "load as NodeForces, or split the member at the load point.")
-        end
-    end
+    # element loads: since Asap 1.2 their fixed-end forces are re-evaluated
+    # per design state (cache.fef), so joint variables, geometry and sections
+    # on loaded members are all differentiated through the load path
+    fef = cache.fef
+    nload = length(fef.loads)
+    Eload = sparse(fef.elem, collect(1:nload), ones(nload), nel, nload)
+    qa0 = [el isa FrameElement ? cache.q_local[e][1][7] : 0.0 for (e, el) in enumerate(model.elements)]
 
     base_sections = Any[el.section for el in model.elements]
     Evec = [s isa Section ? s.material.E : 0.0 for s in base_sections]
@@ -267,5 +281,5 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
         A0, sparse(saI, saJ, saV, nel, nx), collect(amask),
         P0v, sparse(spI, spJ, spV, 3nel, nx), collect(prmask), collect(pmask), F,
         i1, i2, Cinc, base_sections, Evec,
-        jslot1, jfac1, jslot2, jfac2, base_ends, solver)
+        jslot1, jfac1, jslot2, jfac2, base_ends, copy(cache.P), loads, qa0, Eload, solver)
 end

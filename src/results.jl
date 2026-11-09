@@ -16,14 +16,21 @@ so gradients of any scalar of these fields flow back to the design vector.
   further pure computations if needed)
 - `EA::AbstractVector`: evaluated axial rigidities (plain vector — cheap
   under reverse AD)
+- `F::Vector`: the full-space load vector the design was solved for —
+  `P − Pf(x)` with design-dependent element loads (`p.loads = :design`),
+  else the base-design `p.F`
+- `ends`: the evaluated per-element `EndConditions` (joint variables), or
+  `nothing` when the problem has none
 """
-struct OptResults{TU,TX,TA,TL,TS,TE}
+struct OptResults{TU,TX,TA,TL,TS,TE,TF,TN}
     U::TU
     X::TX
     A::TA
     L::TL
     sections::TS
     EA::TE
+    F::TF
+    ends::TN
 end
 
 """
@@ -105,10 +112,12 @@ end
 """
     solve_structure(x, p::OptParams) -> OptResults
 
-Evaluate a design vector: scatter positions and areas, run Asap's pure
-solve on the resulting `ModelState`, and package the results. Fully
-differentiable — `Zygote.gradient(x -> f(solve_structure(x, p)), x0)`
-needs nothing else.
+Evaluate a design vector: scatter positions and areas, build the load
+vector (element-load fixed-end forces re-evaluated at the design when
+`p.loads = :design`), run Asap's pure solve on the resulting `ModelState`,
+and package the results. Fully differentiable —
+`Zygote.gradient(x -> f(solve_structure(x, p)), x0)` needs nothing else, and
+the gradient includes the load path.
 
 `solve_truss` and `solve_frame` are aliases (the unified core needs no
 distinction).
@@ -118,9 +127,24 @@ function solve_structure(x::AbstractVector, p::OptParams)
     # eltype follows the design vector: Float64 normally, ForwardDiff Duals
     # under forward-mode AD (the Dual solve lives in AsapForwardDiffExt)
     state = ModelState{eltype(X)}(X, sections, EAvec, ends)
-    U = Asap.solve(p.model, state; solver = p.solver)
-    return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
+    cache = p.model.cache
+    K = Asap.assemble_K(cache, state)
+    free = cache.partition.free
+    # two branches behind the Asap._pure_solve barrier: the constant-load
+    # path keeps a concretely-typed solve call (Enzyme needs it); the
+    # design-load path evaluates F(x) once and reuses it for compliance
+    if _design_loads(p)
+        F = p.P - Asap.assemble_Pf(cache, state)
+        U = cache.free_embed * Asap._pure_solve(K, F[free], p.solver)
+        return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
+    else
+        U = cache.free_embed * Asap._pure_solve(K, p.F[free], p.solver)
+        return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, p.F, ends)
+    end
 end
+
+"does this problem re-evaluate element-load fixed-end forces per design?"
+_design_loads(p::OptParams) = p.loads === :design && size(p.Eload, 2) > 0
 
 const solve_truss = solve_structure
 const solve_frame = solve_structure
@@ -128,17 +152,24 @@ const solve_frame = solve_structure
 """
     axial_force(res::OptResults, p::OptParams) -> Vector
 
-Per-element axial force [force], tension-positive: `EA/L` times the axial
-elongation extracted from the global displacements. Pure and
-differentiable; exact for truss elements and for the axial action of frame
-elements with rigid axial connections.
+Per-element axial force [force], tension-positive, matching Asap's stateful
+`axial_force(res, el)` (slot 7 of the local end forces `f = k·u_local + q̃`:
+the axial action at the END node): `EA/L` times the axial elongation, plus
+the axial fixed-end force `q̃₇` of any element loads on the member (an
+inclined loaded beam, self-weight on a column, …), evaluated at the design
+when `p.loads = :design`. Pure and differentiable; exact for truss elements
+and for frame elements with rigid axial connections.
 """
 function axial_force(res::OptResults, p::OptParams)
     # batched: N = EA/L · (x̂ ⋅ Δu) = EA · (ΔX ⋅ ΔU) / L²  — two incidence
     # matmuls + broadcasts instead of one pullback closure per element
     ΔX = res.X * transpose(p.Cinc)                         # 3 × n_el
     ΔU = reshape(res.U, 6, :)[1:3, :] * transpose(p.Cinc)  # translational diffs
-    return vec(sum(ΔX .* ΔU; dims=1)) .* res.EA ./ (res.L .^ 2)
+    N = vec(sum(ΔX .* ΔU; dims=1)) .* res.EA ./ (res.L .^ 2)
+    size(p.Eload, 2) == 0 && return N
+    _design_loads(p) || return N .+ p.qa0
+    Q = Asap.fef_local(p.model.cache, ModelState{eltype(res.X)}(res.X, res.sections, res.EA, res.ends))
+    return N .+ p.Eload * Q[7, :]
 end
 
 """
@@ -156,7 +187,9 @@ stiffness objective.
 """
 # sum∘broadcast, not LinearAlgebra.dot: dot lowers to BLAS, which Enzyme's
 # forward mode cannot handle under runtime activity
-compliance(res::OptResults, p::OptParams) = sum(p.F .* res.U)
+# (res.F is the design's own load vector: with design-dependent element loads
+# it varies with x, and the gradient includes that term)
+compliance(res::OptResults, p::OptParams) = sum(res.F .* res.U)
 
 """
     GeometricProperties(x, p::OptParams)

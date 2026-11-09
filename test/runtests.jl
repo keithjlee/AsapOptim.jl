@@ -230,14 +230,110 @@ end
     @test g ≈ gfd rtol = 1e-4
     @test g[1] < 0                            # stiffer joint reduces compliance
 
-    # the FEF-consistency guard fires for element loads on jointed members
-    bn1 = Node([0.0, 0.0, 0.0], :fixed)
-    bn2 = Node([3000.0, 0.0, 0.0], :pinned)
-    bel = FrameElement(bn1, bn2, sec, :bad; rollangle=0.0)
-    badmodel = Asap.Model([bn1, bn2], AbstractElement{Float64}[bel],
-        AbstractLoad{Float64}[LineLoad(bel, [0.0, -1.0, 0.0])])
-    @test_throws ErrorException OptParams(badmodel,
-        AbstractVariable[JointVariable(bel, :start, 1e8, 1e5, 1e12)])
+    # a loaded member with a joint variable (refused before AsapOptim 1.2,
+    # when fixed-end forces were frozen): the condensed end moments now
+    # follow κ — gradient vs central differences of rebuilt, re-solved models
+    function loaded(k)
+        bn1 = Node([0.0, 0.0, 0.0], :fixed)
+        bn2 = Node([3000.0, 0.0, 0.0], :pinned)
+        sp = EndSprings(Inf, Inf, k, k)
+        bel = FrameElement(bn1, bn2, sec, EndConditions(sp, rigid_end()), :beam; rollangle=0.0)
+        Asap.Model([bn1, bn2], AbstractElement{Float64}[bel],
+            AbstractLoad{Float64}[LineLoad(bel, [0.0, -1.0, 0.0])])
+    end
+    lm = loaded(1e8)
+    pl = OptParams(lm, AbstractVariable[JointVariable(lm.elements[1], :start, 1e8, 1e5, 1e12)])
+    truec(k) = (m = loaded(k); solve!(m); sum((m.cache.P - m.cache.Pf) .* m.results.u))
+    @test compliance(solve_structure([3e8], pl), pl) ≈ truec(3e8) rtol = 1e-10
+    gk = Zygote.gradient(x -> compliance(solve_structure(x, pl), pl), [1e8])[1][1]
+    @test gk ≈ (truec(1e8 + 1e4) - truec(1e8 - 1e4)) / 2e4 rtol = 1e-5
+end
+
+# ---------------------------------------------------------------------------
+# design-dependent element loads (Asap ≥ 1.2): F(x) = P − Pf(x)
+# ---------------------------------------------------------------------------
+
+# a planar portal whose beam is INCLINED (so its gravity line load has an
+# axial component), with semi-rigid beam ends, self-weight on the columns,
+# and a lateral nodal load: every element-load dependence is exercised
+function loaded_portal()
+    mat = Material(200e6, 80e6, 8.0, 0.3)
+    col = Section(mat, 1.2e-2, 3e-4, 1e-4, 2e-6)
+    bm = Section(mat, 8e-3, 2.5e-4, 5e-5, 1e-6)
+    planar = [true, true, false, false, false, true]
+    n1 = Node([0.0, 0.0, 0.0], :fixed); n2 = Node([0.0, 3.0, 0.0], planar)
+    n3 = Node([6.0, 4.0, 0.0], planar); n4 = Node([6.0, 0.0, 0.0], :fixed)
+    sp = EndSprings(Inf, Inf, 5e4, 5e4)
+    c1 = FrameElement(n1, n2, col, :col; rollangle=0.0)
+    b = FrameElement(n2, n3, bm, EndConditions(sp, sp), :beam; rollangle=0.0)
+    c2 = FrameElement(n4, n3, col, :col; rollangle=0.0)
+    loads = AbstractLoad{Float64}[LineLoad(b, [0.0, -8.0, 0.0]), SelfWeight(c1; g=[0.0, -9.81, 0.0]),
+        SelfWeight(c2; g=[0.0, -9.81, 0.0]), PointLoad(b, 0.3, [0.0, -5.0, 0.0]), NodeForce(n2, [4.0, 0.0, 0.0])]
+    model = Asap.Model([n1, n2, n3, n4], AbstractElement{Float64}[c1, b, c2], loads)
+    y2 = SpatialVariable(n2, 0.0, -1.0, 1.0, :Y)
+    x3 = SpatialVariable(n3, 0.0, -1.0, 1.0, :X)
+    Ac = AreaVariable(c1, 1.2e-2, 1e-3, 5e-2)
+    Ib = SectionVariable(b, 2.5e-4, 1e-5, 1e-3, :Ix)
+    jv = JointVariable(b, :start, 5e4, 1e2, 1e8)
+    vars = AbstractVariable[y2, x3, Ac, CoupledVariable(c2, Ac), Ib, jv, CoupledVariable((b, :end), jv)]
+    return model, vars
+end
+
+# the ground truth: materialize x into a FRESH model and re-solve statefully
+function truth(x)
+    m, v = loaded_portal()
+    pm = OptParams(m, v)
+    mm = updatemodel(pm, x)
+    return mm, sum((mm.cache.P - mm.cache.Pf) .* mm.results.u)
+end
+
+@testset "design-dependent element loads" begin
+    model, vars = loaded_portal()
+    p = OptParams(model, vars)
+    x0 = copy(p.values)
+    x1 = x0 .* [1, 1, 1.3, 0.8, 1.5] .+ [0.4, -0.3, 0, 0, 0]
+
+    # value: the design evaluation equals a rebuilt, re-solved model
+    m1, c1 = truth(x1)
+    r1 = solve_structure(x1, p)
+    @test r1.U ≈ m1.results.u rtol = 1e-10
+    @test compliance(r1, p) ≈ c1 rtol = 1e-10
+    # axial force includes the element-load axial term q̃₇, matching Asap's
+    # stateful recovery (inclined loaded beam; self-weight on the columns)
+    @test axial_force(r1, p) ≈ [Asap.axial_force(m1.results, el) for el in m1.elements] rtol = 1e-9
+    @test any(!iszero, p.qa0)
+
+    # gradient: Zygote and ForwardDiff vs central differences of rebuilt models
+    obj(x) = compliance(solve_structure(x, p), p)
+    g_zy = Zygote.gradient(obj, x0)[1]
+    g_fd = ForwardDiff.gradient(obj, x0)
+    hs = [1e-6, 1e-6, 1e-8, 1e-10, 1.0]
+    g_true = map(eachindex(x0)) do i
+        e = zeros(length(x0)); e[i] = hs[i]
+        (truth(x0 + e)[2] - truth(x0 - e)[2]) / 2hs[i]
+    end
+    @test g_zy ≈ g_true rtol = 1e-5
+    @test g_fd ≈ g_true rtol = 1e-5
+    @test g_zy ≈ g_fd rtol = 1e-9
+
+    # implicit differentiation: solution tangents and axial Jacobian with loads
+    t = solution_tangents(x1, p)
+    @test t.res.U ≈ r1.U rtol = 1e-12
+    JU = ForwardDiff.jacobian(x -> solve_structure(x, p).U, x1)
+    @test t.dU ≈ JU rtol = 1e-8 atol = 1e-12
+    JN = ForwardDiff.jacobian(x -> axial_force(solve_structure(x, p), p), x1)
+    @test axial_force_jacobian(t, p) ≈ JN rtol = 1e-8 atol = 1e-10
+    Jσ = ForwardDiff.jacobian(x -> axial_stress(solve_structure(x, p), p), x1)
+    @test axial_stress_jacobian(t, p) ≈ Jσ rtol = 1e-8 atol = 1e-6
+
+    # loads = :frozen: the base-design load vector, as before AsapOptim 1.2
+    pf = OptParams(loaded_portal()...; loads = :frozen)
+    rf = solve_structure(x1, pf)
+    @test rf.F == pf.F
+    @test axial_force(rf, pf) ≈ axial_force(rf, p) - p.Eload * Asap.fef_local(p.model.cache,
+        ModelState{Float64}(rf.X, rf.sections, rf.EA, rf.ends))[7, :] + pf.qa0 rtol = 1e-10
+    @test !(compliance(rf, pf) ≈ c1)
+    @test_throws ArgumentError OptParams(loaded_portal()...; loads = :bogus)
 end
 
 @testset "ForwardDiff forward mode" begin

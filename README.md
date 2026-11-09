@@ -196,7 +196,7 @@ All variables share the pattern `Variable(target, start_value, lower_bound, uppe
 Notes:
 
 - `AreaVariable` requires a geometric `Section`; a `RigiditySection` has no area to vary — parameterize its rigidities directly instead.
-- `JointVariable` errors (at `OptParams` time) if the element also carries an element load, because the load's fixed-end forces would not track the changing stiffness. Apply such loads as `NodeForce`s or split the member.
+- **Element loads follow the design** (AsapOptim ≥ 1.2 with Asap ≥ 1.2). Fixed-end forces are re-evaluated at every design, so gradients include the load path. A `LineLoad` is a per-unit-length intensity whose total follows the member's current length. A `PointLoad` keeps its fractional position. `SelfWeight` follows ρA. Condensed end moments follow `JointVariable` stiffnesses and EI. `axial_force(res, p)` includes the element loads' axial component, matching Asap's `axial_force(res, el)`. Pass `OptParams(model, vars; loads = :frozen)` to keep the base-design load vector instead.
 
 ### Coupling variables: symmetry and grouping
 
@@ -362,6 +362,6 @@ Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mo
 - `TrussOptParams` and `FrameOptParams` still work — they are now aliases of the unified `OptParams`, and `solve_truss`/`solve_frame` alias `solve_structure`.
 - `res.U` is now the **full 6-DOF-per-node** vector for every model (v0.1's truss path was 3-DOF): vertical displacements are `U[2:6:end]`, not `U[2:3:end]`.
 - Results carry positions as a 3 × n matrix `res.X` instead of separate `X`/`Y`/`Z` vectors.
-- The static load vector for compliance-style objectives is `params.F` (or just use `compliance(res, params)`).
+- The load vector of an evaluated design is `res.F` (with element loads it varies with the design); `params.F` is the base-design vector. Or just use `compliance(res, params)`.
 - Custom rrules, the functional re-assembly path, and the truss/frame code split are gone — differentiability comes from Asap's core. The old implementation is preserved (unloaded) in `legacy_v0/` for reference.
 - Not yet ported: full section parameterization (`SectionVariable`); `RigiditySection`-based parameterization is the intended v1.0 idiom.

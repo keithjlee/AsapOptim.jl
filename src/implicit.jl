@@ -1,15 +1,19 @@
 #=
 Implicit differentiation of the design → solution map.
 
-Differentiating K(x)·u(x) = F (loads design-constant) gives
+Differentiating K(x)·u(x) = F(x) = P − Pf(x) gives
 
-    du/dxⱼ = −K⁻¹ (∂K/∂xⱼ · u)
+    du/dxⱼ = −K⁻¹ (∂K/∂xⱼ · u + ∂Pf/∂xⱼ)
 
-so the WHOLE solution tangent matrix costs one assembly, one
-factorization, and ONE multi-RHS back-substitution — where chunked
-forward-mode AD re-assembles K with Dual numbers once per chunk. The
-pseudo-loads (∂K/∂xⱼ)u are element-local: each design variable perturbs
-only the kernel inputs of the element(s) it touches.
+(`∂Pf/∂xⱼ` is zero unless element loads sit on members the variable
+touches and `p.loads = :design`), so the WHOLE solution tangent matrix
+costs one assembly, one factorization, and ONE multi-RHS
+back-substitution — where chunked forward-mode AD re-assembles K with Dual
+numbers once per chunk. The pseudo-loads are element-local: each design
+variable perturbs only the kernel inputs of the element(s) it touches, and
+the SAME one-partial seed that differentiates the stiffness kernel also
+differentiates the element's fixed-end-force kernel
+(`Asap.element_fef_global`).
 
 Generality contract (do not break it): NOTHING in the hot path
 enumerates variable types. Stage 1 computes per-element kernel-input
@@ -35,6 +39,100 @@ _dual1(v::Real) = Dual{_ImplicitTag}(Float64(v), 1.0)
 # seed component c of a position with a unit partial
 _seed(v::SVector{3,Float64}, c::Int) =
     SVector{3,Dual{_ImplicitTag,Float64,1}}(ntuple(k -> Dual{_ImplicitTag}(v[k], k == c ? 1.0 : 0.0), 3))
+
+# the single partial of a seeded evaluation; an output the seed never reached
+# (e.g. a fixed-end force under a torsion-constant seed) is plain Float64
+_dpart(v::Dual) = partials(v, 1)
+_dpart(v::Real) = 0.0
+
+"""
+    _input_maps(p, n, nnodes, nel) -> (node_inputs, area_inputs, prop_inputs)
+
+The stage-2 scatter maps inverted for an element loop: node →
+`[(coord, slot, factor)]`, element → `[(slot, factor)]` (areas), element →
+`[(property k ∈ 1:3 for Ix/Iy/J, slot, factor)]`.
+"""
+function _input_maps(p::OptParams, n::Int, nnodes::Int, nel::Int)
+    node_inputs = [Tuple{Int,Int,Float64}[] for _ in 1:nnodes]
+    let rows = rowvals(p.Sx), vals = nonzeros(p.Sx)
+        for j in 1:n, ptr in nzrange(p.Sx, j)
+            r = rows[ptr]
+            push!(node_inputs[(r-1)÷3+1], ((r - 1) % 3 + 1, j, vals[ptr]))
+        end
+    end
+    area_inputs = [Tuple{Int,Float64}[] for _ in 1:nel]
+    let rows = rowvals(p.Sa), vals = nonzeros(p.Sa)
+        for j in 1:n, ptr in nzrange(p.Sa, j)
+            push!(area_inputs[rows[ptr]], (j, vals[ptr]))
+        end
+    end
+    prop_inputs = [Tuple{Int,Int,Float64}[] for _ in 1:nel]
+    let rows = rowvals(p.Sp), vals = nonzeros(p.Sp)
+        for j in 1:n, ptr in nzrange(p.Sp, j)
+            r = rows[ptr]
+            push!(prop_inputs[(r-1)÷3+1], ((r - 1) % 3 + 1, j, vals[ptr]))
+        end
+    end
+    return node_inputs, area_inputs, prop_inputs
+end
+
+"""
+    _foreach_frame_seed(f, e, p, maps, sec, ec, x1, x2)
+
+Call `f(pairs, sec′, ec′, x1′, x2′)` once per kernel input of frame element
+`e` that some design variable reaches, with exactly that input seeded by a
+unit `Dual` partial (`pairs` = the `(slot, factor)` columns it feeds). The
+one seeding routine shared by the stiffness pseudo-loads, the fixed-end
+force pseudo-loads, and the axial-force Jacobian — so every kernel sees the
+same perturbation.
+"""
+function _foreach_frame_seed(f, e::Int, p::OptParams, maps, sec::Section{Float64},
+    ec::EndConditions{Float64}, x1::SVector{3,Float64}, x2::SVector{3,Float64})
+    node_inputs, area_inputs, prop_inputs = maps
+    # area: seed the section (correct even when semi-rigid axial springs make
+    # K nonlinear in A, and for self-weight ρA)
+    if !isempty(area_inputs[e])
+        f(area_inputs[e], Section(sec.material, _dual1(sec.A), sec.Ix, sec.Iy, sec.J), ec, x1, x2)
+    end
+    # flexural/torsional section properties
+    for (k, j, fac) in prop_inputs[e]
+        secd = Section(sec.material, sec.A,
+            k == 1 ? _dual1(sec.Ix) : sec.Ix,
+            k == 2 ? _dual1(sec.Iy) : sec.Iy,
+            k == 3 ? _dual1(sec.J) : sec.J)
+        f(((j, fac),), secd, ec, x1, x2)
+    end
+    # spatial
+    i1, i2 = p.i1[e], p.i2[e]
+    for (c, j, fac) in node_inputs[i1]
+        f(((j, fac),), sec, ec, _seed(x1, c), x2)
+    end
+    for (c, j, fac) in node_inputs[i2]
+        f(((j, fac),), sec, ec, x1, _seed(x2, c))
+    end
+    # joint springs: ky = kz share the slot — seed both together
+    if p.jslot1[e] != 0
+        e1 = ec.e1
+        f(((p.jslot1[e], p.jfac1[e]),),
+            sec, EndConditions(EndSprings(e1.kx, e1.kt, _dual1(e1.ky), _dual1(e1.kz)), ec.e2), x1, x2)
+    end
+    if p.jslot2[e] != 0
+        e2 = ec.e2
+        f(((p.jslot2[e], p.jfac2[e]),),
+            sec, EndConditions(ec.e1, EndSprings(e2.kx, e2.kt, _dual1(e2.ky), _dual1(e2.kz))), x1, x2)
+    end
+    return nothing
+end
+
+# element → indices of its element loads in cache.fef (empty for frozen loads)
+function _loads_by_element(p::OptParams, nel::Int)
+    out = [Int[] for _ in 1:nel]
+    _design_loads(p) || return out
+    for (j, e) in enumerate(p.model.cache.fef.elem)
+        push!(out[e], j)
+    end
+    return out
+end
 
 """
     DesignTangents
@@ -73,39 +171,20 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
     fact = Asap._factorize(p.solver, K)
 
     free = cache.partition.free
-    uf = fact \ p.F[free]
+    F = _design_loads(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
+    uf = fact \ F[free]
     U = cache.free_embed * uf
-    res = OptResults(U, X, A, _element_lengths(X, p), sections, EAvec)
+    res = OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
 
     n = length(x)
     nnodes = size(X, 2)
     nel = length(p.i1)
+    maps = _input_maps(p, n, nnodes, nel)
+    node_inputs, area_inputs, prop_inputs = maps
+    loads_of = _loads_by_element(p, nel)
+    fef = cache.fef
 
-    # stage 2 scatter maps, inverted for stage 1's element loop:
-    # node -> [(coord, slot, factor)] and element -> [(slot, factor)]
-    node_inputs = [Tuple{Int,Int,Float64}[] for _ in 1:nnodes]
-    let rows = rowvals(p.Sx), vals = nonzeros(p.Sx)
-        for j in 1:n, ptr in nzrange(p.Sx, j)
-            r = rows[ptr]
-            push!(node_inputs[(r-1)÷3+1], ((r - 1) % 3 + 1, j, vals[ptr]))
-        end
-    end
-    area_inputs = [Tuple{Int,Float64}[] for _ in 1:nel]
-    let rows = rowvals(p.Sa), vals = nonzeros(p.Sa)
-        for j in 1:n, ptr in nzrange(p.Sa, j)
-            push!(area_inputs[rows[ptr]], (j, vals[ptr]))
-        end
-    end
-    # element -> [(property row k ∈ 1:3 for Ix/Iy/J, slot, factor)]
-    prop_inputs = [Tuple{Int,Int,Float64}[] for _ in 1:nel]
-    let rows = rowvals(p.Sp), vals = nonzeros(p.Sp)
-        for j in 1:n, ptr in nzrange(p.Sp, j)
-            r = rows[ptr]
-            push!(prop_inputs[(r-1)÷3+1], ((r - 1) % 3 + 1, j, vals[ptr]))
-        end
-    end
-
-    # stage 1: element-local pseudo-loads W[:, j] = (∂K/∂xⱼ)·U
+    # stage 1: element-local pseudo-loads W[:, j] = (∂K/∂xⱼ)·U + ∂Pf/∂xⱼ
     W = zeros(length(U), n)
     for (e, el) in enumerate(p.model.elements)
         i1, i2 = p.i1[e], p.i2[e]
@@ -144,46 +223,17 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
             ue = SVector{12}(U[d] for d in dofs)
             ec = ends === nothing ? el.ends : ends[e]::EndConditions{Float64}
             roll = el.rollangle
-
-            # frame area: seed the section (correct even when semi-rigid
-            # axial springs make K nonlinear in A)
-            if !isempty(area_inputs[e])
-                secd = Section(sec.material, _dual1(A[e]), sec.Ix, sec.Iy, sec.J)
-                w = partials.(Asap.frame_stiffness(secd, ec, x1, x2, roll), 1) * ue
-                for (j, fac) in area_inputs[e]
+            lj = loads_of[e]
+            # every seeded kernel input: ∂K·u, plus ∂(global FEF) of the
+            # element's loads under the SAME seed (the load path)
+            _foreach_frame_seed(e, p, maps, sec, ec, x1, x2) do pairs, secd, ecd, x1d, x2d
+                w = partials.(Asap.frame_stiffness(secd, ecd, x1d, x2d, roll), 1) * ue
+                for l in lj
+                    w = w + _dpart.(Asap.element_fef_global(fef.loads[l], secd, ecd, x1d, x2d, roll))
+                end
+                for (j, fac) in pairs
                     @views W[dofs, j] .+= fac .* w
                 end
-            end
-            # flexural/torsional section properties: seed the property —
-            # the generic path that absorbs SectionVariable with zero new
-            # derivative code
-            for (k, j, fac) in prop_inputs[e]
-                secd = Section(sec.material, sec.A,
-                    k == 1 ? _dual1(sec.Ix) : sec.Ix,
-                    k == 2 ? _dual1(sec.Iy) : sec.Iy,
-                    k == 3 ? _dual1(sec.J) : sec.J)
-                w = partials.(Asap.frame_stiffness(secd, ec, x1, x2, roll), 1) * ue
-                @views W[dofs, j] .+= fac .* w
-            end
-            # spatial
-            for (xi, ni) in ((1, i1), (2, i2)), (c, j, fac) in node_inputs[ni]
-                Kd = xi == 1 ? Asap.frame_stiffness(sec, ec, _seed(x1, c), x2, roll) :
-                     Asap.frame_stiffness(sec, ec, x1, _seed(x2, c), roll)
-                w = partials.(Kd, 1) * ue
-                @views W[dofs, j] .+= fac .* w
-            end
-            # joint springs: ky = kz share the slot — seed both together
-            if p.jslot1[e] != 0
-                e1 = ec.e1
-                ecd = EndConditions(EndSprings(e1.kx, e1.kt, _dual1(e1.ky), _dual1(e1.kz)), ec.e2)
-                w = partials.(Asap.frame_stiffness(sec, ecd, x1, x2, roll), 1) * ue
-                @views W[dofs, p.jslot1[e]] .+= p.jfac1[e] .* w
-            end
-            if p.jslot2[e] != 0
-                e2 = ec.e2
-                ecd = EndConditions(ec.e1, EndSprings(e2.kx, e2.kt, _dual1(e2.ky), _dual1(e2.kz)))
-                w = partials.(Asap.frame_stiffness(sec, ecd, x1, x2, roll), 1) * ue
-                @views W[dofs, p.jslot2[e]] .+= p.jfac2[e] .* w
             end
         end
     end
@@ -234,6 +284,37 @@ function axial_force_jacobian(t::DesignTangents, p::OptParams)
     dL = Diagonal(1.0 ./ L) * (S_Xx * p.Sx)             # L̇ = (ΔX·ΔẊ)/L
     J .+= Diagonal(-2.0 .* N ./ L) * dL                 # length term
     J .+= Diagonal(p.Evec .* s ./ (L .^ 2)) * p.Sa      # area term (∂EA/∂x)
+    _add_axial_fef_jacobian!(J, res, p)                 # element-load term (∂q̃₇/∂x)
+    return J
+end
+
+# ∂q̃₇/∂x of every loaded frame element (axial_force adds q̃₇): the same
+# per-input seeds as solution_tangents, through Asap.condensed_fef
+function _add_axial_fef_jacobian!(J, res, p::OptParams)
+    _design_loads(p) || return J
+    nel = length(p.i1)
+    maps = _input_maps(p, size(J, 2), size(res.X, 2), nel)
+    loads_of = _loads_by_element(p, nel)
+    fef = p.model.cache.fef
+    for (e, el) in enumerate(p.model.elements)
+        lj = loads_of[e]
+        isempty(lj) && continue
+        el isa FrameElement || continue
+        i1, i2 = p.i1[e], p.i2[e]
+        x1 = SVector{3}(res.X[1, i1], res.X[2, i1], res.X[3, i1])
+        x2 = SVector{3}(res.X[1, i2], res.X[2, i2], res.X[3, i2])
+        ec = res.ends === nothing ? el.ends : res.ends[e]::EndConditions{Float64}
+        roll = el.rollangle
+        _foreach_frame_seed(e, p, maps, res.sections[e]::Section{Float64}, ec, x1, x2) do pairs, secd, ecd, x1d, x2d
+            dq = 0.0
+            for l in lj
+                dq += _dpart(Asap.condensed_fef(fef.loads[l], secd, ecd, x1d, x2d, roll)[7])
+            end
+            for (j, fac) in pairs
+                J[e, j] += fac * dq
+            end
+        end
+    end
     return J
 end
 
