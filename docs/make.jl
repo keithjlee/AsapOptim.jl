@@ -6,6 +6,10 @@
 # then open docs/build/index.html (prettyurls are off outside CI, so direct
 # file browsing works). In the AsapEcosystem workspace, also
 # `Pkg.develop(PackageSpec(path="../Asap"))` to build against the sibling Asap.
+# NOTE: Pkg.develop writes a [sources] section into docs/Project.toml — never
+# commit it (CI resolves Asap from the registry and develops AsapOptim itself;
+# committed local paths break the Documentation workflow). Restore with
+# `git checkout docs/Project.toml` after a local build.
 
 using Documenter, AsapOptim, Asap
 using Zygote   # activates Asap's ChainRules extension for the guide's @example gradients
