@@ -6,8 +6,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Zygote"), PackageSpec(name="ForwardDiff"),
     PackageSpec(name="DifferentiationInterface"), PackageSpec(name="NLopt")]; io=devnull)
@@ -21,7 +21,7 @@ const OUTDIR = ENV["OUTDIR"]
 
 # rebuild the exact publication model from the pinned fixture (node/element
 # order preserved — displacement parity vs the publication is 1e-13)
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 def = DIFFANALYSIS_FIXTURES["S4.2_spaceframe/model"]
 nodes = [Node(Vector{Float64}(n["pos"]), vcat(Vector{Bool}(n["dof"]), trues(3))) for n in def["nodes"]]
 elements = [TrussElement(nodes[e["i"]], nodes[e["j"]],

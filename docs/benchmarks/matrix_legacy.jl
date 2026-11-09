@@ -12,7 +12,7 @@ using Asap, AsapOptim, LinearAlgebra, Zygote, BenchmarkTools
 println("JULIA ", VERSION)
 Pkg.status(["Asap", "AsapOptim"])
 
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 
 function ex1_problem()
     section = TrussSection(0.01, 200e6)

@@ -42,7 +42,7 @@ function small_problem()
 end
 
 function spaceframe_problem()
-    include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+    include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
     def = Main.DIFFANALYSIS_FIXTURES["S4.2_spaceframe/model"]
     nodes = [Node(Vector{Float64}(n["pos"]), vcat(Vector{Bool}(n["dof"]), trues(3))) for n in def["nodes"]]
     els = [TrussElement(nodes[e["i"]], nodes[e["j"]],

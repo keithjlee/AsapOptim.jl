@@ -6,8 +6,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-        PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-        PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+        PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+        PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
     ]; io=devnull)
 Pkg.add(["Zygote", "FiniteDifferences"]; io=devnull)
 
@@ -15,7 +15,7 @@ using Asap, AsapOptim, LinearAlgebra, Zygote, FiniteDifferences
 using DelimitedFiles
 
 # ── rebuild the S4.2 spaceframe from the pinned publication fixture ─────────
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 def = DIFFANALYSIS_FIXTURES["S4.2_spaceframe/model"]
 
 nodes = map(def["nodes"]) do n

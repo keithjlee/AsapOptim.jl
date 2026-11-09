@@ -2,8 +2,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Zygote"), PackageSpec(name="Mooncake"),
     PackageSpec(name="Enzyme"), PackageSpec(name="DifferentiationInterface"),
@@ -13,7 +13,7 @@ using Asap, AsapOptim, LinearAlgebra, BenchmarkTools
 using DifferentiationInterface
 import Zygote, Mooncake, Enzyme, FiniteDifferences
 
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 def = DIFFANALYSIS_FIXTURES["S4.2_spaceframe/model"]
 nodes = [Node(Vector{Float64}(n["pos"]), vcat(Vector{Bool}(n["dof"]), trues(3))) for n in def["nodes"]]
 els = [TrussElement(nodes[e["i"]], nodes[e["j"]],

@@ -8,8 +8,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Zygote"), PackageSpec(name="Mooncake"),
     PackageSpec(name="Enzyme"), PackageSpec(name="ForwardDiff"),
@@ -22,7 +22,7 @@ import Zygote, Mooncake, Enzyme, ForwardDiff
 
 println("JULIA ", VERSION)
 
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 
 function ex1_problem()
     steel = Material(200e6, 80.0, 0.3)

@@ -3,8 +3,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Zygote"), PackageSpec(name="Mooncake"),
     PackageSpec(name="Enzyme"), PackageSpec(name="DifferentiationInterface"),

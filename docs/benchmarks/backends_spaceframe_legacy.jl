@@ -10,7 +10,7 @@ Pkg.status(["Asap", "AsapOptim"])
 using Asap, AsapOptim, LinearAlgebra, Zygote, BenchmarkTools
 
 # rebuild the fixture on the OLD API (fixture dicts are package-agnostic)
-include("/Users/keithlee/Documents/dev/Asap/test/characterization/fixtures_diffanalysis.jl")
+include("/Users/keithlee/Documents/dev/AsapEcosystem/Asap/test/characterization/fixtures_diffanalysis.jl")
 def = DIFFANALYSIS_FIXTURES["S4.2_spaceframe/model"]
 nodes = [TrussNode(Vector{Float64}(n["pos"]), Vector{Bool}(n["dof"])) for n in def["nodes"]]
 els = [TrussElement(nodes[e["i"]], nodes[e["j"]],
