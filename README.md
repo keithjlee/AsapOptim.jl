@@ -1,5 +1,8 @@
 # AsapOptim.jl
 
+[![Docs](https://img.shields.io/badge/docs-stable-blue.svg)](https://keithjlee.com/AsapOptim.jl/stable/)
+[![CI](https://github.com/keithjlee/AsapOptim.jl/actions/workflows/CI.yml/badge.svg)](https://github.com/keithjlee/AsapOptim.jl/actions/workflows/CI.yml)
+
 ![](figures/gradients-axo.png)
 ![](figures/gb_mma_small.gif)
 
@@ -233,6 +236,8 @@ The full differentiable analysis: scatter positions/areas/joint stiffnesses, run
 - `X` — evaluated node positions (3 × n_nodes)
 - `A`, `L` — per-element areas and lengths
 - `sections`, `EA` — evaluated sections and axial rigidities
+- `F` — the load vector the design was solved for (varies with the design when members carry element loads)
+- `ends` — evaluated end conditions (joint variables), or `nothing`
 
 Built-in reductions of an `OptResults`:
 
@@ -364,4 +369,4 @@ Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mo
 - Results carry positions as a 3 × n matrix `res.X` instead of separate `X`/`Y`/`Z` vectors.
 - The load vector of an evaluated design is `res.F` (with element loads it varies with the design); `params.F` is the base-design vector. Or just use `compliance(res, params)`.
 - Custom rrules, the functional re-assembly path, and the truss/frame code split are gone — differentiability comes from Asap's core. The old implementation is preserved (unloaded) in `legacy_v0/` for reference.
-- Not yet ported: full section parameterization (`SectionVariable`); `RigiditySection`-based parameterization is the intended v1.0 idiom.
+- Section parameterization is available through `SectionVariable` (`:A`, `:Ix`, `:Iy`, `:J`).

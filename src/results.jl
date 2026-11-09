@@ -179,16 +179,16 @@ Per-element axial stress [force/length²]: axial force over evaluated area.
 """
 axial_stress(res::OptResults, p::OptParams) = axial_force(res, p) ./ res.A
 
+# sum∘broadcast, not LinearAlgebra.dot: dot lowers to BLAS, which Enzyme's
+# forward mode cannot handle under runtime activity
 """
     compliance(res::OptResults, p::OptParams) -> Real
 
 External work `Fᵀu` of the evaluated design — the canonical smooth
-stiffness objective.
+stiffness objective. `F` is the design's own load vector (`res.F`): with
+design-dependent element loads it varies with the design, and the gradient
+includes that term.
 """
-# sum∘broadcast, not LinearAlgebra.dot: dot lowers to BLAS, which Enzyme's
-# forward mode cannot handle under runtime activity
-# (res.F is the design's own load vector: with design-dependent element loads
-# it varies with x, and the gradient includes that term)
 compliance(res::OptResults, p::OptParams) = sum(res.F .* res.U)
 
 """

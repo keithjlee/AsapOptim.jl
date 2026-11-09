@@ -11,3 +11,6 @@ CLAUDE.md
 Manifest.toml
 # benchmark output artifacts (regenerable)
 docs/benchmarks/*.txt
+
+# Documenter build artifacts
+docs/build/
