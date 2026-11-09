@@ -1,6 +1,18 @@
-# Enzyme FORWARD-mode probe — run in its own process (a failing
-# configuration can ABORT, not throw). Status as of 2026-07-17, native
-# EnzymeRules.forward rule in AsapEnzymeExt, Enzyme 0.13.186:
+# Enzyme FORWARD-mode probe — run in its own process AND under an external
+# `timeout` (failure modes include ABORTS and compile-time HANGS, not
+# exceptions). Status as of 2026-08-18, Enzyme 0.13.199 (see
+# docs/AD_BACKENDS.md dated update):
+#   * Julia 1.12.7: still ABORTS (AdjointGenerator.h:318 assertion),
+#     identical to July.
+#   * Julia 1.11.9 + default solver: works at ex1 scale (grad 0.30 ms,
+#     Jacobian 0.31 ms, parity ~2e-14) but NEW REGRESSION at spaceframe
+#     scale (512 vars): ReadOnlyMemoryError (0.13.186 ran it at 152 ms
+#     in July).
+#   * Re-pinning 0.13.186 on Julia 1.11.9 HANGS in Enzyme compilation of
+#     the spaceframe forward Jacobian (>5 h CPU, killed) — the July
+#     configuration no longer reproduces (environment drift).
+# Status as of 2026-07-17 (Enzyme 0.13.186, native EnzymeRules.forward
+# rule in AsapEnzymeExt), retained for history:
 #   * Julia 1.11 + default solver: WORKS (machine-precision gradients and
 #     Jacobians; ex1 Jacobian 0.30 ms, spaceframe 152 ms)
 #   * Julia 1.11 + CachedSolver: ABORTS in Enzyme codegen around the
@@ -10,8 +22,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapOptim"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
+    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Enzyme"), PackageSpec(name="ChainRulesCore"),
     PackageSpec(name="Zygote")]; io=devnull)

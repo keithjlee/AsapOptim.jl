@@ -261,6 +261,51 @@ aggregation/screening is the remaining lever. Plain-Float64 path for
 optimizer callbacks (not itself AD-transparent); ForwardDiff/Zygote remain
 the reference implementations in the test suite.
 
+## Update 2026-08-18: Enzyme 0.13.199 recheck — 1.12 still blocked, NEW forward regression at scale
+
+Recheck of the July Enzyme status on the latest release (0.13.199,
+2026-08-09; July numbers were 0.13.186). Scripts: `matrix_new.jl`
+methodology, Enzyme-only; run per-version, sequentially. **Net: everything
+broken in July is still broken, and forward mode at production scale has
+regressed further.**
+
+| Config (Enzyme 0.13.199) | grad ex1 | grad spaceframe | fwd-jac ex1 | fwd-jac spaceframe |
+|---|---|---|---|---|
+| Julia 1.11.9, Enzyme-rev | **0.080 ms** | **0.626 ms** | — | — |
+| Julia 1.11.9, Enzyme-fwd | 0.297 ms | **FAIL `ReadOnlyMemoryError`** | 0.312 ms | **FAIL `ReadOnlyMemoryError`** |
+| Julia 1.12.7, Enzyme-rev | 0.169 ms | 1.493 ms | — | — |
+| Julia 1.12.7, Enzyme-fwd | ABORT | ABORT | ABORT | ABORT |
+
+- **1.12 forward abort unchanged**: identical `AdjointGenerator.h:318`
+  `forwardModeInvertedPointerFallback` assertion on 1.12.7 + 0.13.199.
+- **1.12 reverse penalty persists**: spaceframe gradient 1.49 ms on 1.12.7
+  vs 0.63 ms on 1.11.9, same Enzyme — still ~2.4× (was 2× in July).
+- **NEW: forward mode regressed at scale on 1.11**: the 512-var spaceframe
+  forward gradient/Jacobian now throws `ReadOnlyMemoryError` under 0.13.199
+  (ran fine at 152 ms under 0.13.186 in July). ex1 scale still works with
+  machine-precision parity (~2e-14).
+- **Pin-check inconclusive-bad**: re-pinning Enzyme 0.13.186 on Julia
+  1.11.9 HUNG in Enzyme compilation of the spaceframe forward Jacobian
+  (>5 h CPU at 99%, no output, killed). So the July-verified configuration
+  does not reproduce today either — environment drift (Julia 1.11.9 patch
+  and/or dep resolution) interacts with Enzyme forward at scale. **Rule:
+  wrap every Enzyme probe/benchmark in an external `timeout` — failure
+  modes include process aborts AND compile-time hangs.**
+- DI reverse-Jacobian interop failure ("Conversion of boxed type
+  Vector{Float64}") persists on both Julia versions.
+- One genuine improvement: Enzyme-rev on 1.11.9 is ~25% faster than July
+  (0.626 vs 0.832 ms spaceframe gradient) — now clearly beats the legacy
+  hand-differentiated stack.
+
+Standing guidance unchanged: ForwardDiff / implicit-diff
+(`solution_tangents`) for Jacobians, Zygote (1.12) or Enzyme-rev (1.11)
+for scalar objectives. Enzyme-forward is currently unusable at production
+scale on every testable configuration; treat it as ex1-scale
+verification only. The upstream bug reports (still unfiled) now cover:
+(a) 1.12 forward assertion, (b) 0.13.199 `ReadOnlyMemoryError` regression
+at scale on 1.11, (c) compile hang at scale, (d) DI reverse-Jacobian
+interop.
+
 ## Gotchas & their fixes (documented for future maintenance)
 
 1. **Neither Mooncake nor Enzyme consumes ChainRules rules automatically** —
