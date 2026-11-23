@@ -709,3 +709,62 @@ end
     @test axial_stress_jacobian(t, p) ≈
           Zygote.jacobian(y -> axial_stress(solve_structure(y, p), p), x)[1] rtol = 1e-9
 end
+
+@testset "ThicknessVariable (shell walls)" begin
+    conc = Material(3.0e4, 2.4e-3, 0.2)
+    sec = ShellSection(conc, 0.2)
+    w = mesh_wall([0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1], 3.0, 2.0, sec; size = 0.75)
+    top = [w.grid[i, end] for i in eachindex(w.s)]
+    # a frame beam on the wall top makes it a mixed model
+    tip = Node([4.5, 0.0, 2.0], :free)
+    beam = FrameElement(top[end], tip, Section(Material(2.0e5, 7.85e-3, 0.3), 1e-2, 1e-4, 1e-4, 1e-5))
+    loads = AbstractLoad{Float64}[[SelfWeight(el; g = [0.0, 0, -9.81]) for el in w.elements]...,
+        NodeForce(tip, [0.0, 0.0, -1.0]), [NodeForce(n, [0.5, 0, 0]) for n in top]...]
+    model = Model(vcat(w.nodes, tip), AbstractElement{Float64}[w.elements..., beam], loads)
+    solve!(model)
+
+    tv = ThicknessVariable(w.elements, 0.15, 0.5)
+    @test tv.value == 0.2
+    @test occursin("ThicknessVariable", sprint(show, MIME"text/plain"(), tv))
+    @test_throws ArgumentError ThicknessVariable([beam], 0.2, 0.1, 0.3)
+    p = OptParams(model, AbstractVariable[tv])
+    @test p.values == [0.2]
+    @test length(p.sidx) == length(w.elements)
+
+    # design evaluation ≡ direct solve (base and perturbed thickness)
+    res = solve_structure(p.values, p)
+    @test res.U ≈ model.results.u rtol = 1e-9
+    w2 = mesh_wall([0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1], 3.0, 2.0, ShellSection(conc, 0.3); size = 0.75)
+    top2 = [w2.grid[i, end] for i in eachindex(w2.s)]
+    tip2 = Node([4.5, 0.0, 2.0], :free)
+    beam2 = FrameElement(top2[end], tip2, beam.section)
+    m2 = Model(vcat(w2.nodes, tip2), AbstractElement{Float64}[w2.elements..., beam2],
+        AbstractLoad{Float64}[[SelfWeight(el; g = [0.0, 0, -9.81]) for el in w2.elements]...,
+            NodeForce(tip2, [0.0, 0.0, -1.0]), [NodeForce(n, [0.5, 0, 0]) for n in top2]...])
+    solve!(m2)
+    @test solve_structure([0.3], p).U ≈ m2.results.u rtol = 1e-9
+
+    # volume and gradients
+    @test shell_volume([0.3], p) ≈ 0.3 * 3.0 * 2.0 rtol = 1e-12
+    @test Zygote.gradient(x -> shell_volume(x, p), [0.3])[1] ≈ [6.0] rtol = 1e-10
+    obj(x) = compliance(solve_structure(x, p), p)
+    gz = Zygote.gradient(obj, [0.25])[1]
+    gfd = FiniteDifferences.grad(FDM, obj, [0.25])[1]
+    @test gz ≈ gfd rtol = 1e-6
+end
+
+@testset "rigid diaphragm through OptParams" begin
+    mat = Material(2.0e8, 7.85, 0.3)
+    base = [Node([x, y, 0.0], :fixed) for (x, y) in ((0.0, 0.0), (6.0, 0.0), (0.0, 4.0), (6.0, 4.0))]
+    top = [Node([x, y, 3.0], :free) for (x, y) in ((0.0, 0.0), (6.0, 0.0), (0.0, 4.0), (6.0, 4.0))]
+    cols = AbstractElement{Float64}[FrameElement(base[k], top[k], Section(mat, 1e-2, 1e-4 * k, 1e-4 * k, 5e-5)) for k in 1:4]
+    d = RigidDiaphragm(top)
+    model = Model(vcat(base, top), cols, AbstractLoad{Float64}[NodeForce(d.master, [10.0, -4.0, 0.0])]; diaphragms = [d])
+    solve!(model)
+    v = SpatialVariable(top[2], 0.0, -0.5, 0.5, :X)
+    p = OptParams(model, AbstractVariable[v])
+    @test solve_structure(p.values, p).U ≈ model.results.u rtol = 1e-9
+    obj(x) = compliance(solve_structure(x, p), p)
+    @test Zygote.gradient(obj, [0.1])[1] ≈ FiniteDifferences.grad(FDM, obj, [0.1])[1] rtol = 1e-6
+    @test_throws ArgumentError solution_tangents(p.values, p)
+end

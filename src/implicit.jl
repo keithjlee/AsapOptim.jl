@@ -164,6 +164,10 @@ Plain `Float64` only — this path is for optimizer callbacks and is not
 itself AD-transparent.
 """
 function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
+    any(p.tmask) && throw(ArgumentError(
+        "solution_tangents does not support ThicknessVariables yet — use ForwardDiff/Zygote through solve_structure"))
+    p.model.cache.constraint === nothing || throw(ArgumentError(
+        "solution_tangents does not support rigid diaphragms yet — use ForwardDiff/Zygote through solve_structure"))
     X, A, sections, EAvec, ends = _design_state(x, p)
     cache = p.model.cache
     state = ModelState{Float64}(X, sections, EAvec, ends)
@@ -171,7 +175,7 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
     fact = Asap._factorize(p.solver, K)
 
     free = cache.partition.free
-    F = _design_loads(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
+    F = _design_F(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
     uf = fact \ F[free]
     U = cache.free_embed * uf
     res = OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)

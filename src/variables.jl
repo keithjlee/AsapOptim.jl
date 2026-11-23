@@ -214,3 +214,48 @@ struct JointVariable <: AbstractVariable
         return new(element, position, value, lb, ub)
     end
 end
+
+"""
+    ThicknessVariable <: AbstractVariable
+
+A shell-thickness variable: the design entry REPLACES the thickness of every
+shell element in `elements` (absolute semantics, like
+[`AreaVariable`](@ref)) — one variable per wall, slab panel or group of
+panels poured/cast at one thickness. Stiffness (membrane ∝ t, bending ∝ t³,
+shear ∝ t) AND self-weight (∝ ρt, with design-dependent loads) follow it.
+
+Requires `ShellSection`s (a `ShellRigiditySection` has no thickness to vary);
+each element's material is kept.
+
+# Fields
+- `elements::Vector`: the controlled `ShellElement`s
+- `value`, `lb`, `ub`: starting thickness and bounds [length]
+
+# Constructors
+```julia-repl
+julia> ThicknessVariable(wall.elements, 0.2, 0.15, 0.4)
+
+julia> ThicknessVariable(wall.elements, 0.15, 0.4)   # starting value = current thickness
+```
+"""
+struct ThicknessVariable <: AbstractVariable
+    elements::Vector{Any}
+    value::Float64
+    lb::Float64
+    ub::Float64
+
+    function ThicknessVariable(elements::AbstractVector, value::Real, lb::Real, ub::Real)
+        isempty(elements) && throw(ArgumentError("a ThicknessVariable needs at least one element"))
+        for el in elements
+            el isa ShellElement || throw(ArgumentError("ThicknessVariable controls ShellElements only"))
+            el.section isa ShellSection || throw(ArgumentError(
+                "ThicknessVariable needs ShellSections (a ShellRigiditySection has no thickness)"))
+        end
+        @assert 0 < lb <= value <= ub "need 0 < lb ≤ value ≤ ub"
+        return new(collect(Any, elements), value, lb, ub)
+    end
+end
+
+ThicknessVariable(el::ShellElement, value::Real, lb::Real, ub::Real) = ThicknessVariable([el], value, lb, ub)
+ThicknessVariable(elements::AbstractVector, lb::Real, ub::Real) =
+    ThicknessVariable(elements, Asap.thickness(first(elements).section), lb, ub)
