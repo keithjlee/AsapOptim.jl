@@ -766,5 +766,31 @@ end
     @test solve_structure(p.values, p).U ≈ model.results.u rtol = 1e-9
     obj(x) = compliance(solve_structure(x, p), p)
     @test Zygote.gradient(obj, [0.1])[1] ≈ FiniteDifferences.grad(FDM, obj, [0.1])[1] rtol = 1e-6
-    @test_throws ArgumentError solution_tangents(p.values, p)
+    # implicit differentiation through the reduced (diaphragm) system
+    t = solution_tangents([0.1], p)
+    Jfd = FiniteDifferences.jacobian(FDM, x -> solve_structure(x, p).U, [0.1])[1]
+    @test t.dU ≈ Jfd rtol = 1e-6 atol = 1e-12
+end
+
+@testset "solution_tangents with shells (thickness, shell-node geometry, shell loads)" begin
+    conc = Material(3.0e4, 2.4e-3, 0.2)
+    w = mesh_wall([0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1], 3.0, 2.0, ShellSection(conc, 0.2); size = 0.75)
+    top = [w.grid[i, end] for i in eachindex(w.s)]
+    loads = AbstractLoad{Float64}[[SelfWeight(el; g = [0.0, 0, -9.81]) for el in w.elements]...,
+        [AreaLoad(el, 0.02) for el in w.elements]...,
+        [NodeForce(n, [0.5, 0, 0]) for n in top]...]
+    model = Model(w.nodes, AbstractElement{Float64}[w.elements...], loads)
+    solve!(model)
+    vars = AbstractVariable[ThicknessVariable(w.elements, 0.1, 0.4),
+        SpatialVariable(top[2], 0.0, -0.3, 0.3, :Z), SpatialVariable(w.grid[2, 2], 0.0, -0.2, 0.2, :X)]
+    p = OptParams(model, vars)
+    x = [0.25, 0.05, -0.03]
+    t = solution_tangents(x, p)
+    @test t.res.U ≈ solve_structure(x, p).U rtol = 1e-10
+    Jfd = FiniteDifferences.jacobian(FDM, z -> solve_structure(z, p).U, x)[1]
+    @test t.dU ≈ Jfd rtol = 1e-6 atol = 1e-12
+    # frozen loads: the tangents drop the load path, consistently with solve_structure
+    pf = OptParams(model, vars; loads = :frozen)
+    Jff = FiniteDifferences.jacobian(FDM, z -> solve_structure(z, pf).U, x)[1]
+    @test solution_tangents(x, pf).dU ≈ Jff rtol = 1e-6 atol = 1e-12
 end
