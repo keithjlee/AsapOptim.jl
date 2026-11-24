@@ -9,11 +9,13 @@ All variables share the pattern `Variable(target, start_value, lower_bound, uppe
 | [`SectionVariable`](@ref)`(element, value, lb, ub, prop)` | a section property: `:A`, `:Ix`, `:Iy` or `:J` (flexural and torsional properties require a `FrameElement`) | **absolute**: the design entry *replaces* the property; the rest of the section is kept |
 | [`AreaVariable`](@ref)`(element, value, lb, ub)` | cross-section area | **absolute**: the design entry *replaces* the area; `Ix`, `Iy`, `J` and the material are kept |
 | [`JointVariable`](@ref)`(element, position, value, lb, ub)` | rotational end-spring stiffness `ky = kz` at `:start`, `:end` or `:both` of a `FrameElement` | **absolute** [force·length/rad]: semi-rigid connection design |
+| [`ThicknessVariable`](@ref)`(elements, value, lb, ub)` | thickness of a set of `ShellSection` shell elements (a wall, a slab panel group) | **absolute** [length]: stiffness (membrane ∝ t, bending ∝ t³) and self-weight follow it |
 | [`QVariable`](@ref)`(element, value, lb, ub)` | force density of an `FDMelement` | **absolute**: for [force-density networks](networks.md) |
 
 Notes:
 
 - `AreaVariable` requires a geometric `Section`. A `RigiditySection` has no area to vary; parameterize its rigidities directly instead.
+- `ThicknessVariable` requires `ShellSection`s; a `ShellRigiditySection` has no thickness to vary.
 - Members may carry element loads under any variable: the fixed-end forces follow the design (see [Element loads](element-loads.md)).
 
 ## Coupling variables: symmetry and grouping
