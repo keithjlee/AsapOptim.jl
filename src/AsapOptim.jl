@@ -38,6 +38,7 @@ using StaticArrays
 
 include("variables.jl")
 export AbstractVariable, SpatialVariable, AreaVariable, SectionVariable, JointVariable, CoupledVariable
+export ThicknessVariable
 
 include("parameters.jl")
 export OptParams, TrussOptParams, FrameOptParams
@@ -45,7 +46,7 @@ export OptParams, TrussOptParams, FrameOptParams
 include("results.jl")
 export OptResults, solve_structure, solve_truss, solve_frame
 export axial_stress                      # axial_force/compliance re-use Asap's names
-export GeometricProperties
+export GeometricProperties, shell_volume
 
 include("update.jl")
 export updatemodel

@@ -168,11 +168,13 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
     cache = p.model.cache
     state = ModelState{Float64}(X, sections, EAvec, ends)
     K = Asap.assemble_K(cache, state)
-    fact = Asap._factorize(p.solver, K)
+    cm = cache.constraint
+    # rigid diaphragms: solve the reduced system K̂ = CᵀKC (C frozen, as in solve_structure)
+    fact = cm === nothing ? Asap._factorize(p.solver, K) : Asap._factorize(p.solver, Asap._reduce_K(cm, K))
 
     free = cache.partition.free
-    F = _design_loads(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
-    uf = fact \ F[free]
+    F = _design_F(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
+    uf = cm === nothing ? fact \ F[free] : cm.C * (fact \ (cm.C' * F[free]))
     U = cache.free_embed * uf
     res = OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
 
@@ -183,10 +185,16 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
     node_inputs, area_inputs, prop_inputs = maps
     loads_of = _loads_by_element(p, nel)
     fef = cache.fef
+    tin = _thickness_inputs(p, n, nel)
+    sloads_of = _shell_loads_by_element(p, nel)
 
     # stage 1: element-local pseudo-loads W[:, j] = (∂K/∂xⱼ)·U + ∂Pf/∂xⱼ
     W = zeros(length(U), n)
     for (e, el) in enumerate(p.model.elements)
+        if el isa ShellElement
+            _shell_pseudoloads!(W, e, el, p, maps[1], tin, sloads_of, U, X, sections)
+            continue
+        end
         i1, i2 = p.i1[e], p.i2[e]
         touched = !isempty(area_inputs[e]) || !isempty(prop_inputs[e]) ||
                   !isempty(node_inputs[i1]) ||
@@ -239,9 +247,74 @@ function solution_tangents(x::AbstractVector{Float64}, p::OptParams)
     end
 
     # one multi-RHS back-substitution for every tangent at once
-    dUf = -(fact \ W[free, :])
+    dUf = cm === nothing ? -(fact \ W[free, :]) : -(cm.C * (fact \ (cm.C' * W[free, :])))
     return DesignTangents(res, Matrix(cache.free_embed * dUf))
 end
+
+# element → [(slot, factor)] of its thickness variable (ThicknessVariable)
+function _thickness_inputs(p::OptParams, n::Int, nel::Int)
+    out = [Tuple{Int,Float64}[] for _ in 1:nel]
+    rows = rowvals(p.St); vals = nonzeros(p.St)
+    for j in 1:n, ptr in nzrange(p.St, j)
+        push!(out[rows[ptr]], (j, vals[ptr]))
+    end
+    return out
+end
+
+# element → indices of its shell surface loads in cache.fef (design loads only)
+function _shell_loads_by_element(p::OptParams, nel::Int)
+    out = [Int[] for _ in 1:nel]
+    p.loads === :design || return out
+    for (j, e) in enumerate(p.model.cache.fef.selem)
+        push!(out[e], j)
+    end
+    return out
+end
+
+"""
+    _shell_pseudoloads!(W, e, el, p, node_inputs, tin, sloads_of, U, X, sections)
+
+Stage 1 for a shell element: one-partial seeds of its thickness (when a
+`ThicknessVariable` controls it) and of each coordinate of its 4 nodes that a
+variable reaches, each pushed through the SAME plain-data kernels the solve
+uses — `Asap._shell_K_plain` for `∂K·u`, and `Asap._shell_fef_global` for
+the element's shell surface loads (self-weight ∝ ρt, pressure ∝ area and
+orientation) — accumulated into the pseudo-load columns.
+"""
+function _shell_pseudoloads!(W, e::Int, el, p::OptParams, node_inputs, tin, sloads_of, U, X, sections)
+    idx = ntuple(k -> el.nodes[k].index, 4)
+    touched = !isempty(tin[e]) || any(k -> !isempty(node_inputs[idx[k]]), 1:4)
+    touched || return nothing
+    sec = sections[e]
+    Xs = ntuple(k -> SVector{3}(X[1, idx[k]], X[2, idx[k]], X[3, idx[k]]), 4)
+    dofs = SVector{24,Int}(ntuple(i -> 6(idx[(i-1)÷6+1] - 1) + (i - 1) % 6 + 1, 24))
+    ue = SVector{24}(ntuple(i -> U[dofs[i]], 24))
+    fef = p.model.cache.fef
+    lj = sloads_of[e]
+    function push_seed!(pairs, secd, Xd)
+        Kd = Asap._shell_K_plain(membrane_rigidity(secd), bending_rigidity(secd),
+            shear_rigidity(secd), drilling_rigidity(secd), Xd...)
+        w = _dpart.(Kd) * ue
+        for l in lj
+            w = w + _dpart.(Asap._shell_fef_global(fef.sloads[l], secd, Xd))
+        end
+        for (j, fac) in pairs
+            @views W[dofs, j] .+= fac .* w
+        end
+    end
+    if !isempty(tin[e])
+        push_seed!(tin[e], ShellSection(sec.material, _dual1(sec.t)), Xs)
+    end
+    for k in 1:4, (c, j, fac) in node_inputs[idx[k]]
+        Xd = ntuple(m -> m == k ? _seed(Xs[m], c) : _lift(Xs[m]), 4)
+        push_seed!(((j, fac),), sec, Xd)
+    end
+    return nothing
+end
+
+# a constant position as a zero-partial Dual (uniform node eltype for the kernel)
+_lift(v::SVector{3,Float64}) =
+    SVector{3,Dual{_ImplicitTag,Float64,1}}(ntuple(k -> Dual{_ImplicitTag}(v[k], 0.0), 3))
 
 """
     axial_force_jacobian(t::DesignTangents, p::OptParams) -> Matrix

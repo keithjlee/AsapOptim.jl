@@ -24,6 +24,12 @@ function Base.show(io::IO, ::MIME"text/plain", v::AreaVariable)
     print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [length²]")
 end
 
+function Base.show(io::IO, ::MIME"text/plain", v::ThicknessVariable)
+    println(io, "ThicknessVariable  (shell thickness, ABSOLUTE — stiffness and self-weight follow)")
+    println(io, "  controls $(length(v.elements)) shell element(s)")
+    print(io, "  start = $(v.value), bounds [$(v.lb), $(v.ub)]  [length]")
+end
+
 function Base.show(io::IO, ::MIME"text/plain", v::JointVariable)
     println(io, "JointVariable  (rotational end-spring stiffness ky = kz, ABSOLUTE)")
     println(io, "  element :$(v.element.id), position $(v.position)")

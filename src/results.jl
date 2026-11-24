@@ -69,6 +69,12 @@ function _design_state(x::AbstractVector, p::OptParams)
     else
         p.base_sections
     end
+    if any(p.tmask)
+        t = p.St * x
+        sections = map(eachindex(p.tmask)) do i
+            p.tmask[i] ? ShellSection(p.base_sections[i].material, t[i]) : sections[i]
+        end
+    end
     EAvec = p.Evec .* A
     ends = _design_ends(x, p)
     return X, A, sections, EAvec, ends
@@ -133,7 +139,13 @@ function solve_structure(x::AbstractVector, p::OptParams)
     # two branches behind the Asap._pure_solve barrier: the constant-load
     # path keeps a concretely-typed solve call (Enzyme needs it); the
     # design-load path evaluates F(x) once and reuses it for compliance
-    if _design_loads(p)
+    cm = cache.constraint
+    if cm !== nothing   # rigid diaphragms: the reduced system CᵀKC·û = CᵀF (Asap ≥ 1.3)
+        F = _design_F(p) ? p.P - Asap.assemble_Pf(cache, state) : p.F
+        U = cache.free_embed * Asap._constrained_solve(cm, K, F[free], p.solver)
+        return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
+    end
+    if _design_F(p)
         F = p.P - Asap.assemble_Pf(cache, state)
         U = cache.free_embed * Asap._pure_solve(K, F[free], p.solver)
         return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
@@ -144,7 +156,11 @@ function solve_structure(x::AbstractVector, p::OptParams)
 end
 
 "does this problem re-evaluate element-load fixed-end forces per design?"
+# FRAME element loads follow the design (gates the frame-specific corrections)
 _design_loads(p::OptParams) = p.loads === :design && size(p.Eload, 2) > 0
+# the load vector F follows the design: frame loads OR shell surface loads
+# (self-weight ∝ ρt, pressure ∝ area/orientation — Asap ≥ 1.3)
+_design_F(p::OptParams) = _design_loads(p) || (p.loads === :design && !isempty(p.model.cache.fef.sloads))
 
 const solve_truss = solve_structure
 const solve_frame = solve_structure
@@ -214,3 +230,24 @@ function GeometricProperties(x::AbstractVector, p::OptParams)
     A = p.A0 .* .!p.amask .+ (p.Sa * x) .* p.amask
     return GeometricProperties(X, _element_lengths(X, p), A)
 end
+
+"""
+    shell_volume(x, p::OptParams) -> T
+
+Material volume of all `ShellSection` elements at the design `x`: Σ t·area,
+with thickness from [`ThicknessVariable`](@ref)s (else the base thickness)
+and area from the current node positions. Pure and differentiable — the
+natural cost term for wall/slab thickness optimization.
+"""
+function shell_volume(x::AbstractVector, p::OptParams)
+    isempty(p.sidx) && return zero(eltype(x))
+    X = p.X0 + reshape(p.Sx * x, 3, :)
+    t = any(p.tmask) ? p.T0 .* .!p.tmask .+ (p.St * x) .* p.tmask : p.T0
+    return sum(map(eachindex(p.sidx)) do k
+        c = p.snodes[:, k]
+        xy = Asap.shell_frame(_col3(X, c[1]), _col3(X, c[2]), _col3(X, c[3]), _col3(X, c[4]))[2]
+        t[p.sidx[k]] * Asap._q4_area(xy)
+    end)
+end
+
+@inline _col3(X, i) = Asap.SVector(X[1, i], X[2, i], X[3, i])

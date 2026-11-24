@@ -83,6 +83,14 @@ struct OptParams{S}
     loads::Symbol                    # :design (F follows x) or :frozen
     qa0::Vector{Float64}             # per-element axial q̃₇ at the base design
     Eload::SparseMatrixCSC{Float64,Int}   # n_el × n_loads incidence
+    # shell thickness variables: t(x) = St·x REPLACES the thickness where
+    # tmask; T0 = base thickness (0 for non-shells); sidx/snodes: the shell
+    # elements and their 4 node indices (for shell_volume)
+    T0::Vector{Float64}
+    St::SparseMatrixCSC{Float64,Int}
+    tmask::Vector{Bool}
+    sidx::Vector{Int}
+    snodes::Matrix{Int}
     # linear-solver backend for every solve THROUGH these params (value,
     # adjoint, and forward-tangent systems alike): `nothing` = built-in
     # CHOLMOD; any LinearSolve algorithm (with Asap's extension); or
@@ -190,6 +198,19 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
         push!(spV, factor)
     end
 
+    # shell thickness: row = element
+    stI = Int[]
+    stJ = Int[]
+    stV = Float64[]
+    tmask = falses(nel)
+    register_thickness!(el, j, factor) = begin
+        tmask[el.index] && error("shell element $(el.index) (:$(el.id)) has two thickness variables")
+        tmask[el.index] = true
+        push!(stI, el.index)
+        push!(stJ, j)
+        push!(stV, factor)
+    end
+
     jslot1 = zeros(Int, nel)
     jfac1 = ones(nel)
     jslot2 = zeros(Int, nel)
@@ -218,6 +239,10 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
             register_prop!(v.element, v.property, slot[v], 1.0)
         elseif v isa JointVariable
             register_joint!(v.element, v.position, slot[v], 1.0)
+        elseif v isa ThicknessVariable
+            for el in v.elements
+                register_thickness!(el, slot[v], 1.0)
+            end
         elseif v isa CoupledVariable
             haskey(slot, v.parent) ||
                 error("coupled variable's parent is not among the independent variables")
@@ -231,6 +256,8 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
                 tgt isa FrameElement ||
                     error("a variable coupled to a JointVariable must target a FrameElement (or (element, position) tuple)")
                 register_joint!(tgt, pos, j, v.factor)
+            elseif v.parent isa ThicknessVariable
+                error("couple shell elements by listing them in ONE ThicknessVariable")
             elseif v.parent isa SectionVariable
                 v.target isa Union{FrameElement,TrussElement} ||
                     error("a variable coupled to a SectionVariable must target an element")
@@ -259,8 +286,15 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
     end
 
     F = cache.P .- cache.Pf
-    i1 = [el.nodeStart.index for el in model.elements]
-    i2 = [el.nodeEnd.index for el in model.elements]
+    # first/last node of every element (line elements: start/end); surface
+    # elements' rows are inert in the line-element paths (Cinc, lengths)
+    i1 = [first(Asap.nodes(el)).index for el in model.elements]
+    i2 = [last(Asap.nodes(el)).index for el in model.elements]
+    T0 = [el isa ShellElement && el.section isa ShellSection ? Asap.thickness(el.section) : 0.0
+          for el in model.elements]
+    sidx = [e for (e, el) in enumerate(model.elements) if el isa ShellElement]
+    snodes = isempty(sidx) ? zeros(Int, 4, 0) :
+             reduce(hcat, [[n.index for n in model.elements[e].nodes] for e in sidx])
     Cinc = sparse([1:nel; 1:nel], [i1; i2],
         [fill(-1.0, nel); fill(1.0, nel)], nel, nnodes)
     # element loads: since Asap 1.2 their fixed-end forces are re-evaluated
@@ -281,5 +315,6 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
         A0, sparse(saI, saJ, saV, nel, nx), collect(amask),
         P0v, sparse(spI, spJ, spV, 3nel, nx), collect(prmask), collect(pmask), F,
         i1, i2, Cinc, base_sections, Evec,
-        jslot1, jfac1, jslot2, jfac2, base_ends, copy(cache.P), loads, qa0, Eload, solver)
+        jslot1, jfac1, jslot2, jfac2, base_ends, copy(cache.P), loads, qa0, Eload,
+        T0, sparse(stI, stJ, stV, nel, nx), collect(tmask), sidx, snodes, solver)
 end

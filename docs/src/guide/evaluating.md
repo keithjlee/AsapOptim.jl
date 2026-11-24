@@ -21,7 +21,7 @@ Built-in reductions of an `OptResults`:
 
 ## `GeometricProperties(x, params)`
 
-[`GeometricProperties`](@ref) is a geometry-only evaluation, returning positions `X`, lengths `L` and areas `A` with **no structural solve**. Use it for objectives like material volume (`dot(geo.A, geo.L)`), where paying for a solve and its gradient would be waste.
+[`GeometricProperties`](@ref) is a geometry-only evaluation, returning positions `X`, lengths `L` and areas `A` with **no structural solve**. Use it for objectives like material volume (`dot(geo.A, geo.L)`), where paying for a solve and its gradient would be waste. For shells, [`shell_volume`](@ref)`(x, params)` gives Σ t·area at the design, also without a solve.
 
 ## `updatemodel(params, x) -> Model`
 

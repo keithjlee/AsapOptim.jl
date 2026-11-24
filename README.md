@@ -194,11 +194,13 @@ All variables share the pattern `Variable(target, start_value, lower_bound, uppe
 | `SectionVariable(element, value, lb, ub, prop)` | a section property: `:A`, `:Ix`, `:Iy`, or `:J` (flexural/torsional require a `FrameElement`) | **absolute** — the design entry *replaces* the property; the rest of the section is kept |
 | `AreaVariable(element, value, lb, ub)` | cross-section area | **absolute** — the design entry *replaces* the section's area; `Ix`, `Iy`, `J`, and the material are kept |
 | `JointVariable(element, position, value, lb, ub)` | rotational end-spring stiffness `ky = kz` at `:start`, `:end`, or `:both` of a `FrameElement` | **absolute** [force·length/rad] — semi-rigid connection design (see `examples/joint-stiffness.jl`) |
+| `ThicknessVariable(elements, value, lb, ub)` | thickness of a set of `ShellSection` shell elements (a wall, a slab panel group) | **absolute** [length] — stiffness (membrane ∝ t, bending ∝ t³) and self-weight follow it |
 | `QVariable(element, value, lb, ub)` | FDM force density of an `FDMelement` | **absolute** — for the [network path](#force-density-network-optimization) |
 
 Notes:
 
 - `AreaVariable` requires a geometric `Section`; a `RigiditySection` has no area to vary — parameterize its rigidities directly instead.
+- **Shells and rigid diaphragms** (AsapOptim ≥ 1.3 with Asap ≥ 1.3): models with `ShellElement`s and `RigidDiaphragm`s work throughout — `solve_structure`, gradients, and `solution_tangents`. Shell self-weight and pressure follow the design. `shell_volume(x, params)` (Σ t·area) is the matching material-cost term.
 - **Element loads follow the design** (AsapOptim ≥ 1.2 with Asap ≥ 1.2). Fixed-end forces are re-evaluated at every design, so gradients include the load path. A `LineLoad` is a per-unit-length intensity whose total follows the member's current length. A `PointLoad` keeps its fractional position. `SelfWeight` follows ρA. Condensed end moments follow `JointVariable` stiffnesses and EI. `axial_force(res, p)` includes the element loads' axial component, matching Asap's `axial_force(res, el)`. Pass `OptParams(model, vars; loads = :frozen)` to keep the base-design load vector instead.
 
 ### Coupling variables: symmetry and grouping
