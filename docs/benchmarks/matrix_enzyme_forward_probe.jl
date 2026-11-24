@@ -22,8 +22,8 @@
 using Pkg
 Pkg.activate(; temp=true, io=devnull)
 Pkg.develop([
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/Asap"),
-    PackageSpec(path="/Users/keithlee/Documents/dev/AsapEcosystem/AsapOptim"),
+    PackageSpec(path=joinpath(@__DIR__, "../../../Asap")),
+    PackageSpec(path=joinpath(@__DIR__, "../../../AsapOptim")),
 ]; io=devnull)
 Pkg.add([PackageSpec(name="Enzyme"), PackageSpec(name="ChainRulesCore"),
     PackageSpec(name="Zygote")]; io=devnull)
