@@ -8,80 +8,59 @@ from an [`OptParams`](@ref) and the case tags of the model's loads:
     lc = LoadCases(p)                       # every case in the model, first-appearance order
     lc = LoadCases(p; cases = [:dead, :snow])
 
-Everything here is constant per optimization; the design-dependent part of
-each case's load vector (element-load fixed-end forces that follow member
-geometry and sections, `p.loads = :design`) is re-evaluated per design by
-[`solve_cases`](@ref).
+A thin wrapper over Asap's `CaseLoads` (`Asap.case_loads`), which holds every
+case's loads as plain data. Everything here is constant per optimization; the
+design-dependent part of each case's load vector (`p.loads = :design`: frame
+line and point loads and self-weight, quadrilateral and triangle shell
+surface loads) is re-evaluated per design by [`solve_cases`](@ref).
 
 A load combination is a linear combination of cases: solve the cases once
 and combine `res.U * λ` (or build the combination as its own case by tagging
-factored loads with one case name).
+factored loads with one case name). `Asap.combination_weights(lc.cl, combo)`
+turns an `Asap.LoadCombination` into λ.
 
 # Fields
 - `names::Vector{Symbol}`: the case tags, one column each below
+- `cl::Asap.CaseLoads{Float64}`: the case table (nodal loads, frozen load
+  vectors, every case's element loads)
 - `P::Matrix{Float64}`: full-space nodal loads per case (n_dof × n_cases)
 - `F::Matrix{Float64}`: full-space `P − Pf` per case at the BASE design (the
   frozen load vectors)
 - `static::Matrix{Float64}`: design-independent fixed-end forces per case
   (element loads on `VariableElement`s)
-- `M::Matrix{Float64}`: 12·n_loads × n_cases — 1 where frame element load `j`
-  (`cache.fef` order) belongs to the case, repeated over its 12 slots
-- `E::Matrix{Float64}`: n_loads × n_cases case membership of each frame
-  element load
+- `E::Matrix{Float64}`: n_frame_loads × n_cases case membership of each frame
+  element load, in `cl.fef` order
+- `Eel::SparseMatrixCSC{Float64,Int}`: n_el × n_frame_loads, 1 where frame
+  load `j` (`cl.fef` order) sits on element `e`
 - `qa0::Matrix{Float64}`: per-element axial fixed-end force `q̃₇` per case at
   the base design (frozen loads)
 """
 struct LoadCases
     names::Vector{Symbol}
+    cl::Asap.CaseLoads{Float64}
     P::Matrix{Float64}
     F::Matrix{Float64}
     static::Matrix{Float64}
-    M::Matrix{Float64}
     E::Matrix{Float64}
+    Eel::SparseMatrixCSC{Float64,Int}
     qa0::Matrix{Float64}
 end
 
 function LoadCases(p::OptParams; cases::AbstractVector{Symbol}=Asap.load_cases(p.model))
     isempty(cases) && throw(ArgumentError("no load cases"))
-    allunique(cases) || throw(ArgumentError("load case names must be distinct"))
     model = p.model
-    cache = model.cache
-    present = Asap.load_cases(model)
-    for c in cases
-        c in present || throw(ArgumentError("no load in the model carries case :$c"))
-    end
-    t = cache.fef
-    if p.loads === :design && !(isempty(t.sloads) && isempty(t.tloads))      # quad or triangle shells
-        throw(ArgumentError("LoadCases with design-dependent SHELL surface loads is not supported yet " *
-                            "(use loads = :frozen, or one OptParams per case)"))
-    end
-    nl = length(t.loads)
-    nc = length(cases)
+    cl = Asap.case_loads(model; cases)          # validates the names; leaves the cache as it was
+    nl = length(cl.fef.loads)
+    nc = length(cl.names)
     E = zeros(nl, nc)
-    for (j, l) in enumerate(t.loads), (k, c) in enumerate(cases)
-        l.case === c && (E[j, k] = 1.0)
+    for (j, k) in enumerate(cl.fcase)
+        E[j, k] = 1.0
     end
-    M = repeat(E; inner=(12, 1))
-    ng = cache.partition.n_global
-    nel = length(model.elements)
-    P = zeros(ng, nc)
-    F = zeros(ng, nc)
-    S = zeros(ng, nc)
-    qa0 = zeros(nel, nc)
-    try
-        for (k, c) in enumerate(cases)
-            assemble_loads!(cache, model; case=c)
-            P[:, k] = cache.P
-            F[:, k] = cache.P .- cache.Pf
-            S[:, k] = cache.fef.static
-            for (e, el) in enumerate(model.elements)
-                el isa FrameElement && (qa0[e, k] = cache.q_local[e][1][7])
-            end
-        end
-    finally
-        assemble_loads!(cache, model)          # restore the all-loads state the params rely on
-    end
-    return LoadCases(collect(cases), P, F, S, M, E, qa0)
+    Eel = sparse(cl.fef.elem, collect(1:nl), ones(nl), length(model.elements), nl)
+    # frozen axial fixed-end forces per element and case, at the model's own state
+    Q0 = Asap.fef_local(cl, Asap.extract_state(model))
+    qa0 = nl == 0 ? zeros(length(model.elements), nc) : Matrix(Eel * (Q0[7, :] .* E))
+    return LoadCases(cl.names, cl, cl.P, cl.F0, cl.static, E, Eel, qa0)
 end
 
 Base.length(lc::LoadCases) = length(lc.names)
@@ -94,7 +73,7 @@ factorization: like [`solve_structure`](@ref), but `res.U` and `res.F` are
 matrices (n_dof × n_cases, column `k` = case `lc.names[k]`). Positions,
 sections and lengths are shared. Differentiable through the same paths
 (ForwardDiff Duals, ChainRules engines — Asap's multi-RHS `solve_free`
-rules).
+rules and its case-load rules).
 
 Per-case scalars: [`compliance`](@ref)`(res, p, lc)`,
 [`axial_force`](@ref)`(res, p, lc)`, [`axial_stress`](@ref)`(res, p, lc)`.
@@ -112,31 +91,11 @@ function solve_cases(x::AbstractVector, p::OptParams, lc::LoadCases)
     cache = p.model.cache
     K = Asap.assemble_K(cache, state)
     free = cache.partition.free
-    F = _cases_F(p, lc, state)
+    F = Asap._case_F(lc.cl, state, p.loads)        # frozen, or P − Pf(x) per case
     cm = cache.constraint
     U = cm === nothing ? cache.free_embed * Asap._pure_solve(K, F[free, :], p.solver) :
         cache.free_embed * Asap._constrained_solve(cm, K, F[free, :], p.solver)
     return OptResults(U, X, A, _element_lengths(X, p), sections, EAvec, F, ends)
-end
-
-# per-case full-space load vectors: frozen, or P − (static + frame FEF of the
-# case's loads at the design state)
-function _cases_F(p::OptParams, lc::LoadCases, state)
-    _design_loads(p) || return lc.F
-    q = _frame_fef_stacked(p.model.cache.fef, state)       # 12·n_loads
-    return lc.P .- lc.static .- p.model.cache.fef.scatter * (q .* lc.M)
-end
-
-# every frame element load's global fixed-end 12-vector at the state, stacked
-# in cache.fef order (the unscattered form of Asap.assemble_Pf's frame part)
-function _frame_fef_stacked(t, state)
-    Q = map(eachindex(t.loads)) do j
-        e = t.elem[j]
-        ends = state.ends === nothing ? t.ends[j] : state.ends[e]
-        Asap.element_fef_global(t.loads[j], state.sections[e], ends,
-            _col3(state.X, t.i1[j]), _col3(state.X, t.i2[j]), t.rollangle[j])
-    end
-    return reduce(vcat, Q)
 end
 
 """
@@ -160,10 +119,10 @@ function axial_force(res::OptResults, p::OptParams, lc::LoadCases)
         ΔU = reshape(res.U[:, k], 6, :)[1:3, :] * transpose(p.Cinc)
         vec(sum(ΔX .* ΔU; dims=1)) .* g
     end)
-    size(p.Eload, 2) == 0 && return N
-    _design_loads(p) || return N .+ lc.qa0
-    Q = Asap.fef_local(p.model.cache, ModelState{eltype(res.X)}(res.X, res.sections, res.EA, res.ends))
-    return N .+ p.Eload * (Q[7, :] .* lc.E)
+    size(lc.E, 1) == 0 && return N
+    p.loads === :design || return N .+ lc.qa0
+    Q = Asap.fef_local(lc.cl, ModelState{eltype(res.X)}(res.X, res.sections, res.EA, res.ends))
+    return N .+ lc.Eel * (Q[7, :] .* lc.E)
 end
 
 """

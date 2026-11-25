@@ -39,11 +39,9 @@ Nc  = N * λ
 Uc  = res.U * λ
 ```
 
-[`LoadCases`](@ref) holds everything that is constant during the optimization: the per-case nodal loads, the frozen load vectors, static fixed-end forces and the case membership of each frame element load. [`solve_cases`](@ref) re-evaluates the design-dependent part (element-load fixed-end forces with `loads = :design`) per case at each design, so `axial_force` includes each case's own element-load axial component.
+[`LoadCases`](@ref) wraps Asap's `CaseLoads` (Asap ≥ 1.5): everything that is constant during the optimization, i.e. the per-case nodal loads, the frozen load vectors, static fixed-end forces and every case's element loads. [`solve_cases`](@ref) re-evaluates the design-dependent part (`loads = :design`: frame line and point loads and self-weight, quadrilateral and triangle shell surface loads) per case at each design, so `axial_force` includes each case's own element-load axial component. A `LoadCombination` becomes column weights with `Asap.combination_weights(lc.cl, combo)`.
 
 `solve_cases` is differentiable through the same paths as `solve_structure` (ForwardDiff, Zygote and other ChainRules engines). Its results equal one `OptParams` per case, and its gradients equal the sum of the single-case gradients; the test suite checks both.
-
-Not supported yet: design-dependent shell surface loads (quadrilateral or triangle) in `LoadCases`. Use `loads = :frozen`, or one `OptParams` per case.
 
 ## `GeometricProperties(x, params)`
 

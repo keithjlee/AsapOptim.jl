@@ -256,7 +256,7 @@ Built-in reductions of an `OptResults`:
 
 ### Several load cases: `LoadCases` and `solve_cases`
 
-Solve every load case of a design against one stiffness factorization (AsapOptim ≥ 1.4); loads carry their case tag (`NodeForce(…; case = :snow)`):
+Solve every load case of a design against one stiffness factorization (AsapOptim ≥ 1.4; shell surface loads that follow the design since 1.5); loads carry their case tag (`NodeForce(…; case = :snow)`):
 
 ```julia
 lc  = LoadCases(params)                  # or LoadCases(params; cases = [:dead, :snow])

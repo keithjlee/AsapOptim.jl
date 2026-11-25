@@ -85,6 +85,55 @@ end
     @test occursin(":wind, :dead", sprint(show, MIME("text/plain"), lc2))
 end
 
+# a wall of quads and triangles: self-weight, wind pressure and a top load in three cases,
+# two thickness variables (design-dependent shell loads: self-weight ∝ t, pressure ∝ area)
+function mc_wall(keep=(:dead, :wind, :live))
+    conc = Material(3.0e4, 2.4e-3, 0.2)
+    sec = ShellSection(conc, 0.2)
+    w = mesh_wall([0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1], 3.0, 2.0, sec; size = 0.5)
+    els = AbstractElement{Float64}[]
+    for (k, el) in enumerate(w.elements)
+        isodd(k) ? push!(els, el) :
+            push!(els, ShellElement((el.nodes[1], el.nodes[2], el.nodes[3]), sec),
+                       ShellElement((el.nodes[1], el.nodes[3], el.nodes[4]), sec))
+    end
+    top = [w.grid[i, end] for i in eachindex(w.s)]
+    all_loads = AbstractLoad{Float64}[[SelfWeight(el; g = [0.0, 0, -9.81], case = :dead) for el in els]...,
+        [AreaLoad(el, 0.05; case = :wind) for el in els[1:3:end]]...,
+        [NodeForce(n, [0.5, 0.0, -1.0]; case = :live) for n in top]...]
+    model = Asap.Model(w.nodes, els, AbstractLoad{Float64}[l for l in all_loads if l.case in keep])
+    half = [el for el in els if sum(n -> n.position[1], el.nodes) / length(el.nodes) < 1.5]
+    rest = [el for el in els if !(el in half)]
+    return model, AbstractVariable[ThicknessVariable(half, 0.2, 0.1, 0.5), ThicknessVariable(rest, 0.2, 0.1, 0.5)]
+end
+
+@testset "multi-case solves with design-dependent shell loads" begin
+    for loads in (:design, :frozen)
+        p = OptParams(mc_wall()...; loads)
+        lc = LoadCases(p)
+        @test lc.names == [:dead, :wind, :live] && size(lc.E, 1) == 0
+        x1 = [0.27, 0.16]
+        rc = solve_cases(x1, p, lc)
+        for (k, c) in enumerate(lc.names)
+            pk = OptParams(mc_wall((c,))...; loads)
+            rk = solve_structure(x1, pk)
+            @test rc.U[:, k] ≈ rk.U rtol = 1e-10
+            @test rc.F[:, k] ≈ rk.F rtol = 1e-10
+            @test compliance(rc, p, lc)[k] ≈ compliance(rk, pk) rtol = 1e-10
+        end
+        @test vec(sum(rc.U; dims=2)) ≈ solve_structure(x1, p).U rtol = 1e-10
+        w = [1.0, 0.5, 2.0]
+        obj(x) = sum(w .* compliance(solve_cases(x, p, lc), p, lc))
+        g_zy = Zygote.gradient(obj, x1)[1]
+        g_fd = ForwardDiff.gradient(obj, x1)
+        g_ref = sum(w[k] * ForwardDiff.gradient(x -> (pk = OptParams(mc_wall((c,))...; loads);
+                                                       compliance(solve_structure(x, pk), pk)), x1)
+                    for (k, c) in enumerate(lc.names))
+        @test g_zy ≈ g_fd rtol = 1e-9
+        @test g_fd ≈ g_ref rtol = 1e-9
+    end
+end
+
 @testset "mirrored and directional couplings" begin
     mat = Material(200e6, 1.0, 80.0, 0.3)
     sec = Section(mat, 1e-2)
