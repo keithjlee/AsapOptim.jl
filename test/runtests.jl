@@ -12,6 +12,8 @@ using FiniteDifferences
 
 const FDM = central_fdm(5, 1)
 
+include("test_multicase.jl")   # LoadCases / solve_cases, mirrored + directional couplings
+
 # a 2D-ish cantilevered truss with symmetric geometry variables + grouped areas
 function testbed()
     mat = Material(200e6, 1.0, 80.0, 0.3)

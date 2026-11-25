@@ -58,6 +58,7 @@ _target_description(t) = "element :$(t.id)"
 function Base.show(io::IO, ::MIME"text/plain", v::CoupledVariable)
     println(io, "CoupledVariable  (shares its parent's design entry)")
     println(io, "  target $(_target_description(v.target)), factor = $(v.factor)")
+    v.direction === nothing || println(io, "  own direction $(round.(v.direction; digits=4))")
     print(io, "  parent: $(nameof(typeof(v.parent)))")
 end
 

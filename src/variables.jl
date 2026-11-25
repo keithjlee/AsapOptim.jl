@@ -154,16 +154,34 @@ A variable that mirrors an independent parent variable's design entry,
 scaled by `factor` — e.g. symmetric node pairs (`factor = −1` for mirrored
 x-coordinates), or member groups sharing one area.
 
+By default a node coupled to a [`SpatialVariable`](@ref) moves along the
+PARENT's direction: `x′ = x₀ + factor · value · d_parent`. For a spatial
+parent, the coupled node can instead move along its own direction:
+
+- `direction = d`: the target moves `factor · value` along the unit vector
+  `d` (normalized at construction);
+- `mirror = :X` (or `:Y`, `:Z`, or a plane-normal vector `n`): the target's
+  direction is the parent's direction REFLECTED across a plane with normal
+  `n`, `d = d_p − 2(d_p·n)n` — the mirror image of a symmetric pair, so one
+  design entry drives both halves of a symmetric truss or shape (with
+  `factor = 1`, the pair stays exactly symmetric for any value).
+
 # Fields
 - `target`: the coupled node or element
 - `parent::AbstractVariable`: the independent variable whose entry is shared
 - `factor::Float64`: multiplier applied to the parent's entry
+- `direction::Union{Nothing,SVector{3,Float64}}`: the target's own unit
+  direction (spatial couplings only), `nothing` = the parent's direction
 
 # Examples
 ```julia-repl
 julia> parent = SpatialVariable(left_node, 0.0, -1.0, 1.0, :X)
 
 julia> CoupledVariable(right_node, parent, -1.0)   # mirror across the axis
+
+julia> rail = SpatialVariable(left_panel_point, [cos(θ), sin(θ), 0.0], -0.3, 0.3)   # along a pitched chord
+
+julia> CoupledVariable(right_panel_point, rail; mirror = :X)   # along the mirrored chord, symmetric
 ```
 """
 struct CoupledVariable <: AbstractVariable
@@ -171,12 +189,40 @@ struct CoupledVariable <: AbstractVariable
         Tuple{FrameElement,Symbol}}    # (element, :start/:end/:both) for joint parents
     parent::AbstractVariable
     factor::Float64
+    direction::Union{Nothing,SVector{3,Float64}}
 
-    function CoupledVariable(target, parent::AbstractVariable, factor::Real=1.0)
+    function CoupledVariable(target, parent::AbstractVariable, factor::Real=1.0;
+        direction=nothing, mirror=nothing)
         @assert !(parent isa CoupledVariable) "chain couplings to the INDEPENDENT parent variable"
-        return new(target, parent, Float64(factor))
+        d = nothing
+        if direction !== nothing || mirror !== nothing
+            parent isa SpatialVariable ||
+                throw(ArgumentError("direction/mirror apply only to couplings of a SpatialVariable"))
+            target isa Node || throw(ArgumentError("a coupling with a direction must target a Node"))
+            direction === nothing || mirror === nothing ||
+                throw(ArgumentError("give either direction or mirror, not both"))
+            if direction !== nothing
+                d = _unit3(direction, "direction")
+            else
+                n = mirror isa Symbol ? _axis_vector(mirror) : _unit3(mirror, "mirror normal")
+                dp = parent.direction
+                d = dp - 2 * dot(dp, n) * n
+            end
+        end
+        return new(target, parent, Float64(factor), d)
     end
 end
+
+function _unit3(v, what)
+    length(v) == 3 || throw(ArgumentError("$what must be in R³"))
+    u = SVector{3,Float64}(v...)
+    n = norm(u)
+    n > 0 || throw(ArgumentError("$what must be a nonzero vector"))
+    return u / n
+end
+
+"the direction a node coupled to a spatial parent moves along (unit)"
+_coupled_direction(v::CoupledVariable) = v.direction === nothing ? v.parent.direction : v.direction
 
 """
     JointVariable <: AbstractVariable

@@ -250,7 +250,7 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
             if v.parent isa SpatialVariable
                 v.target isa Node ||
                     error("a variable coupled to a SpatialVariable must target a Node")
-                register_spatial!(v.target, j, v.factor, v.parent.direction)
+                register_spatial!(v.target, j, v.factor, _coupled_direction(v))
             elseif v.parent isa JointVariable
                 tgt, pos = v.target isa Tuple ? v.target : (v.target, v.parent.position)
                 tgt isa FrameElement ||

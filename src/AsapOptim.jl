@@ -18,6 +18,8 @@ back:
   pure functions of the results, differentiable end-to-end
 - [`GeometricProperties`](@ref) gives geometry-only quantities (lengths,
   areas) without a solve
+- [`LoadCases`](@ref) + [`solve_cases`](@ref) evaluate several load cases
+  against one factorization (multi-RHS)
 - [`updatemodel`](@ref) materializes an optimal design back into a solved
   `Asap.Model`
 
@@ -50,6 +52,9 @@ export GeometricProperties, shell_volume
 
 include("update.jl")
 export updatemodel
+
+include("multicase.jl")
+export LoadCases, solve_cases
 
 include("implicit.jl")
 export DesignTangents, solution_tangents, axial_force_jacobian, axial_stress_jacobian
