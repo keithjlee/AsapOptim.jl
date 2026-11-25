@@ -6,6 +6,11 @@ scratch/scratch_frame.jl
 .DS_Store
 # personal working docs — local only
 CLAUDE.md
+# working records kept local: release notes, AD benchmark write-ups
+docs/releases/
+docs/AD_BACKENDS.md
+docs/AD_VERIFICATION_AND_BENCHMARKS.md
+docs/BENCHMARK_GB_MMA.md
 
 # local dev manifest (pins Asap to a local path)
 Manifest.toml

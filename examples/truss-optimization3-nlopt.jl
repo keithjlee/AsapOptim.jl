@@ -5,7 +5,7 @@ AD engine chosen PER FUNCTION:
   * objective (material volume): reverse mode (Zygote) — one scalar output
   * constraints (25 displacement + 47 stress rows): FORWARD mode
     (ForwardDiff, prepared) — a full-Jacobian workload where forward AD
-    beats reverse by two orders of magnitude (see docs/AD_BACKENDS.md)
+    beats reverse by two orders of magnitude
   * one Asap.CachedSolver on the params: the objective gradient, the
     constraint Jacobian, and every ForwardDiff chunk at a design iterate
     share a single stiffness factorization

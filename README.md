@@ -295,7 +295,7 @@ Zygote.gradient(obj, copy(nparams.values))
 
 Loading **Zygote** (or anything ChainRulesCore-aware) is all the setup reverse-mode AD needs — Asap's rule extension activates automatically; there are no custom rules in this package. **ForwardDiff**, **Mooncake**, and **Enzyme** (both modes) also work out of the box.
 
-The rule of thumb, from extensive benchmarking ([`docs/AD_BACKENDS.md`](docs/AD_BACKENDS.md)):
+The rule of thumb, from extensive benchmarking:
 
 - **Scalar objectives** (compliance, volume): reverse mode — Zygote or Enzyme. Cost ≈ one extra adjoint solve, independent of the number of design variables.
 - **Constraint Jacobians** (per-element stresses, nodal displacements): **forward mode — ForwardDiff**. A forward Jacobian costs the same as a forward gradient (extra outputs are free), so it beats reverse by two orders of magnitude on constraint blocks: the 512×512 stress Jacobian of our benchmark spaceframe takes **43 ms with ForwardDiff vs 7.6 s with Zygote**.
@@ -369,7 +369,7 @@ J = [
 
 It works for any mix of spatial/area/joint variables and couplings (verified to machine precision against ForwardDiff and Zygote), and respects `params.solver`. It is a plain-`Float64` evaluation path for optimizer callbacks — not itself differentiable.
 
-Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mode is verified correct on Julia 1.11 with the default solver (native rule in Asap) and is a useful independent check, but ForwardDiff is faster for Jacobians. See `docs/AD_BACKENDS.md` for the current per-version status.
+Enzyme notes: reverse mode works as before (`examples/ad_backends/`); forward mode is verified correct on Julia 1.11 with the default solver (native rule in Asap) and is a useful independent check, but ForwardDiff is faster for Jacobians.
 
 ## Examples
 

@@ -1,7 +1,6 @@
 # Enzyme FORWARD-mode probe — run in its own process AND under an external
 # `timeout` (failure modes include ABORTS and compile-time HANGS, not
-# exceptions). Status as of 2026-08-18, Enzyme 0.13.199 (see
-# docs/AD_BACKENDS.md dated update):
+# exceptions). Status as of 2026-08-18, Enzyme 0.13.199:
 #   * Julia 1.12.7: still ABORTS (AdjointGenerator.h:318 assertion),
 #     identical to July.
 #   * Julia 1.11.9 + default solver: works at ex1 scale (grad 0.30 ms,
