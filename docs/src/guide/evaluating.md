@@ -19,6 +19,32 @@ Built-in reductions of an `OptResults`:
 - `axial_force(res, params)`: per-element axial force, tension-positive, including the axial component of element loads.
 - [`axial_stress`](@ref)`(res, params)`: axial force over the evaluated area.
 
+## Several load cases: `LoadCases` and `solve_cases` (AsapOptim ≥ 1.4)
+
+Design problems usually check several load cases (dead, snow, wind, …) at the same design. Instead of one `OptParams` per case, collect the cases once and solve them together against **one** stiffness assembly and factorization (a multi-right-hand-side solve):
+
+```julia
+params = OptParams(model, variables)          # loads tagged with their case: NodeForce(…; case = :snow)
+lc  = LoadCases(params)                        # every case in the model, in first-appearance order
+lc  = LoadCases(params; cases = [:dead, :snow, :wind])
+
+res = solve_cases(x, params, lc)               # res.U, res.F: n_dof × n_cases (column k = lc.names[k])
+c   = compliance(res, params, lc)              # per-case Fₖᵀuₖ
+N   = axial_force(res, params, lc)             # n_el × n_cases, tension-positive
+σ   = axial_stress(res, params, lc)
+
+# a load combination is a linear combination of the cases
+λ   = [1.0, 1.0, 0.0]                          # D + S
+Nc  = N * λ
+Uc  = res.U * λ
+```
+
+[`LoadCases`](@ref) holds everything that is constant during the optimization: the per-case nodal loads, the frozen load vectors, static fixed-end forces and the case membership of each frame element load. [`solve_cases`](@ref) re-evaluates the design-dependent part (element-load fixed-end forces with `loads = :design`) per case at each design, so `axial_force` includes each case's own element-load axial component.
+
+`solve_cases` is differentiable through the same paths as `solve_structure` (ForwardDiff, Zygote and other ChainRules engines). Its results equal one `OptParams` per case, and its gradients equal the sum of the single-case gradients; the test suite checks both.
+
+Not supported yet: design-dependent shell surface loads (quadrilateral or triangle) in `LoadCases`. Use `loads = :frozen`, or one `OptParams` per case.
+
 ## `GeometricProperties(x, params)`
 
 [`GeometricProperties`](@ref) is a geometry-only evaluation, returning positions `X`, lengths `L` and areas `A` with **no structural solve**. Use it for objectives like material volume (`dot(geo.A, geo.L)`), where paying for a solve and its gradient would be waste. For shells, [`shell_volume`](@ref)`(x, params)` gives Σ t·area at the design, also without a solve.

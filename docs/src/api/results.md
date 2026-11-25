@@ -14,3 +14,18 @@ AsapOptim extends two of Asap's accessors on `OptResults` (the functions belong 
 Asap.compliance(::AsapOptim.OptResults, ::AsapOptim.OptParams)
 Asap.axial_force(::AsapOptim.OptResults, ::AsapOptim.OptParams)
 ```
+
+## Several load cases
+
+One factorization for every load case of a design (`LoadCases`, `solve_cases`) and the per-case reductions.
+
+```@autodocs
+Modules = [AsapOptim]
+Pages = ["multicase.jl"]
+Private = false
+```
+
+```@docs
+Asap.compliance(::AsapOptim.OptResults, ::AsapOptim.OptParams, ::AsapOptim.LoadCases)
+Asap.axial_force(::AsapOptim.OptResults, ::AsapOptim.OptParams, ::AsapOptim.LoadCases)
+```

@@ -222,6 +222,13 @@ j = JointVariable(beam1, :start, 1e8, 1e5, 1e12)
 mirror = CoupledVariable((beam2, :end), j)
 ```
 
+A node coupled to a `SpatialVariable` moves along the parent's direction by default. With `direction = d` it moves along its own unit vector, and with `mirror = :X` (`:Y`, `:Z` or a plane normal) along the parent's direction reflected across that plane, so one design entry drives both halves of a symmetric truss (AsapOptim ≥ 1.4):
+
+```julia
+rail = SpatialVariable(left_point, [cos(θ), sin(θ), 0.0], -0.3, 0.3)   # along a pitched chord
+twin = CoupledVariable(right_point, rail; mirror = :X)                 # the mirrored chord
+```
+
 Always couple to the *independent* parent — chains of couplings are rejected.
 
 Variable types **mix freely in one problem**: spatial + area + section-property + joint-stiffness variables (plus any couplings) can drive a single `OptParams`, on models mixing frame and truss elements — every combination is gradient-tested against finite differences in the suite.
@@ -246,6 +253,17 @@ Built-in reductions of an `OptResults`:
 - `compliance(res, params)` — external work `Fᵀu`, the canonical smooth stiffness objective
 - `axial_force(res, params)` — per-element axial force, tension-positive
 - `axial_stress(res, params)` — axial force over evaluated area
+
+### Several load cases: `LoadCases` and `solve_cases`
+
+Solve every load case of a design against one stiffness factorization (AsapOptim ≥ 1.4); loads carry their case tag (`NodeForce(…; case = :snow)`):
+
+```julia
+lc  = LoadCases(params)                  # or LoadCases(params; cases = [:dead, :snow])
+res = solve_cases(x, params, lc)         # res.U: n_dof × n_cases
+N   = axial_force(res, params, lc)       # n_el × n_cases; per-case compliance and axial_stress too
+Nc  = N * [1.0, 1.0]                     # a combination by superposition
+```
 
 ### `GeometricProperties(x, params)`
 

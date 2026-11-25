@@ -39,4 +39,23 @@ mirror = CoupledVariable((beam2, :end), j)
 
 Always couple to the *independent* parent; chains of couplings are rejected.
 
+### Directional and mirrored couplings (AsapOptim ≥ 1.4)
+
+By default a node coupled to a [`SpatialVariable`](@ref) moves along the **parent's** direction: `x′ = x₀ + factor · value · d_parent`. Two keywords let the coupled node move along its own direction instead:
+
+- `direction = d`: the target moves `factor · value` along the unit vector `d` (normalized at construction).
+- `mirror = :X`, `:Y`, `:Z` or a plane-normal vector `n`: the target's direction is the parent's direction reflected across that plane, `d = d_p − 2(d_p·n)n`. With `factor = 1` a symmetric pair stays exactly symmetric for any design value.
+
+```julia
+# a panel point sliding along a pitched chord, and its mirror image on the other slope
+θ = atan(6 / 12)
+rail = SpatialVariable(left_point, [cos(θ), sin(θ), 0.0], -0.3, 0.3)
+twin = CoupledVariable(right_point, rail; mirror = :X)      # one design entry, a symmetric pair
+
+# any other direction
+side = CoupledVariable(other_node, rail, 0.5; direction = [0.0, 0.0, 1.0])
+```
+
+The keywords apply only to couplings of a `SpatialVariable` targeting a `Node`, and only one of them may be given; otherwise the constructor throws an `ArgumentError`. Existing couplings, without the keywords, behave exactly as before.
+
 Variable types **mix freely in one problem**. Spatial, area, section-property and joint-stiffness variables, plus any couplings, can drive a single [`OptParams`](@ref) on models that mix frame and truss elements. Every combination is gradient-tested against finite differences in the test suite.
