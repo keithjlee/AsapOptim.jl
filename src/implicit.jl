@@ -265,7 +265,12 @@ end
 function _shell_loads_by_element(p::OptParams, nel::Int)
     out = [Int[] for _ in 1:nel]
     p.loads === :design || return out
+    # an element is either a quad or a triangle, so its node count selects the
+    # table (fef.sloads or fef.tloads) these indices refer to
     for (j, e) in enumerate(p.model.cache.fef.selem)
+        push!(out[e], j)
+    end
+    for (j, e) in enumerate(p.model.cache.fef.telem)
         push!(out[e], j)
     end
     return out
@@ -274,29 +279,32 @@ end
 """
     _shell_pseudoloads!(W, e, el, p, node_inputs, tin, sloads_of, U, X, sections)
 
-Stage 1 for a shell element: one-partial seeds of its thickness (when a
-`ThicknessVariable` controls it) and of each coordinate of its 4 nodes that a
-variable reaches, each pushed through the SAME plain-data kernels the solve
-uses — `Asap._shell_K_plain` for `∂K·u`, and `Asap._shell_fef_global` for
-the element's shell surface loads (self-weight ∝ ρt, pressure ∝ area and
-orientation) — accumulated into the pseudo-load columns.
+Stage 1 for a shell element with N nodes (quadrilateral or triangle):
+one-partial seeds of its thickness (when a `ThicknessVariable` controls it)
+and of each coordinate of its nodes that a variable reaches, each pushed
+through the SAME plain-data kernels the solve uses — `Asap._shell_K_plain`
+for `∂K·u`, and `Asap._shell_fef_global` for the element's shell surface
+loads (self-weight ∝ ρt, pressure ∝ area and orientation) — accumulated
+into the pseudo-load columns.
 """
-function _shell_pseudoloads!(W, e::Int, el, p::OptParams, node_inputs, tin, sloads_of, U, X, sections)
-    idx = ntuple(k -> el.nodes[k].index, 4)
-    touched = !isempty(tin[e]) || any(k -> !isempty(node_inputs[idx[k]]), 1:4)
+function _shell_pseudoloads!(W, e::Int, el::ShellElement{<:Any,N}, p::OptParams, node_inputs, tin,
+        sloads_of, U, X, sections) where {N}
+    idx = ntuple(k -> el.nodes[k].index, Val(N))
+    touched = !isempty(tin[e]) || any(k -> !isempty(node_inputs[idx[k]]), 1:N)
     touched || return nothing
     sec = sections[e]
-    Xs = ntuple(k -> SVector{3}(X[1, idx[k]], X[2, idx[k]], X[3, idx[k]]), 4)
-    dofs = SVector{24,Int}(ntuple(i -> 6(idx[(i-1)÷6+1] - 1) + (i - 1) % 6 + 1, 24))
-    ue = SVector{24}(ntuple(i -> U[dofs[i]], 24))
+    Xs = ntuple(k -> SVector{3}(X[1, idx[k]], X[2, idx[k]], X[3, idx[k]]), Val(N))
+    dofs = SVector{6N,Int}(ntuple(i -> 6(idx[(i-1)÷6+1] - 1) + (i - 1) % 6 + 1, Val(6N)))
+    ue = SVector{6N}(ntuple(i -> U[dofs[i]], Val(6N)))
     fef = p.model.cache.fef
+    table = N == 4 ? fef.sloads : fef.tloads
     lj = sloads_of[e]
     function push_seed!(pairs, secd, Xd)
         Kd = Asap._shell_K_plain(membrane_rigidity(secd), bending_rigidity(secd),
             shear_rigidity(secd), drilling_rigidity(secd), Xd...)
         w = _dpart.(Kd) * ue
         for l in lj
-            w = w + _dpart.(Asap._shell_fef_global(fef.sloads[l], secd, Xd))
+            w = w + _dpart.(Asap._shell_fef_global(table[l], secd, Xd))
         end
         for (j, fac) in pairs
             @views W[dofs, j] .+= fac .* w
@@ -305,8 +313,8 @@ function _shell_pseudoloads!(W, e::Int, el, p::OptParams, node_inputs, tin, sloa
     if !isempty(tin[e])
         push_seed!(tin[e], ShellSection(sec.material, _dual1(sec.t)), Xs)
     end
-    for k in 1:4, (c, j, fac) in node_inputs[idx[k]]
-        Xd = ntuple(m -> m == k ? _seed(Xs[m], c) : _lift(Xs[m]), 4)
+    for k in 1:N, (c, j, fac) in node_inputs[idx[k]]
+        Xd = ntuple(m -> m == k ? _seed(Xs[m], c) : _lift(Xs[m]), Val(N))
         push_seed!(((j, fac),), sec, Xd)
     end
     return nothing

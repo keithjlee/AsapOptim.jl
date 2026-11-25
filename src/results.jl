@@ -160,7 +160,8 @@ end
 _design_loads(p::OptParams) = p.loads === :design && size(p.Eload, 2) > 0
 # the load vector F follows the design: frame loads OR shell surface loads
 # (self-weight ∝ ρt, pressure ∝ area/orientation — Asap ≥ 1.3)
-_design_F(p::OptParams) = _design_loads(p) || (p.loads === :design && !isempty(p.model.cache.fef.sloads))
+_design_F(p::OptParams) = _design_loads(p) ||
+    (p.loads === :design && !(isempty(p.model.cache.fef.sloads) && isempty(p.model.cache.fef.tloads)))
 
 const solve_truss = solve_structure
 const solve_frame = solve_structure
@@ -244,10 +245,14 @@ function shell_volume(x::AbstractVector, p::OptParams)
     X = p.X0 + reshape(p.Sx * x, 3, :)
     t = any(p.tmask) ? p.T0 .* .!p.tmask .+ (p.St * x) .* p.tmask : p.T0
     return sum(map(eachindex(p.sidx)) do k
-        c = p.snodes[:, k]
-        xy = Asap.shell_frame(_col3(X, c[1]), _col3(X, c[2]), _col3(X, c[3]), _col3(X, c[4]))[2]
-        t[p.sidx[k]] * Asap._q4_area(xy)
+        t[p.sidx[k]] * _shell_area(X, p.snodes[:, k])
     end)
+end
+
+# area of one shell element (column of snodes; row 4 = 0 marks a triangle)
+function _shell_area(X, c)
+    c[4] == 0 && return Asap._tri_area(Asap.shell_frame(_col3(X, c[1]), _col3(X, c[2]), _col3(X, c[3]))[2])
+    return Asap._q4_area(Asap.shell_frame(_col3(X, c[1]), _col3(X, c[2]), _col3(X, c[3]), _col3(X, c[4]))[2])
 end
 
 @inline _col3(X, i) = Asap.SVector(X[1, i], X[2, i], X[3, i])

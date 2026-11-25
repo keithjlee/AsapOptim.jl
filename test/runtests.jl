@@ -796,3 +796,37 @@ end
     Jff = FiniteDifferences.jacobian(FDM, z -> solve_structure(z, pf).U, x)[1]
     @test solution_tangents(x, pf).dU ≈ Jff rtol = 1e-6 atol = 1e-12
 end
+
+@testset "triangles and mixed quad/triangle meshes (Asap 1.4)" begin
+    conc = Material(3.0e4, 2.4e-3, 0.2)
+    sec = ShellSection(conc, 0.2)
+    w = mesh_wall([0.0, 0, 0], [1.0, 0, 0], [0.0, 0, 1], 3.0, 2.0, sec; size = 0.75)
+    # right half triangulated: a mixed mesh
+    els = AbstractElement{Float64}[]
+    for el in w.elements
+        if sum(n -> n.position[1], el.nodes) / 4 > 1.5
+            push!(els, ShellElement((el.nodes[1], el.nodes[2], el.nodes[3]), sec),
+                       ShellElement((el.nodes[1], el.nodes[3], el.nodes[4]), sec))
+        else
+            push!(els, el)
+        end
+    end
+    top = [w.grid[i, end] for i in eachindex(w.s)]
+    loads = AbstractLoad{Float64}[[SelfWeight(el; g = [0.0, 0, -9.81]) for el in els]...,
+        [AreaLoad(el, 0.02) for el in els]..., [NodeForce(n, [0.5, 0, 0]) for n in top]...]
+    model = Model(w.nodes, els, loads)
+    solve!(model)
+    vars = AbstractVariable[ThicknessVariable(els, 0.1, 0.4),
+        SpatialVariable(top[end-1], 0.0, -0.3, 0.3, :Z), SpatialVariable(w.grid[end-1, 2], 0.0, -0.2, 0.2, :X)]
+    p = OptParams(model, vars)
+    @test count(==(0), p.snodes[4, :]) == count(el -> el isa ShellElement{Float64,3}, els)
+    @test solve_structure(p.values, p).U ≈ model.results.u rtol = 1e-9
+    @test shell_volume([0.25, 0.0, 0.0], p) ≈ 0.25 * 6.0 rtol = 1e-12
+    obj(x) = compliance(solve_structure(x, p), p)
+    x = [0.25, 0.05, -0.03]
+    @test Zygote.gradient(obj, x)[1] ≈ FiniteDifferences.grad(FDM, obj, x)[1] rtol = 1e-6
+    @test Zygote.gradient(z -> shell_volume(z, p), x)[1] ≈ FiniteDifferences.grad(FDM, z -> shell_volume(z, p), x)[1] rtol = 1e-8
+    t = solution_tangents(x, p)
+    Jfd = FiniteDifferences.jacobian(FDM, z -> solve_structure(z, p).U, x)[1]
+    @test t.dU ≈ Jfd rtol = 1e-6 atol = 1e-12
+end

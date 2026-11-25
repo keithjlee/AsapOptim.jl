@@ -85,7 +85,8 @@ struct OptParams{S}
     Eload::SparseMatrixCSC{Float64,Int}   # n_el × n_loads incidence
     # shell thickness variables: t(x) = St·x REPLACES the thickness where
     # tmask; T0 = base thickness (0 for non-shells); sidx/snodes: the shell
-    # elements and their 4 node indices (for shell_volume)
+    # elements and their node indices, 4 × n_shells (for shell_volume); a
+    # triangle's 4th row is 0
     T0::Vector{Float64}
     St::SparseMatrixCSC{Float64,Int}
     tmask::Vector{Bool}
@@ -293,8 +294,10 @@ function OptParams(model::Model{Float64}, variables::Vector{<:AbstractVariable};
     T0 = [el isa ShellElement && el.section isa ShellSection ? Asap.thickness(el.section) : 0.0
           for el in model.elements]
     sidx = [e for (e, el) in enumerate(model.elements) if el isa ShellElement]
-    snodes = isempty(sidx) ? zeros(Int, 4, 0) :
-             reduce(hcat, [[n.index for n in model.elements[e].nodes] for e in sidx])
+    snodes = zeros(Int, 4, length(sidx))
+    for (k, e) in enumerate(sidx), (a, n) in enumerate(model.elements[e].nodes)
+        snodes[a, k] = n.index
+    end
     Cinc = sparse([1:nel; 1:nel], [i1; i2],
         [fill(-1.0, nel); fill(1.0, nel)], nel, nnodes)
     # element loads: since Asap 1.2 their fixed-end forces are re-evaluated
