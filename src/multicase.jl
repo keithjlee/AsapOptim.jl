@@ -51,7 +51,7 @@ function LoadCases(p::OptParams; cases::AbstractVector{Symbol}=Asap.load_cases(p
         c in present || throw(ArgumentError("no load in the model carries case :$c"))
     end
     t = cache.fef
-    if p.loads === :design && !isempty(t.sloads)
+    if p.loads === :design && !(isempty(t.sloads) && isempty(t.tloads))      # quad or triangle shells
         throw(ArgumentError("LoadCases with design-dependent SHELL surface loads is not supported yet " *
                             "(use loads = :frozen, or one OptParams per case)"))
     end
