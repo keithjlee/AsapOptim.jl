@@ -282,8 +282,8 @@ end
 Stage 1 for a shell element with N nodes (quadrilateral or triangle):
 one-partial seeds of its thickness (when a `ThicknessVariable` controls it)
 and of each coordinate of its nodes that a variable reaches, each pushed
-through the SAME plain-data kernels the solve uses — `Asap._shell_K_plain`
-for `∂K·u`, and `Asap._shell_fef_global` for the element's shell surface
+through the SAME plain-data kernels the solve uses — `Asap._shell_stiffness_d`
+(with the element's per-edge drilling lumping) for `∂K·u`, and `Asap._shell_fef_global` for the element's shell surface
 loads (self-weight ∝ ρt, pressure ∝ area and orientation) — accumulated
 into the pseudo-load columns.
 """
@@ -300,8 +300,7 @@ function _shell_pseudoloads!(W, e::Int, el::ShellElement{<:Any,N}, p::OptParams,
     table = N == 4 ? fef.sloads : fef.tloads
     lj = sloads_of[e]
     function push_seed!(pairs, secd, Xd)
-        Kd = Asap._shell_K_plain(membrane_rigidity(secd), bending_rigidity(secd),
-            shear_rigidity(secd), drilling_rigidity(secd), Xd...)
+        Kd = Asap._shell_stiffness_d(secd, Xd, el.drilling)   # per-edge drilling lumping (process!)
         w = _dpart.(Kd) * ue
         for l in lj
             w = w + _dpart.(Asap._shell_fef_global(table[l], secd, Xd))
